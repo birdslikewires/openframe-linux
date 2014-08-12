@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# wipedown v1.00 (23rd April 2014)
+#  Just a very quick clean with a damp cloth.
+
+if [ "$USER" != "root" ]; then
+  echo "Can't clean unless I'm root."
+  exit
+fi
+
+rm -rf /etc/udev/rules.d/70-persistent-cd.rules
+rm -rf /etc/udev/rules.d/70-persistent-net.rules
+touch /etc/udev/rules.d/70-persistent-net.rules
+echo -e "nameserver 8.8.8.8\nnameserver 8.8.4.4" > /etc/resolv.conf
+
+if [ "$1" == "reboot" ]; then
+  echo "Reasonably clean. Rebooting..."
+  reboot
+else
+  echo "Reasonably clean. Powering down..."
+  poweroff
+fi

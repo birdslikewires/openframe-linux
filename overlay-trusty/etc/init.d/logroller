@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# logroller v1.01 (24th July 2012)
+#  Backs up logs on tmpfs into a .tgz, just in case.
+
+LOGROLL="/var/logroll.tgz"
+
+[ -f $LOGROLL ] && /bin/rm $LOGROLL
+
+echo -n "Backing up logs to $LOGROLL..."
+/bin/tar zcPf $LOGROLL /var/log &>/dev/null
+echo " done."
+exit 0

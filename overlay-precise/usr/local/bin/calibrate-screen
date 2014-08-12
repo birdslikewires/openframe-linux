@@ -1,0 +1,3 @@
+#!/bin/bash
+mkdir -p /etc/X11/xorg.conf.d
+xinput_calibrator | sed -n '/^Section/,$p' >/etc/X11/xorg.conf.d/99-calibration.conf
