@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofcnc.sh v1.13 (24th January 2014)
+# ofcnc.sh v1.14 (20th August 2014)
 #  Used to clean 'n' copy a Joggler OS from a storage device.
 
 #set -x
@@ -53,7 +53,12 @@ rm -v $JR/etc/udev/rules.d/70-persistent-cd.rules 2>/dev/null
 rm -v $JR/etc/udev/rules.d/70-persistent-net.rules 2>/dev/null
 touch $JR/etc/udev/rules.d/70-persistent-net.rules
 
+echo
+echo "Removing SSH server keys..."
+rm -v /etc/ssh/ssh_host*
+
 # Tidy up /etc/resolv.conf
+echo
 echo "Emptying /etc/resolv.conf..."
 echo -e "nameserver 8.8.8.8\nnameserver 8.8.4.4" > $JR/etc/resolv.conf
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofimgcreate v1.29 (16th July 2014)
+# ofimgcreate v1.31 (27th August 2014)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -85,7 +85,7 @@ KERNELDIR="$8"
 OFF=0
 RSIZE=$(($TSIZE-$BSIZE-$SSIZE))
 
-if [[ "$INSTALL" != "" ]] && [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$#" < 8 ]]; then
+if [[ "$INSTALL" != "" ]] && [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$#" < 8 ]] && [ ! -d "$INSTALL" ]; then
   echo "Overlay and kernel files are required for a working system."
   echo "You will have a raw debootstrap system with no kernel and"
   echo "no OpenFrame customisations."
@@ -125,7 +125,17 @@ if [[ "$FILEWARN" != "0" ]]; then
   rm -v $FILENAME
   sleep 1
 fi
+
 echo
+if [[ "$INSTALL" =~ "tgz" ]]; then
+  echo "Creating image from tarball..."
+elif [[ -d "$INSTALL" ]]; then
+  echo "Creating image from existing directory structure..."
+else
+  echo "Creating image from debootstrap..."
+fi
+echo
+
 echo "Image filename will be: $FILENAME"
 echo
 sleep 1
@@ -336,18 +346,30 @@ if [[ "$INSTALL" != "" ]]; then
     CHECK=1
   fi
 
-  # If we're just copying, just copy.
+  # If we're just copying from a .tgz.
   if [[ "$INSTALL" =~ ".tgz" ]]; then
 	
-	echo
-	echo "DON'T FORGET! Check grub.cfg and fstab match your partition labels!"
-	echo
-    echo "Copying root components from $INSTALL to image..."
+	  echo
+	  echo "DON'T FORGET! Check grub.cfg and fstab match your partition labels!"
+	  echo
+    echo "Copying root contents from $INSTALL to image..."
     TARDIR=`echo $INSTALL | sed 's/\.tgz$//g'`
     tar zxf $INSTALL -C $MP $TARDIR/root --strip-components 2
-    sleep 2
+    sleep 1
     echo "Copying boot contents from $INSTALL to image..."
     tar zxf $INSTALL -C $MP/boot $TARDIR/boot --strip-components 2
+
+  # If we're copying from genuine directory tree.
+  elif [ -d "$INSTALL" ]; then
+    
+    echo
+    echo "DON'T FORGET! Check grub.cfg and fstab match your partition labels!"
+    echo
+    echo "Copying root contents from $INSTALL directory to image..."
+    cp -a $INSTALL/root/. $MP
+    sleep 1
+    echo "Copying boot contents from $INSTALL directory to image..."
+    cp -a $INSTALL/boot/. $MP/boot
 
   # Otherwise, fetch, duplicate, modify and chrootitoot.
   else
@@ -392,9 +414,8 @@ if [[ "$INSTALL" != "" ]]; then
 
         # Replace the placeholders used for apt
         sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list
-        sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/openframe.list
+        sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-jools.list
         sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-emgd.list
-
 
         # Replace the placeholders in fstab
 	      sed -i "s/RNAME/$RNAME/" $BLDLOC/etc/fstab

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# jogclean v1.16 (23rd April 2014)
+# jogclean v1.17 (20th August 2014)
 #  Used to clean a running Joggler.
 
 if [ "$USER" != "root" ]; then
@@ -29,7 +29,7 @@ if [ "$DELDEV" = "y" ] || [ "$2" = "deldev" ]; then
   fi
 
   echo "Removing development packages and source code..."
-  apt-get -y remove dkms eject fakeroot gcc gcc-4.6 libc-dev-bin libc6-dev libgomp1 libquadmath0 libxft2 linux-headers-$KERNEL linux-libc-dev make manpages manpages-dev rt2870sta-dkms x11-utils xbitmaps xterm
+  apt-get -y remove build-essential dkms eject fakeroot gcc libc-dev-bin libc6-dev libgomp1 libquadmath0 libxft2 linux-headers-$KERNEL linux-libc-dev make manpages manpages-dev rt2870sta-dkms x11-utils xbitmaps xterm 2>/dev/null
   echo
 
   if [ -d /lib/modules/$KERNEL/updates/dkms ]; then
@@ -120,33 +120,10 @@ rm -rvf /var/log/udev
 echo > /var/log/wtmp
 rm -rvf /var/log/Xorg*
 
-BTRFS=`cat /etc/fstab | grep root | grep -c btrfs`
-if [ $BTRFS -eq 1 ]; then
-  echo
-  echo -n "Would you like to balance the filesystem now? (y/N): "
-  read BALANCE
-  if [ "$BALANCE" = "y" ] || [ "$BALANCE" = "Y" ]; then
-    echo
-    echo "Balancing Btrfs filesystem..."
-    btrfs balance /
-    echo
-  else
-    echo -n "Would you like to balance the filsystem on next boot? (y/N): "
-    read BALANCENEXT
-    if [ "$BALANCE" = "y" ] || [ "$BALANCE" = "Y" ]; then
-      echo "Balance will be performed on next boot."
-      echo
-      echo '# btrfs-balance\n\ndescription "Balances Btrfs on first boot, then erases self."\n\nstart on (local-filesystems)\n\ntask\n\nconsole output\n\nscript\n  echo "Starting background balance of Btrfs..."\n  btrfs balance /\n  rm /etc/init/btrfs-balance.conf\nend script' > /etc/init/btrfs-balance.conf
-    else
-      echo "No filesystem balance will be performed."
-      echo
-    fi
-  fi
-fi
-
+echo
+echo
 df -h
-sleep 6
-
+echo
 echo
 echo "Cleaning complete."
 echo

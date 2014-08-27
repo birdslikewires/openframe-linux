@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# wipedown v1.00 (23rd April 2014)
+# wipedown v1.01 (20th August 2014)
 #  Just a very quick clean with a damp cloth.
 
 if [ "$USER" != "root" ]; then
@@ -8,8 +8,8 @@ if [ "$USER" != "root" ]; then
   exit
 fi
 
-rm -rf /etc/udev/rules.d/70-persistent-cd.rules
-rm -rf /etc/udev/rules.d/70-persistent-net.rules
+rm -rf /etc/udev/rules.d/70-persistent-cd.rules 2>/dev/null
+rm -rf /etc/udev/rules.d/70-persistent-net.rules 2>/dev/null
 touch /etc/udev/rules.d/70-persistent-net.rules
 echo -e "nameserver 8.8.8.8\nnameserver 8.8.4.4" > /etc/resolv.conf
 
