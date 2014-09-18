@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofimgcreate v1.31 (27th August 2014)
+# ofimgcreate v1.32 (18th September 2014)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -67,7 +67,7 @@ TSIZE="$3"
 
 # If 'of1' or 'of2' is given for size, create an image that matches the OpenFrame 1 or 2 internal storage.
 # We fake 1028MB or 2055MB for the calculations, but dd will create an image file of the correct size later.
-if [ "$TSIZE" == "of1" ]; then
+if [[ "$TSIZE" == "of1" ]]; then
 	TSIZE="1028"
 	MMCINT="1028128768"
 elif [[ "$TSIZE" == "of2" ]]; then
@@ -108,7 +108,7 @@ fi
 # Sort out the filenames.
 if [[ "$INSTALL" != "" ]] && [[ "$KERNELDIR" != "" ]]; then
   KERNVER=`ls $KERNELDIR | grep linux-image | awk -F\- '{print $3}' | awk -F\_ '{print $1}'`
-  FILENAME="$INSTALL-$NAME-$FS-$TSIZE-$BSIZE-$KERNVER.img"
+  FILENAME="$NAME-$FS-$TSIZE-$BSIZE-$INSTALL-$KERNVER.img"
 else
   FILENAME="$NAME.$FS.img"
 fi
@@ -359,6 +359,33 @@ if [[ "$INSTALL" != "" ]]; then
     echo "Copying boot contents from $INSTALL to image..."
     tar zxf $INSTALL -C $MP/boot $TARDIR/boot --strip-components 2
 
+    # Set some system defaults for first boot if of1 or of2 specified.
+    if [[ "$TSIZE" == "1028" ]]; then
+      echo
+      echo -n "Configuring OpenFrame 1 first boot defaults..."
+
+      # Ensure that the audio firmware patch is applied.
+      [ ! -f $MP/etc/modprobe.d/of1-stac9202.conf ] && echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202.patch" > $MP/etc/modprobe.d/of1-stac9202.conf
+
+      # We're not bothered about restricting the b43 driver.
+      [ -f $MP/etc/modprobe.d/blacklist-of2-b43.conf ] && rm $MP/etc/modprobe.d/blacklist-of2-b43.conf
+
+      echo " done."
+      echo
+    elif [[ "$TSIZE" == "2055" ]]; then
+      echo
+      echo -n "Configuring OpenFrame 2 first boot defaults..."
+
+      # Ensure that the OF1 audio firmware patch is removed.
+      [ -f $MP/etc/modprobe.d/of1-stac9202.conf ] && rm $MP/etc/modprobe.d/of1-stac9202.conf
+
+      # Ensure that the b43 wireless driver is disabled (we use brcmsmac).
+      [ ! -f $MP/etc/modprobe.d/blacklist-of2-b43.conf ] && echo "blacklist b43" > $MP/etc/modprobe.d/blacklist-of2-b43.conf
+
+      echo " done."
+      echo
+    fi
+
   # If we're copying from genuine directory tree.
   elif [ -d "$INSTALL" ]; then
     
@@ -403,60 +430,60 @@ if [[ "$INSTALL" != "" ]]; then
 	      echo "Preparing system for OpenFrame..."
 
 		  echo
-	      echo "Copying '$OVERLAY'..."
-	      cp -R $OVERLAY/* $BLDLOC
+      echo "Copying '$OVERLAY'..."
+      cp -R $OVERLAY/* $BLDLOC
 
-        # Replace the placeholders in grub.cfg
-	      sed -i "s/UBUNTUVER/$UBUNTUVER/" $BLDLOC/boot/grub.cfg
-	      sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
-	      sed -i "s/RNAME/$RNAME/" $BLDLOC/boot/grub.cfg
-	      sed -i "s/BNAME/$BNAME/" $BLDLOC/boot/grub.cfg
+      # Replace the placeholders in grub.cfg
+      sed -i "s/UBUNTUVER/$UBUNTUVER/" $BLDLOC/boot/grub.cfg
+      sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
+      sed -i "s/RNAME/$RNAME/" $BLDLOC/boot/grub.cfg
+      sed -i "s/BNAME/$BNAME/" $BLDLOC/boot/grub.cfg
 
-        # Replace the placeholders used for apt
-        sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list
-        sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-jools.list
-        sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-emgd.list
+      # Replace the placeholders used for apt
+      sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list
+      sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-jools.list
+      sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-emgd.list
 
-        # Replace the placeholders in fstab
-	      sed -i "s/RNAME/$RNAME/" $BLDLOC/etc/fstab
-	      sed -i "s/BNAME/$BNAME/" $BLDLOC/etc/fstab
-	      sed -i "s/FS/$FS/" $BLDLOC/etc/fstab
-	      sed -i "s/MOUNTOPTS/$MOUNTOPTS/" $BLDLOC/etc/fstab
-	      sed -i "s/CHECK/$CHECK/" $BLDLOC/etc/fstab
+      # Replace the placeholders in fstab
+      sed -i "s/RNAME/$RNAME/" $BLDLOC/etc/fstab
+      sed -i "s/BNAME/$BNAME/" $BLDLOC/etc/fstab
+      sed -i "s/FS/$FS/" $BLDLOC/etc/fstab
+      sed -i "s/MOUNTOPTS/$MOUNTOPTS/" $BLDLOC/etc/fstab
+      sed -i "s/CHECK/$CHECK/" $BLDLOC/etc/fstab
 
-	      if [[ "$SSIZE" > "0" ]]; then
-	        sed -i "s/SNAME/$SNAME/" $BLDLOC/etc/fstab
-	      else
-	        cat $BLDLOC/etc/fstab | grep -v swap > $BLDLOC/etc/fstab.noswap
-	        mv $BLDLOC/etc/fstab.noswap $BLDLOC/etc/fstab
-	      fi
+      if [[ "$SSIZE" > "0" ]]; then
+        sed -i "s/SNAME/$SNAME/" $BLDLOC/etc/fstab
+      else
+        cat $BLDLOC/etc/fstab | grep -v swap > $BLDLOC/etc/fstab.noswap
+        mv $BLDLOC/etc/fstab.noswap $BLDLOC/etc/fstab
+      fi
 
-	      #if [ "$FS" != "btrfs" ]; then
-	      #  rm $BLDLOC/etc/cron.d/btrfs_balance
-	      #  rm $BLDLOC/usr/local/bin/balancecheck
-	      #fi
+      #if [ "$FS" != "btrfs" ]; then
+      #  rm $BLDLOC/etc/cron.d/btrfs_balance
+      #  rm $BLDLOC/usr/local/bin/balancecheck
+      #fi
 
-        # Make sure that the console font isn't changed. I'm not keen on that.
-        sed -i "s/FONTFACE=\"Fixed\"/FONTFACE=\"VGA\"/" $BLDLOC/etc/default/console-setup
+      # Make sure that the console font isn't changed. I'm not keen on that.
+      sed -i "s/FONTFACE=\"Fixed\"/FONTFACE=\"VGA\"/" $BLDLOC/etc/default/console-setup
 
-	      mount --bind /dev $BLDLOC/dev
-	      mount --bind /dev/pts $BLDLOC/dev/pts
-	      mount --bind /proc $BLDLOC/proc
-	      mount --bind /sys $BLDLOC/sys
-	      mount --bind /tmp $BLDLOC/tmp
-	      mount --bind $KERNELDIR $BLDLOC/mnt
+      mount --bind /dev $BLDLOC/dev
+      mount --bind /dev/pts $BLDLOC/dev/pts
+      mount --bind /proc $BLDLOC/proc
+      mount --bind /sys $BLDLOC/sys
+      mount --bind /tmp $BLDLOC/tmp
+      mount --bind $KERNELDIR $BLDLOC/mnt
 
-	      # Chrootitoot.
-        sync
-        sync
-	      if [ -f $BLDLOC/ofprep.sh ]; then
-	        echo
-	        echo "Running ofprep.sh in chroot..."
-	        chroot $BLDLOC /ofprep.sh
-	        sleep 2
-	        rm $BLDLOC/ofprep.sh
-	      fi
-	
+      # Chrootitoot.
+      sync
+      sync
+      if [ -f $BLDLOC/ofprep.sh ]; then
+        echo
+        echo "Running ofprep.sh in chroot..."
+        chroot $BLDLOC /ofprep.sh
+        sleep 2
+        rm $BLDLOC/ofprep.sh
+      fi
+
       sync
       sync
       sleep 5
@@ -486,14 +513,15 @@ if [[ "$INSTALL" != "" ]]; then
 	fi
 
 	echo
-	echo -n "Installing prepared Ubuntu $UBUNTUVER from '$BLDLOC' to image file on '$MP'..."
+	echo -n "Moving prepared Ubuntu $UBUNTUVER from '$BLDLOC' to image file on '$MP'..."
 	rsync -a $BLDLOC/ $MP
-    sleep 2
-    sync
-    sync
+  sleep 2
+  sync
+  sync
+  rm -rf $BLDLOC
 	echo " done."
 	echo
-    sleep 2
+  sleep 2
   
   fi
 
