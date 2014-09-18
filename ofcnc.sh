@@ -55,7 +55,7 @@ touch $JR/etc/udev/rules.d/70-persistent-net.rules
 
 echo
 echo "Removing SSH server keys..."
-rm -v $JR/etc/ssh/ssh_host*
+rm -v $JR/etc/ssh/ssh_host* 2>/dev/null
 
 # Tidy up /etc/resolv.conf
 echo
