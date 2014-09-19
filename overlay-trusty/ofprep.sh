@@ -110,11 +110,11 @@ echo "Installing Intel Firmware Hub module..."
 [ -d /lib/modules/$KERNVER/extra ] || mkdir /lib/modules/$KERNVER/extra
 cp /temp/fh.ko /lib/modules/$KERNVER/extra/
 chmod 644 /lib/modules/$KERNVER/extra/fh.ko
-depmod -a
+depmod -a $KERNVER
 echo
 
 echo "Making initrd..."
-mkinitramfs -o /boot/initrd.img-$KERNVER $KERNVER
+mkinitramfs -o /boot/initrd.img-$KERNVER $KERNVER 2>/dev/null
 sleep 2
 echo
 
