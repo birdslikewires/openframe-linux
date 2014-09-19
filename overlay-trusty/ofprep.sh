@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofprep.sh v1.45 (27th August 2014)
+# ofprep.sh v1.46 (19th September 2014)
 #  Set up the basics.
 
 #set -x
@@ -110,6 +110,7 @@ echo "Installing Intel Firmware Hub module..."
 [ -d /lib/modules/$KERNVER/extra ] || mkdir /lib/modules/$KERNVER/extra
 cp /temp/fh.ko /lib/modules/$KERNVER/extra/
 chmod 644 /lib/modules/$KERNVER/extra/fh.ko
+depmod -a
 echo
 
 echo "Making initrd..."
