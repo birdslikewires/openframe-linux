@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofimgcreate v1.32 (18th September 2014)
+# ofimgcreate v1.33 (19th September 2014)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -64,6 +64,7 @@ if [ "$FS" == "btrfs" ]; then
 fi
 
 TSIZE="$3"
+OFVARIANT="$3"
 
 # If 'of1' or 'of2' is given for size, create an image that matches the OpenFrame 1 or 2 internal storage.
 # We fake 1028MB or 2055MB for the calculations, but dd will create an image file of the correct size later.
@@ -360,7 +361,7 @@ if [[ "$INSTALL" != "" ]]; then
     tar zxf $INSTALL -C $MP/boot $TARDIR/boot --strip-components 2
 
     # Set some system defaults for first boot if of1 or of2 specified.
-    if [[ "$TSIZE" == "1028" ]]; then
+    if [[ "$OFVARIANT" == "of1" ]]; then
       echo
       echo -n "Configuring OpenFrame 1 first boot defaults..."
 
@@ -372,7 +373,7 @@ if [[ "$INSTALL" != "" ]]; then
 
       echo " done."
       echo
-    elif [[ "$TSIZE" == "2055" ]]; then
+    elif [[ "$OFVARIANT" == "of2" ]]; then
       echo
       echo -n "Configuring OpenFrame 2 first boot defaults..."
 
@@ -435,9 +436,16 @@ if [[ "$INSTALL" != "" ]]; then
 
       # Replace the placeholders in grub.cfg
       sed -i "s/UBUNTUVER/$UBUNTUVER/" $BLDLOC/boot/grub.cfg
+
+      if [[ "$OFVARIANT" == "of1" ]] || [[ "$OFVARIANT" == "of2" ]]; then
+        sed -i "s/KERNVERLABEL/$KERNVER (Internal)/" $BLDLOC/boot/grub.cfg
+        sed -i "s/LABEL=RNAME/\/dev\/mmcblk0p2/" $BLDLOC/boot/grub.cfg
+      else
+        sed -i "s/KERNVERLABEL/$KERNVER/" $BLDLOC/boot/grub.cfg
+        sed -i "s/RNAME/$RNAME/" $BLDLOC/boot/grub.cfg
+      fi
+
       sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
-      sed -i "s/RNAME/$RNAME/" $BLDLOC/boot/grub.cfg
-      sed -i "s/BNAME/$BNAME/" $BLDLOC/boot/grub.cfg
 
       # Replace the placeholders used for apt
       sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list
@@ -445,11 +453,18 @@ if [[ "$INSTALL" != "" ]]; then
       sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-emgd.list
 
       # Replace the placeholders in fstab
-      sed -i "s/RNAME/$RNAME/" $BLDLOC/etc/fstab
-      sed -i "s/BNAME/$BNAME/" $BLDLOC/etc/fstab
+ 
       sed -i "s/FS/$FS/" $BLDLOC/etc/fstab
       sed -i "s/MOUNTOPTS/$MOUNTOPTS/" $BLDLOC/etc/fstab
       sed -i "s/CHECK/$CHECK/" $BLDLOC/etc/fstab
+
+      if [[ "$OFVARIANT" == "of1" ]] || [[ "$OFVARIANT" == "of2" ]]; then
+        sed -i "s/LABEL=RNAME/\/dev\/mmcblk0p2/" $BLDLOC/etc/fstab
+        sed -i "s/LABEL=BNAME/\/dev\/mmcblk0p1/" $BLDLOC/etc/fstab
+      else
+        sed -i "s/RNAME/$RNAME/" $BLDLOC/etc/fstab
+        sed -i "s/BNAME/$BNAME/" $BLDLOC/etc/fstab
+      fi
 
       if [[ "$SSIZE" > "0" ]]; then
         sed -i "s/SNAME/$SNAME/" $BLDLOC/etc/fstab
