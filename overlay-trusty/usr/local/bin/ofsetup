@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofsetup v1.21 (20th August 2014)
+# ofsetup v1.22 (3rd November 2014)
 #  Installs and configures various additional components to a running OpenFrame.
 
 #set -x
@@ -46,7 +46,7 @@ if [[ "$INSTALLTYPE" == "emgd" ]]; then
 	echo -e "## Disable the GMA500 kernel driver\nblacklist gma500_gfx" > /etc/modprobe.d/blacklist-gma500.conf
 else
 	mkdir -p /etc/apt/preferences.d/disabled 2>/dev/null
-	[ -f /etc/X11/xorg.conf ] && mv /etc/X11/xorg.conf /etc/X11/xorg.conf.emgd
+	[ -f /etc/X11/xorg.conf.gma500 ] && mv /etc/X11/xorg.conf.gma500 /etc/X11/xorg.conf
 	[ -f /etc/apt/preferences.d/openframe-emgd.pref ] && mv /etc/apt/preferences.d/openframe-emgd.pref /etc/apt/preferences.d/disabled/
 	[ -f /etc/apt/preferences.d/xorg.pref ] && mv /etc/apt/preferences.d/xorg.pref /etc/apt/preferences.d/disabled/
 	[ -f /etc/apt/sources.list.d/openframe-emgd.list ] && mv /etc/apt/sources.list.d/openframe-emgd.list /etc/apt/sources.list.d/disabled/

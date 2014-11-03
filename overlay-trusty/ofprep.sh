@@ -52,7 +52,7 @@ apt-get -y --force-yes dist-upgrade
 
 # Here is where we add things to make a nice base.
 # NB.		nfs-common 		- DO NOT add nfs-common here. It stuffs up rebooting and has to be installed once the system is live.
-apt-get -y --force-yes install acpi alsa-base alsa-utils bash-completion dosfstools i2c-tools libbsd0 libedit2 libmad0 libpango1.0-0 libvorbisidec1 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 linux-firmware nano openssh-server parted patch pciutils psmisc rsync ssh sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unzip usbmount wget wpasupplicant wireless-tools xauth x11-xserver-utils zlibc
+apt-get -y --force-yes install acpi alsa-base alsa-utils bash-completion dosfstools i2c-tools libbsd0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libmad0 libpango1.0-0 libvorbisidec1 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 linux-firmware nano openssh-server parted patch pciutils psmisc rsync ssh sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unzip usbmount wget wpasupplicant wireless-tools xauth x11-xserver-utils zlibc
 
 echo
 sleep 2
