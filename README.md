@@ -4,6 +4,12 @@ Ubuntu for OpenFrame
 These are the scripts and overlays which I use to create debootstrapped operating systems for OpenFrame devices, notably the OpenFrame 1 (sold in the UK as the O2 Joggler) and OpenFrame 2.
 
 
+ofcnc.sh
+--------
+
+Some things are best done on a running Joggler (eg. compiling drivers) so this script provides a handy method of copying everything back from a device for packaging up into a .tgz. That .tgz can then magically be used by __ofimgcreate.sh__ to generate another new image.
+
+
 ofimgcreate.sh
 --------------
 
@@ -24,9 +30,8 @@ The [vanilla kernel](http://kernel.org "kernel.org") will work, just not very we
 If you require snazzy video functionality, you'll need either the 3.2 kernel and some luck, or just [go and download BuZz's precompiled images](http://joggler.exotica.org.uk).
 
 
-ofcnc.sh
---------
+ofimgmnt.sh
+-----------
 
-Some things are best done on a running Joggler (eg. compiling drivers) so this script provides a handy method of copying everything back from a device for packaging up into a .tgz. That .tgz can then magically be used by __ofimgcreate.sh__ to generate another new image.
+Used to mount image files for minor tweaks, meaning we don't need to rebuild things every time.
 
-Snazzy, huh? ;)
