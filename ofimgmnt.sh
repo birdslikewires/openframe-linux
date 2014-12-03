@@ -1,13 +1,14 @@
 #!/bin/bash
 
-# ofimgmnt.sh v1.01 (3rd December 2014)
+# ofimgmnt.sh v1.02 (3rd December 2014)
 #  For mounting an image file.
 
 #set -x
 
 # Which loops to use.
 BL=`losetup -f | awk -F\loop {'print $2'}`
-RL=$((FLOOP+1))
+[ $BL -lt 4 ] && BL=4
+RL=$((BL+1))
 
 ## Checks
 
