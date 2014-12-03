@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofimgcreate v1.34 (3rd December 2014)
+# ofimgcreate v1.35 (3rd December 2014)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -19,24 +19,21 @@ countdown() {
   printf "\b\b\b\bnow..."
 }
 
-if [[ "$#" < 4 ]]; then
-  echo "Usage: $0 <name> <filesystem> <totalMB> <bootMB> <swapMB> [ <tgz|dbsver> [overlay] [kerneldir] ]"
+if [[ "$#" < 6 ]]; then
+  echo "Usage: $0 <name> <filesystem> <totalMB> <bootMB> <swapMB> <source> [overlay] [kerneldir]"
   echo
-  echo "Required:"
+  echo "  name:            System name. Will be used for filename and partition prefix."
+  echo "  filesystem:      Choose from ext2, ext4 or btrfs."
+  echo "  totalMB:         The total size of the image file; specify 'of1' or 'of2' for respective internal MMC."
+  echo "  bootMB:          The size of the FAT16 boot volume (32MB minimum)."
+  echo "  swapMB:          The size of the swap partition. Enter 0 for no swap."
+  echo "  source:          Source of operating system. You have three options here:"
+  echo "                      1) Give an official Ubuntu release name, eg. 'trusty'."
+  echo "                      2) Point to a local path containing boot and root structures."
+  echo "                      3) Point to a local .tgz file containing boot and root structures."
   echo
-  echo "name:            System name. Will be used for filename and partition prefix."
-  echo "filesystem:      Choose from ext2, ext4 or btrfs."
-  echo "totalMB:         The total size of the image file; specify 'of1' or 'of2' for respective internal MMC."
-  echo "bootMB:          The size of the FAT16 boot volume (32MB minimum)."
-  echo "swapMB:          The size of the swap partition. Enter 0 for no swap."
-  echo
-  echo "Optional:"
-  echo
-  echo "tgz|dbsver:      Extract a .tgz onto the image. Must contain 'boot' and 'root' directories."
-  echo "                   OR"
-  echo "                 Name of release to be installed with debootstrap (eg. lucid)."
-  echo "overlay:         Directory containing overlay files to be copied (debootstrap use only)."
-  echo "kerneldir:       Directory containing linux-image and linux-header packages (debootstrap use only)."
+  echo "  overlay:         Location of overlay files to be copied (required when using Ubuntu release name as source)."
+  echo "  kerneldir:       Location of linux-image and linux-header packages (required when using Ubuntu release name as source)."
   echo
   exit 0
 fi
@@ -59,7 +56,7 @@ if [ "$FS" == "ext3" ]; then
 	FS="ext4"
 fi
 if [ "$FS" == "btrfs" ]; then
-  echo "Our btrfs is currently broken. Setting to ext2 instead."
+  echo "Our btrfs methods are broken. Setting to ext2 instead."
   FS="ext2"
 fi
 
@@ -111,8 +108,12 @@ if [[ "$INSTALL" != "" ]] && [[ "$KERNELDIR" != "" ]]; then
   KERNVER=`ls $KERNELDIR | grep linux-image | awk -F\- '{print $3}' | awk -F\_ '{print $1}'`
   FILENAME="$NAME-$FS-$TSIZE-$BSIZE-$INSTALL-$KERNVER.img"
 else
-  TGZNAME=`echo $INSTALL | awk -F\. {'print $1'}`
-  FILENAME="$TGZNAME"_"$OFVARIANT".img
+  if [[ "$INSTALL" =~ "tgz" ]]; then
+    CLONENAME=`echo $INSTALL | awk -F\. {'print $1'}`
+  else
+    CLONENAME="$NAME"
+  fi
+  FILENAME="$CLONENAME"_"$OFVARIANT".img
 fi
 
 FILEWARN=`ls | grep -c $FILENAME`
@@ -132,7 +133,7 @@ echo
 if [[ "$INSTALL" =~ "tgz" ]]; then
   echo "Creating image from tarball..."
 elif [[ -d "$INSTALL" ]]; then
-  echo "Creating image from existing directory structure..."
+  echo "Creating image from existing directory structure contained in $INSTALL..."
 else
   echo "Creating image from debootstrap..."
 fi
@@ -143,8 +144,8 @@ echo
 sleep 1
 
 # Set up the debootstrap cache and build directory names.
-DBSLOC=$6"_dbscache"
-BLDLOC=$6"-"$NAME"-openframe-"$KERNVER
+DBSLOC=$INSTALL"_dbscache"
+BLDLOC=$INSTALL"-"$NAME"-openframe-"$KERNVER
 
 # Juggle partition numbers if we've got no swap area.
 if [[ "$SSIZE" == "0" ]]; then
@@ -171,7 +172,7 @@ else
   echo "  root: $RNAME"
   echo "        ("$RSIZE"MB)"
   echo
-  sleep 2
+  sleep 4
 fi
 
 
@@ -219,6 +220,7 @@ loop_delete()
 
 loop_mount()
 {
+  
   loop_create 0 1
   loop_create 1 2
   [[ "$SSIZE" > "0" ]] && loop_create 2 3
@@ -391,14 +393,17 @@ if [[ "$INSTALL" != "" ]]; then
   # If we're copying from genuine directory tree.
   elif [ -d "$INSTALL" ]; then
     
+    BOOTLABEL=`ls -1 $INSTALL | grep boot`
+    ROOTLABEL=`ls -1 $INSTALL | grep root`
+
     echo
     echo "DON'T FORGET! Check grub.cfg and fstab match your partition labels!"
     echo
     echo "Copying root contents from $INSTALL directory to image..."
-    cp -a $INSTALL/root/. $MP
+    cp -a $INSTALL/$ROOTLABEL/. $MP
     sleep 1
     echo "Copying boot contents from $INSTALL directory to image..."
-    cp -a $INSTALL/boot/. $MP/boot
+    cp -a $INSTALL/$BOOTLABEL/. $MP/boot
 
   # Otherwise, fetch, duplicate, modify and chrootitoot.
   else
@@ -547,18 +552,18 @@ if [[ "$INSTALL" != "" ]]; then
 
 fi
 
-INSPECT=n
-echo
-echo
-echo -n "Would you like to hold the image open? (y/N): "
-read -t 10 INSPECT
-if [[ "$INSPECT" == "y" ]] || [[ "$INSPECT" == "Y" ]]; then
-  read -n 1 -p "The image will be held open at $MP until you press a key... " 
-else
-  echo "n"
-fi
-echo
-echo
+# INSPECT=n
+# echo
+# echo
+# echo -n "Would you like to hold the image open? (y/N): "
+# read -t 10 INSPECT
+# if [[ "$INSPECT" == "y" ]] || [[ "$INSPECT" == "Y" ]]; then
+#   read -n 1 -p "The image will be held open at $MP until you press a key... " 
+# else
+#   echo "n"
+# fi
+# echo
+# echo
 
 cleanup $MP
 
