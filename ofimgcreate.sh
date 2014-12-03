@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofimgcreate v1.33 (19th September 2014)
+# ofimgcreate v1.34 (3rd December 2014)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -111,7 +111,8 @@ if [[ "$INSTALL" != "" ]] && [[ "$KERNELDIR" != "" ]]; then
   KERNVER=`ls $KERNELDIR | grep linux-image | awk -F\- '{print $3}' | awk -F\_ '{print $1}'`
   FILENAME="$NAME-$FS-$TSIZE-$BSIZE-$INSTALL-$KERNVER.img"
 else
-  FILENAME="$NAME.$FS.img"
+  TGZNAME=`echo $INSTALL | awk -F\. {'print $1'}`
+  FILENAME="$TGZNAME"_"$OFVARIANT".img
 fi
 
 FILEWARN=`ls | grep -c $FILENAME`
