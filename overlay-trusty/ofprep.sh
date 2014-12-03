@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofprep.sh v1.47 (6th November 2014)
+# ofprep.sh v1.48 (27th November 2014)
 #  Set up the basics.
 
 #set -x
@@ -52,7 +52,9 @@ apt-get -y --force-yes dist-upgrade
 
 # Here is where we add things to make a nice base.
 # NB.		nfs-common 		- DO NOT add nfs-common here. It stuffs up rebooting and has to be installed once the system is live.
-apt-get -y --force-yes install acpi alsa-base alsa-utils bash-completion bc dosfstools i2c-tools libbsd0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libmad0 libpango1.0-0 libvorbisidec1 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 linux-firmware nano openssh-server parted patch pciutils psmisc rsync ssh sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unzip usbmount wget wpasupplicant wireless-tools xauth x11-xserver-utils zlibc
+apt-get install -y --force-yes acpi alsa-base alsa-utils bash-completion bc dosfstools i2c-tools libbsd0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libmad0 libpango1.0-0 libvorbisidec1 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 linux-firmware nano parted patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unzip usbmount wget wpasupplicant wireless-tools xauth x11-xserver-utils zlibc
+apt-get install -y --force-yes ssh openssh-server
+
 
 echo
 sleep 2
@@ -88,9 +90,6 @@ echo "Silence initramfs..."
 sed -i 's/ || echo "Loading, please wait..."//g' /usr/share/initramfs-tools/init
 echo
 
-echo "Remove SSH host keys..."
-rm -v /etc/ssh/ssh_host_*
-echo
 
 
 ## Install the kernel.
@@ -144,6 +143,10 @@ rm -rf /temp
 rm -rf /var/cache/apt/*.bin
 rm -rf /var/lib/apt/lists
 mkdir -p /var/lib/apt/lists/partial
+echo
+
+echo "Remove SSH host keys..."
+rm -v /etc/ssh/ssh_host_*
 echo
 
 echo "Prep complete."

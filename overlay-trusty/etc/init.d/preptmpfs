@@ -1,7 +1,16 @@
 #!/bin/sh
-
-# preptmpfs v1.05 (15th July 2014)
-#  Makes sure there are directories in the tmpfs logging area.
+#
+# preptmpfs v1.06 (27th November 2014)
+#
+### BEGIN INIT INFO
+# Provides:          preptmpfs
+# Required-Start:    $local_fs
+# Required-Stop:
+# Default-Start:     S
+# Default-Stop:
+# Short-Description: Builds tmpfs log dir structure.
+# Description:       Ensures there are directories in tmpfs for logging.
+### END INIT INFO
 
 echo -n "Populating tmpfs..."
 

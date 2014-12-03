@@ -1,7 +1,16 @@
 #!/bin/sh
-
-# logroller v1.01 (24th July 2012)
-#  Backs up logs on tmpfs into a .tgz, just in case.
+#
+# logroller v1.02 (27th November 2014)
+#
+### BEGIN INIT INFO
+# Provides:          logroller
+# Required-Start:    $local_fs
+# Required-Stop:
+# Default-Start:     S
+# Default-Stop:
+# Short-Description: Backs up logs on tmpfs into a .tgz.
+# Description:       Backs up logs on tmpfs into a .tgz, just in case.
+### END INIT INFO
 
 LOGROLL="/var/logroll.tgz"
 
