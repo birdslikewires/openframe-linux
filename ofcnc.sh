@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofcnc.sh v1.15 (17th September 2014)
+# ofcnc.sh v1.16 (13th January 2015)
 #  Used to clean 'n' copy a Joggler OS from a storage device.
 
 #set -x
@@ -48,6 +48,7 @@ rm -rvf $JR/etc/apparmor* 2>/dev/null
 rm -v $JR/etc/*-old 2>/dev/null
 rm -v $JR/etc/init/*_old 2>/dev/null
 rm -v $JR/etc/network/joggler-eth 2>/dev/null
+rm -v $JR/etc/network/mac_eth0 2>/dev/null
 rm -v $JR/etc/sqpbeta 2>/dev/null
 rm -v $JR/etc/udev/rules.d/70-persistent-cd.rules 2>/dev/null
 rm -v $JR/etc/udev/rules.d/70-persistent-net.rules 2>/dev/null
