@@ -19,7 +19,7 @@ fi
 
 if [ "$IFACE" = "eth0" ]; then
 
-	[ -f /etc/network/mac_eth0 ] && COUNTTO=10 || COUNTTO=20
+	[ -f /etc/network/mac_eth0 ] && COUNTTO=10 || COUNTTO=30
 
 	ETHMAC=""
 	COUNT=0

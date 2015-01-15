@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofcnc.sh v1.18 (14th January 2015)
+# ofcnc.sh v1.19 (15th January 2015)
 #  Used to clean 'n' copy a Joggler OS from a storage device.
 
 #set -x
@@ -10,19 +10,19 @@ if [ $USER != "root" ]; then
   exit
 fi
 
+CALLINGUSER=`who am i | awk '{print $1}'`
+
 if [ "$#" -lt 3 ]; then
-  echo "$0 <boot> <root> [destdir] [compress]"
+  echo "$0 <boot> <root> <dest>"
   echo
-  echo "boot:     Boot mountpoint, eg. /media/jog-boot/"
-  echo "root:     Root mountpoint, eg. /media/jog-root/"
-  echo "destdir:  Directory to output filesystem to. Will be created if necessary."
-  echo "compress: Integer 0 or 1. Compresses filesystem and deletes directory."
+  echo "boot:  Boot mountpoint, eg. /media/$CALLINGUSER/jog-boot/"
+  echo "root:  Root mountpoint, eg. /media/$CALLINGUSER/jog-root/"
+  echo "dest:  Name of destination .tgz file."
   exit
 else
   JB="$1"
   JR="$2"
   DS="$3"
-  CM="$4"
 fi
 
 
@@ -79,23 +79,11 @@ rm -rfv $JR/root/.cache 2>/dev/null
 rm -rfv $JR/root/.debtags 2>/dev/null
 rm -rfv $JR/root/.nano_history 2>/dev/null
 
-
 echo
 echo "Removing log files..."
 rm -rfv $JR/var/logroll.tgz 2>/dev/null
 rm -rfv $JR/var/log/* 2>/dev/null
 
-
-if [ "$#" -lt 3 ]; then
-  echo
-  echo "Cleaning complete."
-  exit 0
-fi
-
-
-## Stuff after here only happens if more than 3 arguments passed.
-
-# Now for the copying.
 echo
 echo "Output will be to ./$DS..."
 [ -d $DS ] && rm -rf $DS
@@ -112,13 +100,11 @@ echo " done."
 echo -n "Copying boot..."
 cp -R $JB/* $DS/boot/
 echo " done."
-
-if [ "$CM" == "1" ]; then
-	echo -n "Compressing..."
-	tar zcf $DS.tgz $DS/root $DS/boot
-	sleep 2
-	rm -rf $DS
-	echo " done."
-	echo
-	echo "Compressed to $DS.tgz"
-fi
+echo -n "Compressing..."
+tar zcf $DS.tgz $DS/root $DS/boot
+sleep 2
+rm -rf $DS
+echo " done."
+echo
+echo "Compressed to $DS.tgz"
+exit 0
