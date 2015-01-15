@@ -454,6 +454,7 @@ if [[ "$INSTALL" != "" ]]; then
       sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
 
       # Replace the placeholders used for apt
+      sed -i "s=DBSERVER=$DBSERVER=" $BLDLOC/etc/apt/sources.list
       sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list
       sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-jools.list
       sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-emgd.list

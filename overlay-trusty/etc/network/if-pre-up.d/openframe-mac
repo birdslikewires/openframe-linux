@@ -19,11 +19,13 @@ fi
 
 if [ "$IFACE" = "eth0" ]; then
 
+	[ -f /etc/network/mac_eth0 ] && COUNTTO=10 || COUNTTO=20
+
 	ETHMAC=""
 	COUNT=0
 
 	# Always wait for a wireless card.
-	while [ $COUNT -lt 12 ]; do
+	while [ $COUNT -lt $COUNTTO ]; do
 		if [ -f /tmp/mac_wlan0 ]; then
 			SOMEOCTETS=`cat /tmp/mac_wlan0 | cut -b 4-`
 			ETHMAC="02:$SOMEOCTETS"

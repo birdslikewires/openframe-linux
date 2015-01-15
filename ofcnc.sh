@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofcnc.sh v1.16 (13th January 2015)
+# ofcnc.sh v1.18 (14th January 2015)
 #  Used to clean 'n' copy a Joggler OS from a storage device.
 
 #set -x
@@ -52,7 +52,6 @@ rm -v $JR/etc/network/mac_eth0 2>/dev/null
 rm -v $JR/etc/sqpbeta 2>/dev/null
 rm -v $JR/etc/udev/rules.d/70-persistent-cd.rules 2>/dev/null
 rm -v $JR/etc/udev/rules.d/70-persistent-net.rules 2>/dev/null
-touch $JR/etc/udev/rules.d/70-persistent-net.rules
 
 echo
 echo "Removing SSH server keys..."
@@ -73,6 +72,7 @@ rm -rfv $JR/home/joggler/.debtags 2>/dev/null
 rm -rfv $JR/home/joggler/.nano_history 2>/dev/null
 rm -rfv $JR/home/joggler/.sudo_as_admin_successful 2>/dev/null
 rm -rfv $JR/home/joggler/.squeezeplay 2>/dev/null
+rm -rfv $JR/home/joggler/* 2>/dev/null
 rm -rfv $JR/root/.aptitude 2>/dev/null
 rm -rfv $JR/root/.bash_history 2>/dev/null
 rm -rfv $JR/root/.cache 2>/dev/null

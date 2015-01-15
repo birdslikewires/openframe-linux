@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# jogclean v1.17 (20th August 2014)
+# jogclean v1.19 (14th January 2015)
 #  Used to clean a running Joggler.
 
 if [ "$USER" != "root" ]; then
@@ -16,8 +16,6 @@ if [ "$1" != "auto" ]; then
   echo
   echo -n "Should we remove development packages and source code? (y/N): "
   read DELDEV
-  echo -n "Should we remove SSH server keys? (y/N): "
-  read DELSSH
 fi
 
 if [ "$DELDEV" = "y" ] || [ "$2" = "deldev" ]; then
@@ -42,11 +40,9 @@ if [ "$DELDEV" = "y" ] || [ "$2" = "deldev" ]; then
   depmod -a
 fi
 
-if [ "$DELSSH" = "y" ] || [ "$2" = "delssh" ]; then
-  echo
-  echo "Removing SSH server keys..."
-  rm /etc/ssh/ssh_host*
-fi
+echo
+echo "Removing SSH server keys..."
+rm /etc/ssh/ssh_host*
 
 echo
 echo "Tidying the package manager..."
@@ -69,10 +65,10 @@ rm -rvf /etc/apparmor*
 rm -rvf /etc/*-old
 rm -rvf /etc/init/*_old
 rm -rvf /etc/network/joggler-eth
+rm -rvf /etc/network/mac_eth0
 rm -rvf /etc/sqpbeta
 rm -rvf /etc/udev/rules.d/70-persistent-cd.rules
 rm -rvf /etc/udev/rules.d/70-persistent-net.rules
-touch /etc/udev/rules.d/70-persistent-net.rules
 
 # Tidy up /etc/resolv.conf
 echo "Emptying /etc/resolv.conf..."
