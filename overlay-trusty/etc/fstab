@@ -11,6 +11,6 @@ none     /var/cache/apt       tmpfs   noatime,size=256M     0    0
 none     /var/lib/apt/lists   tmpfs   noatime,size=256M     0    0
 none     /var/log             tmpfs   noatime,size=16M      0    0
 
-LABEL=RNAME   /       FS    MOUNTOPTS   0       CHECK
-LABEL=BNAME   /boot   vfat    defaults                    0    0
-LABEL=SNAME   none    swap    sw                          0    0
+LABEL=RNAME   /       FS    MOUNTOPTS   0    CHECK
+LABEL=BNAME   /boot   vfat    defaults                          0    0
+LABEL=SNAME   none    swap    sw                                0    0

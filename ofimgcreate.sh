@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofimgcreate v1.35 (3rd December 2014)
+# ofimgcreate v1.36 (16th January 2015)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -267,6 +267,50 @@ filesystems_create()
   sleep 2
 }
 
+mmc_cfg() {
+  if [[ "$OFVARIANT" == "of1" ]] || [[ "$OFVARIANT" == "of2" ]]; then
+    echo
+    echo -n "Configuring internal memory GRUB and FSTAB settings..."
+
+    # Hard-link /etc/fstab to the internal memory.
+    EXISTINGROOTLOCATION=`cat $MP/etc/fstab | grep $FS | awk -F\  {'print $1'}`
+    sed -i "s,$EXISTINGROOTLOCATION,/dev/mmcblk0p2," $MP/etc/fstab
+    EXISTINGBOOTLOCATION=`cat $MP/etc/fstab | grep "/boot" | awk -F\  {'print $1'}`
+    sed -i "s,$EXISTINGBOOTLOCATION,/dev/mmcblk0p1," $MP/etc/fstab
+
+    # Hard-link /boot/grub.cfg to the internal memory.
+    sed -i "s,$EXISTINGROOTLOCATION,/dev/mmcblk0p2," $MP/boot/grub.cfg 
+
+    echo " done."
+  fi
+
+  # Set some system defaults for first boot if of1 or of2 specified.
+  if [[ "$OFVARIANT" == "of1" ]]; then
+    echo -n "Configuring internal OpenFrame 1 first boot defaults..."
+
+    # Ensure that the audio firmware patch is applied.
+    [ ! -f $MP/etc/modprobe.d/of1-stac9202.conf ] && echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202.patch" > $MP/etc/modprobe.d/of1-stac9202.conf
+
+    # We're not bothered about restricting the b43 driver.
+    [ -f $MP/etc/modprobe.d/blacklist-of2-b43.conf ] && rm $MP/etc/modprobe.d/blacklist-of2-b43.conf
+
+    echo " done."
+    echo
+  elif [[ "$OFVARIANT" == "of2" ]]; then
+    echo
+    echo -n "Configuring internal OpenFrame 2 first boot defaults..."
+
+    # Ensure that the OF1 audio firmware patch is removed.
+    [ -f $MP/etc/modprobe.d/of1-stac9202.conf ] && rm $MP/etc/modprobe.d/of1-stac9202.conf
+
+    # Ensure that the b43 wireless driver is disabled (we use brcmsmac).
+    [ ! -f $MP/etc/modprobe.d/blacklist-of2-b43.conf ] && echo "blacklist b43" > $MP/etc/modprobe.d/blacklist-of2-b43.conf
+
+    echo " done."
+    echo
+  fi
+}
+
 cleanup() {
   trap '' INT
   sleep 5
@@ -362,33 +406,7 @@ if [[ "$INSTALL" != "" ]]; then
     sleep 1
     echo "Copying boot contents from $INSTALL to image..."
     tar zxf $INSTALL -C $MP/boot $TARDIR/boot --strip-components 2
-
-    # Set some system defaults for first boot if of1 or of2 specified.
-    if [[ "$OFVARIANT" == "of1" ]]; then
-      echo
-      echo -n "Configuring OpenFrame 1 first boot defaults..."
-
-      # Ensure that the audio firmware patch is applied.
-      [ ! -f $MP/etc/modprobe.d/of1-stac9202.conf ] && echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202.patch" > $MP/etc/modprobe.d/of1-stac9202.conf
-
-      # We're not bothered about restricting the b43 driver.
-      [ -f $MP/etc/modprobe.d/blacklist-of2-b43.conf ] && rm $MP/etc/modprobe.d/blacklist-of2-b43.conf
-
-      echo " done."
-      echo
-    elif [[ "$OFVARIANT" == "of2" ]]; then
-      echo
-      echo -n "Configuring OpenFrame 2 first boot defaults..."
-
-      # Ensure that the OF1 audio firmware patch is removed.
-      [ -f $MP/etc/modprobe.d/of1-stac9202.conf ] && rm $MP/etc/modprobe.d/of1-stac9202.conf
-
-      # Ensure that the b43 wireless driver is disabled (we use brcmsmac).
-      [ ! -f $MP/etc/modprobe.d/blacklist-of2-b43.conf ] && echo "blacklist b43" > $MP/etc/modprobe.d/blacklist-of2-b43.conf
-
-      echo " done."
-      echo
-    fi
+    mmc_cfg
 
   # If we're copying from genuine directory tree.
   elif [ -d "$INSTALL" ]; then
@@ -404,6 +422,7 @@ if [[ "$INSTALL" != "" ]]; then
     sleep 1
     echo "Copying boot contents from $INSTALL directory to image..."
     cp -a $INSTALL/$BOOTLABEL/. $MP/boot
+    mmc_cfg
 
   # Otherwise, fetch, duplicate, modify and chrootitoot.
   else
