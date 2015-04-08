@@ -1,6 +1,6 @@
 #! /bin/bash
 
-## offlash v1.11 (21st August 2014) by Andy Davison
+## offlash v1.13 (8th April 2015) by Andy Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
 
 COLOUR=6
@@ -26,7 +26,7 @@ header() {
 	echo
 	echo
 	tput setaf $COLOUR
-	echo "                                                                 OpenFrame Reflash System v1.11"
+	echo "                                                                 OpenFrame Reflash System v1.13"
 	[ $DEBUG -eq 0 ] && echo "==============================================================================================="
 	[ $DEBUG -ne 0 ] && echo "====== DEBUG =================================================================================="
 	echo "                                                                           birdslikewires.co.uk"

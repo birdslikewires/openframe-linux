@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofimgmnt.sh v1.02 (3rd December 2014)
+# ofimgmnt.sh v1.03 (8th April 2015)
 #  For mounting an image file.
 
 #set -x
@@ -51,6 +51,7 @@ RMP="/tmp/image-$RND/root" && mkdir -p $RMP
 
 cleanup() {
   trap '' INT
+  umount $RMP/boot
   umount $BMP
   umount $RMP
   rm -rf /tmp/image-$RND
@@ -68,6 +69,7 @@ losetup /dev/loop$RL --offset $ROFF --sizelimit $RSZE "$1"
 
 mount -t vfat /dev/loop$BL $BMP
 mount -t $RTYP /dev/loop$RL $RMP
+mount -t vfat /dev/loop$BL $RMP/boot
 
 read -n 1 -p "The image will be held open at /tmp/image-$RND until you press a key... "
 

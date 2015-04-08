@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofprep.sh v1.48 (27th November 2014)
+# ofprep.sh v1.49 (8th April 2015)
 #  Set up the basics.
 
 #set -x
@@ -105,12 +105,14 @@ echo "Installing kernel $KERNVER..."
 dpkg -i /mnt/linux-*.deb
 echo
 
-echo "Installing Intel Firmware Hub module..."
-[ -d /lib/modules/$KERNVER/extra ] || mkdir /lib/modules/$KERNVER/extra
-cp /temp/fh.ko /lib/modules/$KERNVER/extra/
-chmod 644 /lib/modules/$KERNVER/extra/fh.ko
-depmod -a $KERNVER
-echo
+if [ -f /mnt/fh.ko ]; then
+	echo "Installing Intel Firmware Hub module..."
+	[ -d /lib/modules/$KERNVER/extra ] || mkdir /lib/modules/$KERNVER/extra
+	cp /mnt/fh.ko /lib/modules/$KERNVER/extra/
+	chmod 644 /lib/modules/$KERNVER/extra/fh.ko
+	depmod -a $KERNVER
+	echo
+fi
 
 echo "Making initrd..."
 mkinitramfs -o /boot/initrd.img-$KERNVER $KERNVER 2>/dev/null

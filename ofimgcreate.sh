@@ -5,8 +5,8 @@
 
 #set -x
 
-#DBSERVER="http://archive.ubuntu.com/ubuntu/"
-DBSERVER="http://ubuntu.datahop.net/ubuntu/"
+DBSERVER="http://archive.ubuntu.com/ubuntu/"
+#DBSERVER="http://ubuntu.datahop.net/ubuntu/"
 
 countdown() {
   local i
@@ -316,7 +316,7 @@ cleanup() {
   sleep 5
   umount $MP/boot
   if [[ "$OVERLAY" != "" ]] && [[ "$KERNELDIR" != "" ]]; then
-      umount $BLDLOC/mnt
+    umount $BLDLOC/mnt
 	  umount $BLDLOC/tmp
 	  umount $BLDLOC/sys
 	  umount $BLDLOC/proc
