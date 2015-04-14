@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofprep.sh v1.49 (8th April 2015)
+# ofprep.sh v1.50 (14th April 2015)
 #  Set up the basics.
 
 #set -x
@@ -62,7 +62,7 @@ sleep 2
 echo "Clarify permissions..."
 chown root:root /home
 chown -R $OPENFRAMEUSER:$OPENFRAMEUSER /home/$OPENFRAMEUSER /home/$OPENFRAMEUSER/.*
-chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo
+chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo /usr/sbin/ntpdate
 chown root:root /usr/local/bin/*
 chmod 755 /usr/local/bin/*
 
