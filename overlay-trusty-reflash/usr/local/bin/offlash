@@ -78,7 +78,7 @@ droptoshell() {
 		NETWORKUP=1
 		echo " network ready."
 		echo -n "Fetching network time..."
-		ntpdate ntp2a.mcc.ac.uk ntp2b.mcc.ac.uk ntp2c.mcc.ac.uk ntp2d.mcc.ac.uk 2>&1 >/dev/null
+		ntpdate 0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org 2>&1 >/dev/null
 		echo " done."
 		echo
 		countdown "Dropping to shell" $1
