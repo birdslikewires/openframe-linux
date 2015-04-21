@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofprep.sh v1.50 (14th April 2015)
+# ofprep.sh v1.51 (21st April 2015)
 #  Set up the basics.
 
 #set -x
@@ -36,6 +36,15 @@ adduser $OPENFRAMEUSER video
 sed -i "s/OPENFRAMEUSER/$OPENFRAMEUSER/" /etc/init/tty1.conf_autologin
 echo "%admin ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 echo
+
+echo "Configuring /etc/resolv.conf..."
+echo -e "nameserver 8.8.8.8\nnameserver 8.8.4.4" > /etc/resolv.conf
+
+echo "Waiting for network..."
+until ping -c 3 keyserver.ubuntu.com &>/dev/null
+do
+	sleep 1
+done
 
 # This sets xterm to use the whole screen with white-on-black colouration.
 echo "Setting terminal basics..."
@@ -135,9 +144,6 @@ echo "Linking startup and shutdown scripts..."
 ln -s /etc/init.d/preptmpfs /etc/rc2.d/S10preptmpfs
 ln -s /etc/init.d/logroller /etc/rc0.d/S20logroller
 ln -s /etc/init.d/logroller /etc/rc6.d/S20logroller
-
-echo "Defaulting /etc/resolv.conf..."
-echo -e "nameserver 8.8.8.8\nnameserver 8.8.4.4" > /etc/resolv.conf
 
 echo "Cleaning..."
 rm -rf /etc/apparmor*

@@ -520,6 +520,7 @@ if [[ "$INSTALL" != "" ]]; then
       if [ -f $BLDLOC/ofprep.sh ]; then
         echo
         echo "Running ofprep.sh in chroot..."
+        sleep 2
         chroot $BLDLOC /ofprep.sh
         sleep 2
         rm $BLDLOC/ofprep.sh
