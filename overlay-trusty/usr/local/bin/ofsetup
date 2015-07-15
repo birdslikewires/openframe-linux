@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofsetup v1.22 (3rd November 2014)
+# ofsetup v1.23 (15th July 2015)
 #  Installs and configures various additional components to a running OpenFrame.
 
 #set -x
@@ -10,7 +10,8 @@ if [ "$USER" != "root" ]; then
   exit 1
 fi
 
-KERNELVER=`uname -r | awk -F\. {'print $2'}`
+KERNELMAJVER=`uname -r | awk -F\. {'print $1'}`
+KERNELMINVER=`uname -r | awk -F\. {'print $2'}`
 
 if [ $# -eq 0 ]; then
 	INSTALLTYPE="basic"
@@ -62,17 +63,18 @@ if [[ ! "$INSTALLTYPE" == "basic" ]]; then
 fi
 
 
-# Install the wireless driver from Realtek for the RT2770F USB card used in the OpenFrame 1 if kernel is older than 3.14.
-if [ $KERNELVER -lt 14 ]; then
-	echo "Installing Realtek wireless driver..."
-	sleep 2
-	echo
-	[ ! -f /etc/apt/preferences.d/openframe-jools.pref ] && mv /etc/apt/preferences.d/disabled/openframe-jools.pref /etc/apt/preferences.d/
-	[ ! -f /etc/apt/sources.list.d/openframe-jools.list ] && mv /etc/apt/sources.list.d/disabled/openframe-jools.list /etc/apt/sources.list.d/
-	apt-get update
-	apt-get -y install rt2870sta-dkms
-	echo
-fi
+## Jool's repo is disabled at the moment, so this wouldn't work anyway. If we need this back, build a new image and pop the repo back in.
+# # Install the wireless driver from Realtek for the RT2770F USB card used in the OpenFrame 1 if kernel is older than 3.14.
+# if [ $KERNELMAJVER -lt 4 ] && [ $KERNELMINVER -lt 14 ]; then
+# 	echo "Installing Realtek wireless driver..."
+# 	sleep 2
+# 	echo
+# 	[ ! -f /etc/apt/preferences.d/openframe-jools.pref ] && mv /etc/apt/preferences.d/disabled/openframe-jools.pref /etc/apt/preferences.d/
+# 	[ ! -f /etc/apt/sources.list.d/openframe-jools.list ] && mv /etc/apt/sources.list.d/disabled/openframe-jools.list /etc/apt/sources.list.d/
+# 	apt-get update
+# 	apt-get -y install rt2870sta-dkms
+# 	echo
+# fi
 
 
 # Install appropriate graphics gubbins.

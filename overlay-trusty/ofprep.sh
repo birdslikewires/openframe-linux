@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofprep.sh v1.51 (21st April 2015)
+# ofprep.sh v1.52 (15th July 2015)
 #  Set up the basics.
 
 #set -x
@@ -54,10 +54,11 @@ echo "Running up apt-get..."
 echo
 sleep 4
 # Always trust Jools' PPA.
-apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 92E73EF9
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get -y --force-yes purge resolvconf ureadahead 
-apt-get -y --force-yes dist-upgrade
+#  We're not using this at the moment, so leaving out for now.
+#apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 92E73EF9
+#apt-get update
+#DEBIAN_FRONTEND=noninteractive apt-get -y --force-yes purge resolvconf ureadahead 
+#apt-get -y --force-yes dist-upgrade
 
 # Here is where we add things to make a nice base.
 # NB.		nfs-common 		- DO NOT add nfs-common here. It stuffs up rebooting and has to be installed once the system is live.
