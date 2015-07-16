@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofprep.sh v1.52 (15th July 2015)
+# ofprep.sh v1.53 (16th July 2015)
 #  Set up the basics.
 
 #set -x
@@ -53,12 +53,14 @@ echo
 echo "Running up apt-get..."
 echo
 sleep 4
+
 # Always trust Jools' PPA.
-#  We're not using this at the moment, so leaving out for now.
-#apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 92E73EF9
-#apt-get update
-#DEBIAN_FRONTEND=noninteractive apt-get -y --force-yes purge resolvconf ureadahead 
-#apt-get -y --force-yes dist-upgrade
+apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 92E73EF9
+
+# Update and remove some stuff.
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get -y --force-yes purge resolvconf ureadahead 
+apt-get -y --force-yes dist-upgrade
 
 # Here is where we add things to make a nice base.
 # NB.		nfs-common 		- DO NOT add nfs-common here. It stuffs up rebooting and has to be installed once the system is live.
@@ -79,8 +81,9 @@ chmod 755 /usr/local/bin/*
 echo "Fix filesystem problems automatically on boot..."
 sed -i 's/FSCKFIX=no/FSCKFIX=yes/g' /etc/default/rcS
 
-echo "Allow anyone to start the X server..."
-sed -i 's/allowed_users=console/allowed_users=anybody/g' /etc/X11/Xwrapper.config
+## Did this line ever work? Because the X config stuff wouldn't be installed yet...
+#echo "Allow anyone to start the X server..."
+#sed -i 's/allowed_users=console/allowed_users=anybody/g' /etc/X11/Xwrapper.config
 
 echo "Enable password authentication for root user over SSH..."
 sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
