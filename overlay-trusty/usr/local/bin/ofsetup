@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofsetup v1.23 (15th July 2015)
+# ofsetup v1.24 (17th July 2015)
 #  Installs and configures various additional components to a running OpenFrame.
 
 #set -x
@@ -116,6 +116,11 @@ echo "Unmuting audio output..."
 echo
 /usr/bin/amixer -c 0 sset "Master" 50% unmute
 echo
+
+
+## Anyone should be able to fire up X.
+echo "Loosening X server permissions..."
+sed -i 's/allowed_users=console/allowed_users=anybody/g' /etc/X11/Xwrapper.config
 
 
 ## Clean everything up.

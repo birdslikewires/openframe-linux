@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofprep.sh v1.53 (16th July 2015)
+# ofprep.sh v1.54 (17th July 2015)
 #  Set up the basics.
 
 #set -x
@@ -64,9 +64,13 @@ apt-get -y --force-yes dist-upgrade
 
 # Here is where we add things to make a nice base.
 # NB.		nfs-common 		- DO NOT add nfs-common here. It stuffs up rebooting and has to be installed once the system is live.
-apt-get install -y --force-yes acpi alsa-base alsa-utils bash-completion bc dosfstools i2c-tools libbsd0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libmad0 libpango1.0-0 libvorbisidec1 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 linux-firmware nano parted patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unzip usbmount wget wpasupplicant wireless-tools xauth x11-xserver-utils zlibc
-apt-get install -y --force-yes ssh openssh-server
+# System goodies
 
+APT_SYSTEM="acpi alsa-base alsa-utils bash-completion bc dosfstools i2c-tools libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 linux-firmware nano parted patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unzip usbmount wget wpasupplicant wireless-tools xauth x11-xserver-utils zlibc"
+APT_AUDIO="libmad0 libvorbisidec1 libsoxr0"
+APT_SSH="ssh openssh-server"
+
+apt-get install -y --force-yes "$APT_SYSTEM $APT_AUDIO $APT_SSH"
 
 echo
 sleep 2
@@ -80,10 +84,6 @@ chmod 755 /usr/local/bin/*
 
 echo "Fix filesystem problems automatically on boot..."
 sed -i 's/FSCKFIX=no/FSCKFIX=yes/g' /etc/default/rcS
-
-## Did this line ever work? Because the X config stuff wouldn't be installed yet...
-#echo "Allow anyone to start the X server..."
-#sed -i 's/allowed_users=console/allowed_users=anybody/g' /etc/X11/Xwrapper.config
 
 echo "Enable password authentication for root user over SSH..."
 sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
