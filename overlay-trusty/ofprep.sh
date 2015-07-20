@@ -70,7 +70,7 @@ APT_SYSTEM="acpi alsa-base alsa-utils bash-completion bc dosfstools i2c-tools li
 APT_AUDIO="libmad0 libvorbisidec1 libsoxr0"
 APT_SSH="ssh openssh-server"
 
-apt-get install -y --force-yes "$APT_SYSTEM $APT_AUDIO $APT_SSH"
+apt-get install -y --force-yes $APT_SYSTEM $APT_AUDIO $APT_SSH
 
 echo
 sleep 2
