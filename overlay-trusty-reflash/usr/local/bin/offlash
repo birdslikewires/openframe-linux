@@ -1,6 +1,6 @@
 #! /bin/bash
 
-## offlash v1.13 (8th April 2015) by Andy Davison
+## offlash v1.14 (8th April 2015) by Andy Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
 
 COLOUR=6
@@ -18,10 +18,6 @@ fi
 /usr/bin/amixer -c 0 sset "Master" 20% unmute &>/dev/null
 
 header() {
-
-	setterm -powersave off
-	setterm -blank 0
-
 	clear
 	echo
 	echo
