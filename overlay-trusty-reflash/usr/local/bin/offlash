@@ -163,7 +163,7 @@ if [ $FILECOUNT -eq 2 ] && [ $IMGPRESENT -eq 1 ] && [ $CHKPRESENT -eq 1 ]; then
 		tput setaf 7
 		echo
 		[ $DEBUG -eq 0 ] && MMCDEST="/dev/mmcblk0" || MMCDEST="/dev/null"
-		gzip -dc /boot/reflash/$IMG.img.gz | dd of=$MMCDEST bs=1M
+		gzip -dc /boot/reflash/$IMG.img.gz | dd of=$MMCDEST bs=1M status=progress
 		sleep 1
 
 		/usr/bin/aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
