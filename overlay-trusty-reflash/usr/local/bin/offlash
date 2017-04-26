@@ -15,15 +15,15 @@ header() {
 	echo
 	echo
 	tput setaf $COLOUR
-	echo "                                                                 OpenFrame Reflash System v1.13"
+	echo                     "                                                                 OpenFrame Reflash System v1.14"
 	[ $DEBUG -eq 0 ] && echo "==============================================================================================="
 	[ $DEBUG -ne 0 ] && echo "====== DEBUG =================================================================================="
-	echo "                                                                           birdslikewires.co.uk"
+	echo                     "                                                                           birdslikewires.co.uk"
 	echo
 	tput setab $COLOUR
 	tput setaf 0
-	echo "  This software has the potential to damage your system and is used entirely at your own risk! "
-	echo "  If you find it useful, perhaps you could make a contribution towards hosting & development?  "
+	echo                     "  This software has the potential to damage your system and is used entirely at your own risk! "
+	echo                     "  If you find it useful, perhaps you could make a contribution towards hosting & development?  "
 	tput sgr0
 	echo
 	echo
@@ -86,7 +86,7 @@ shutitdown() {
 
 	echo > /etc/udev/rules.d/70-persistent-net.rules
 
-	if [[ "$GOTOLOGIN" != "" ]]; then
+	if [ "$GOTOLOGIN" != "" ]; then
 		echo
 		prepareforshell 3
 		sleep 1
