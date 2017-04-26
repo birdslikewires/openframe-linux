@@ -10,13 +10,6 @@ DEBUG=0
 
 tput cnorm
 
-if [[ "$USER" != "root" ]]; then
-	echo "Must be run as root."
-	exit 1
-fi
-
-/usr/bin/amixer -c 0 sset "Master" 20% unmute &>/dev/null
-
 header() {
 	clear
 	echo
@@ -112,6 +105,14 @@ shutitdown() {
 	fi
 
 }
+
+# All the following must be done as root
+if [ "$USER" != "root" ]; then
+	echo "Must be run as root."
+	exit 1
+fi
+
+/usr/bin/amixer -c 0 sset "Master" 20% unmute &>/dev/null
 
 header
 
