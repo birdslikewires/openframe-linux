@@ -27,7 +27,6 @@ header() {
 	tput sgr0
 	echo
 	echo
-
 }
 
 countdown() {
@@ -120,6 +119,18 @@ mountpartitions() {
 	fi
 }
 
+if [ -f /boot/ssh-public-key ]; then
+	echo "Installing SSH keys"
+	mkdir -p /root/.ssh /home/joggler/.ssh
+	cp /boot/ssh-public-key /root/.ssh/authorized_keys
+	cp /boot/ssh-public-key /home/joggler/.ssh/authorized_keys
+	chmod 700 /root/.ssh /home/joggler/.ssh
+	chmod 600 /root/.ssh/authorized_keys /home/joggler/.ssh/authorized_keys
+	chown -R root:root /root/.ssh
+	chown -R joggler:joggler /home/joggler/.ssh
+	echo "You can now SSH to this device, if required."
+fi
+
 # If you want to boot to the shell, you don't really need to be root, do you?
 if [ -f /boot/boot-to-shell ]; then
 	prepareforshell 3
@@ -211,6 +222,13 @@ if [ $FILECOUNT -eq 2 ] && [ $IMGPRESENT -eq 1 ] && [ $CHKPRESENT -eq 1 ]; then
 			echo "Copying your config files in-place..."
 			cd /boot/post-install-files
 			cp -Rfv * /tmp/target
+			if [ -f /boot/ssh-public-key ]; then
+				echo "And SSH keys..."
+				mkdir -p /tmp/target/home/joggler/.ssh
+				cp /boot/ssh-public-key /tmp/target/home/joggler/.ssh/authorized_keys
+				chmod 700 /tmp/target/home/joggler/.ssh
+				chmod 600 /tmp/target/home/joggler/.ssh/authorized_keys
+			fi
 			chown -R root:root /tmp/target/root
 			chown -R root:root /tmp/target/etc/apt
 			chown -R joggler:joggler /tmp/target/home/joggler
