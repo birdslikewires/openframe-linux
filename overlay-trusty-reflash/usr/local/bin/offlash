@@ -50,8 +50,7 @@ countdown() {
 	tput cnorm
 }
 
-droptoshell() {
-
+prepareforshell() {
 	counter=15
 	counterest=$((counter*2))
 
@@ -84,11 +83,9 @@ droptoshell() {
 		tput sgr0
 		echo
 	fi
-
 }
 
 shutitdown() {
-
 	tput sgr0
 	echo
 	echo
@@ -98,7 +95,7 @@ shutitdown() {
 
 	if [[ "$GOTOLOGIN" != "" ]]; then
 		echo
-		droptoshell 3
+		prepareforshell 3
 		sleep 1
 		exit 0
 	else
@@ -304,7 +301,7 @@ elif [ $FILECOUNT -eq 2 ] && [ $EFIPRESENT -eq 2 ]; then
 						echo "This system will shortly drop you to a shell prompt and advise you on what to do next."
 						echo
 						sleep 1
-						droptoshell 3
+						prepareforshell 3
 
 						tput setab 3
 						tput setaf 0
