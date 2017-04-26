@@ -205,6 +205,26 @@ if [ $FILECOUNT -eq 2 ] && [ $IMGPRESENT -eq 1 ] && [ $CHKPRESENT -eq 1 ]; then
 		tput sgr0
 		echo
 		echo "Reflashing of the internal memory has completed."
+
+		if [ `find /boot/post-install-files/ -type f | wc -l` -gt 0 ]; then
+			mountpartitions
+			echo "Copying your config files in-place..."
+			cd /boot/post-install-files
+			cp -Rfv * /tmp/target
+			chown -R root:root /tmp/target/root
+			chown -R root:root /tmp/target/etc/apt
+			chown -R joggler:joggler /tmp/target/home/joggler
+			[ -f /tmp/target/opt/softsqueeze ] && chown -R joggler:joggler /tmp/target/opt/softsqueeze
+			echo "Done."
+		fi
+
+		if [ -f /boot/post-install-actions ]; then
+			mountpartitions
+			echo "Running your post-install actions..."
+			cat /boot/post-install-actions | chroot /tmp/target
+			echo "Done."
+		fi
+
 		sleep 1
 		shutitdown $HAPPYSTOP
 
