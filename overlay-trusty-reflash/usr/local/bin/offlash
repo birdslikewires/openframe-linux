@@ -103,13 +103,42 @@ shutitdown() {
 		echo
 		[ $DEBUG -eq 0 ] && poweroff || exit 0
 	fi
-
 }
+
+mountpartitions() {
+	if [ "$PARTITIONS_MOUNTED" == "" ]; then
+		export PARTITIONS_MOUNTED=true
+		echo "Mounting partitions..."
+		mkdir -p /tmp/target
+		mount /dev/mmcblk0p2 /tmp/target
+		mount /dev/mmcblk0p1 /tmp/target/boot
+		mount -B /proc /tmp/target/proc
+		mount -B /dev /tmp/target/dev
+		mount -B /dev/pts /tmp/target/dev/pts
+		mount -B /sys /tmp/target/sys
+		mount -B /run /tmp/target/run
+	fi
+}
+
+# If you want to boot to the shell, you don't really need to be root, do you?
+if [ -f /boot/boot-to-shell ]; then
+	prepareforshell 3
+	bash
+	shutitdown 5
+fi
 
 # All the following must be done as root
 if [ "$USER" != "root" ]; then
 	echo "Must be run as root."
 	exit 1
+fi
+
+# If you need to mount the partitions, then you probably do need to be root :)
+if [ -f /boot/boot-to-recovery ]; then
+	mountpartitions
+	prepareforshell 3
+	chroot /tmp/target
+	shutitdown 5
 fi
 
 /usr/bin/amixer -c 0 sset "Master" 20% unmute &>/dev/null
