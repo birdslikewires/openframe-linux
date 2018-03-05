@@ -1,0 +1,3 @@
+#!/bin/bash
+ntpdate 0.pool.ntp.org &>/dev/null
+ntpdate 1.pool.ntp.org &>/dev/null

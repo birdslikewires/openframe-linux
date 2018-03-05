@@ -1,0 +1,100 @@
+#!/bin/bash
+
+## openframe-identifier v2.01 (5th March 2018)
+##  Identifies what kind of OpenFrame device we're running on.
+
+OPENFRAME="1"
+
+if [ -e /boot/openframe.ver ]; then
+
+	# Look for an override file.
+	OPENFRAME=`cat /boot/openframe.ver | cut -b1`
+	MMCSIZE=""
+	echo "OVERRIDDEN to OpenFrame $OPENFRAME"
+
+else 
+
+	MMC=`/bin/ls -1 /dev/mmcblk* | grep -v "p"`
+
+	if [ "$MMC" != "" ]; then
+
+		MMCCOUNT=`/bin/echo "$MMC" | /usr/bin/wc -l`
+
+		if [ $MMCCOUNT -le 1 ];  then
+
+			# If only one /dev/mmcblk appears, we can use it to identify the unit.
+
+			MMCNUM=`echo "${MMC: -1}"`
+			MMCSIZE=`/sbin/fdisk -l /dev/mmcblk$MMCNUM | grep mmcblk$MMCNUM: | awk -F\  {'print $5'}`
+
+			if [ $MMCSIZE -gt 1028128768 ]; then
+				OPENFRAME=2
+			fi
+
+			if [ $MMCSIZE -gt 0 ]; then
+				echo "OpenFrame $OPENFRAME with "$(($MMCSIZE/1024/1024))" MB internal storage."
+			else
+				echo "Could not identify MMC capacity. Assuming OpenFrame 1."
+			fi
+
+		else
+
+			# If we get more than one, we can't guarantee which is the internal one.
+			echo "Multiple MMC devices found. Assuming OpenFrame 1."
+
+		fi
+
+	else
+
+		echo "Could not identify an MMC device. Assuming OpenFrame 1."
+
+	fi
+
+fi
+
+[ ! $OPENFRAME ] || [ $OPENFRAME -lt 1 ] || [ $OPENFRAME -gt 2 ] && echo "Not a known device." && exit 1
+
+echo $OPENFRAME > /tmp/openframe.ver
+
+if [ "$OPENFRAME" -eq 1 ]; then
+
+	## Here be the OpenFrame 1 tweaks.
+
+	# Ensure that the audio firmware patch is applied.
+	if [ ! -f /etc/modprobe.d/of1-stac9202.conf ]; then
+
+		echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202.patch" > /etc/modprobe.d/of1-stac9202.conf
+		/sbin/alsa force-reload
+
+	fi
+
+	# We're not bothered about restricting the b43 driver.
+	[ -f /etc/modprobe.d/blacklist-of2-b43.conf ] && rm /etc/modprobe.d/blacklist-of2-b43.conf
+
+elif [ "$OPENFRAME" -eq 2 ]; then
+
+	## Here be the OpenFrame 2 tweaks.
+
+	# Ensure that the OpenFrame 1's audio firmware patch is removed.
+	if [ -f /etc/modprobe.d/of1-stac9202.conf ]; then
+		rm /etc/modprobe.d/of1-stac9202.conf
+		/sbin/alsa force-reload
+	fi
+
+	# Ensure that the b43 wireless driver is disabled (we use brcmsmac).
+	if [ ! -f /etc/modprobe.d/blacklist-of2-b43.conf ]; then
+
+		echo "blacklist b43" > /etc/modprobe.d/blacklist-of2-b43.conf
+		/sbin/modprobe -rv b43
+		/sbin/modprobe brcmsmac
+
+	fi
+
+else
+
+	echo "Unable to identify this device. Is it an OpenFrame?"
+	exit 1
+
+fi
+
+exit 0

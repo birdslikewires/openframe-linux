@@ -1,0 +1,9 @@
+[Unit]
+Description=Identify OpenFrame devices at startup.
+
+[Service]
+ExecStart=/usr/sbin/openframe-identifier
+StandardOutput=syslog+console
+
+[Install]
+WantedBy=multi-user.target

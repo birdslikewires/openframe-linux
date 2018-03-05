@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# openframe-mac v1.03 (13th January 2015)
+#  Manages MAC addresses on OpenFrame devices.
+#  We copy the MAC from wlan0 to eth0, but with the local bit set.
+#  If no wlan0 interface is available, we generate a MAC for the eth0 interface.
+
+
+# Ensure udev doesn't join the party.
+[ -f /etc/udev/rules.d/70-persistent-net.rules ] && rm /etc/udev/rules.d/70-persistent-net.rules
+[ -f /etc/udev/rules.d/75-persistent-net-generator.rules ] || touch /etc/udev/rules.d/75-persistent-net-generator.rules
+
+if [ "$IFACE" = "wlan0" ]; then
+
+	WIFIMAC="`ip link show $IFACE | grep "link/ether" | cut -d " " -f6`"
+	[ "$WIFIMAC" != "" ] && echo $WIFIMAC > /tmp/mac_wlan0
+
+fi
+
+if [ "$IFACE" = "eth0" ]; then
+
+	[ -f /etc/network/mac_eth0 ] && COUNTTO=10 || COUNTTO=30
+
+	ETHMAC=""
+	COUNT=0
+
+	# Always wait for a wireless card.
+	while [ $COUNT -lt $COUNTTO ]; do
+		if [ -f /tmp/mac_wlan0 ]; then
+			SOMEOCTETS=`cat /tmp/mac_wlan0 | cut -b 4-`
+			ETHMAC="02:$SOMEOCTETS"
+			echo "Adaptation of wlan0 MAC for eth0 successful after $COUNT seconds." > /tmp/mac_eth0_status
+			break
+		else
+			sleep 1
+			let COUNT+=1
+		fi
+	done
+
+	# Generate only if we fail with wlan0.
+	if [ "$ETHMAC" = "" ]; then
+		if [ -f /etc/network/mac_eth0 ]; then
+			echo "No wlan0 found after $COUNT seconds. Using existing generated MAC address." > /tmp/mac_eth0_status
+			ETHMAC=`cat /etc/network/mac_eth0`
+		else
+			echo "No wlan0 found after $COUNT seconds. Using newly generated MAC address." > /tmp/mac_eth0_status
+			ETHMAC="02:`cat /proc/interrupts | md5sum | sed -r "s/(.{2})/\1:/g; s/^(.{14}).*/\1/"`"
+			echo $ETHMAC > /etc/network/mac_eth0
+		fi
+	fi
+
+	ip link set eth0 address $ETHMAC
+	echo $ETHMAC > /tmp/mac_eth0
+
+fi
+
+exit 0
