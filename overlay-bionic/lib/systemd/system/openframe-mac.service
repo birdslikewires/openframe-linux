@@ -1,10 +1,10 @@
 [Unit]
-Description=Identifies OpenFrame devices at startup.
+Description=OpenFrame MAC address identification
 Before=network-pre.target
 Wants=network-pre.target
 
 [Service]
-ExecStart=/usr/sbin/openframe-identifier
+ExecStart=/usr/sbin/openframe-mac
 StandardOutput=syslog+console
 
 [Install]

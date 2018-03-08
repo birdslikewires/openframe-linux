@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofprep.sh v1.55 (28th February 2018)
+# ofprep.sh v1.57 (8th March 2018)
 #  Set up the basics.
 
 #set -x
@@ -33,18 +33,16 @@ addgroup admin
 adduser $OPENFRAMEUSER admin
 adduser $OPENFRAMEUSER audio
 adduser $OPENFRAMEUSER video
-sed -i "s/OPENFRAMEUSER/$OPENFRAMEUSER/" /etc/init/tty1.conf_autologin
+sed -i "s/OPENFRAMEUSER/$OPENFRAMEUSER/" /etc/systemd/system/getty@tty1.service.d/override.conf
 echo "%admin ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 echo
-
-echo "Configuring /etc/resolv.conf..."
-echo -e "nameserver 8.8.8.8\nnameserver 8.8.4.4" > /etc/resolv.conf
 
 echo "Waiting for network..."
 until ping -c 3 keyserver.ubuntu.com &>/dev/null
 do
 	sleep 1
 done
+echo
 
 # This sets xterm to use the whole screen with white-on-black colouration.
 echo "Setting terminal basics..."
@@ -77,15 +75,21 @@ chown -R $OPENFRAMEUSER:$OPENFRAMEUSER /home/$OPENFRAMEUSER /home/$OPENFRAMEUSER
 chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo /usr/sbin/ntpdate
 chown root:root /usr/local/bin/*
 chmod 755 /usr/local/bin/*
+echo
 
-#echo "Fix filesystem problems automatically on boot..."
-#sed -i 's/FSCKFIX=no/FSCKFIX=yes/g' /etc/default/rcS
+echo "Enable custom systemd services..."
+chmod +x /usr/sbin/openframe-*
+/bin/systemctl enable openframe-identifier
+/bin/systemctl enable openframe-mac
+/bin/systemctl enable openframe-keycheck
+echo
 
 echo "Enable password authentication for root user over SSH..."
 sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
+echo
 
-echo "Configure the nameservers..."
-echo "append domain-name-servers 8.8.8.8, 8.8.4.4;" >> /etc/dhcp/dhclient.conf
+#echo "Configure the nameservers..."
+#echo "append domain-name-servers 8.8.8.8, 8.8.4.4;" >> /etc/dhcp/dhclient.conf
 
 echo "Configure usbmount..."
 cp /temp/usbmount/usbmount.conf /etc/usbmount/usbmount.conf

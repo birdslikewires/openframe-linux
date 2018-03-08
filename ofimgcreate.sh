@@ -5,7 +5,7 @@
 
 #set -x
 
-DBSERVER="http://archive.ubuntu.com/ubuntu/"
+DBSERVER="http://gb.archive.ubuntu.com/ubuntu/"
 #DBSERVER="http://ubuntu.datahop.net/ubuntu/"
 
 countdown() {
@@ -475,8 +475,8 @@ if [[ "$INSTALL" != "" ]]; then
       # Replace the placeholders used for apt
       sed -i "s=DBSERVER=$DBSERVER=" $BLDLOC/etc/apt/sources.list
       sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list
-      sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-jools.list
-      sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-emgd.list
+      #sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-jools.list
+      #sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list.d/disabled/openframe-emgd.list
 
       # Replace the placeholders in fstab
  
