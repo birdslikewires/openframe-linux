@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# openframe-mac v1.04 (6th March 2018)
+# openframe-mac v1.05 (22nd March 2018)
 #  Manages MAC addresses on OpenFrame devices.
 #  We copy the MAC from wlan0 to eth0, but with the local bit set.
 #  If no wlan0 interface is available, we generate a MAC for the eth0 interface.
@@ -8,17 +8,15 @@
 WLAN="wlan0"
 
 # Ensure udev doesn't join the party.
-[ -f /etc/udev/rules.d/70-persistent-net.rules ] && rm /etc/udev/rules.d/70-persistent-net.rules
-[ -f /etc/udev/rules.d/75-persistent-net-generator.rules ] || touch /etc/udev/rules.d/75-persistent-net-generator.rules
+# Commented out right now because, in theory, this shouldn't be necessary in Bionic.
+#[ -f /etc/udev/rules.d/70-persistent-net.rules ] && rm /etc/udev/rules.d/70-persistent-net.rules
+#[ -f /etc/udev/rules.d/75-persistent-net-generator.rules ] || touch /etc/udev/rules.d/75-persistent-net-generator.rules
 
 # Try to get the wireless MAC address.
 WIFIMAC=`ip link show $WLAN 2>&1`
 if [[ "$WIFIMAC" =~ "does not exist" ]]; then
 	echo "I'VE NOT BEEN ABLE TO FIND $WLAN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 	exit 1
-
-
-
 
 else
 

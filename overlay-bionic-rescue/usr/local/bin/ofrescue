@@ -1,0 +1,154 @@
+#! /bin/bash
+
+## ofrescue v1.00 (21st March 2018) by Andy Davison
+##  Script to copy out the user files from an original OS.
+
+RESCUE="mmcblk0p2"
+
+COLOUR=6
+HAPPYSTOP=10
+SADSTOP=60
+DEBUG=0
+
+tput cnorm
+
+if [[ "$USER" != "root" ]]; then
+	echo "Must be run as root."
+	exit 1
+fi
+
+/usr/bin/amixer -c 0 sset "Master" 20% unmute &>/dev/null
+
+header() {
+
+	setterm -powersave off
+	setterm -blank 0
+
+	clear
+	echo
+	echo
+	tput setaf $COLOUR
+	echo "                                                                  OpenFrame Rescue System v1.00"
+	[ $DEBUG -eq 0 ] && echo "==============================================================================================="
+	[ $DEBUG -ne 0 ] && echo "====== DEBUG =================================================================================="
+	echo "                                                                              birdslikewires.uk"
+	echo
+	tput setab $COLOUR
+	#tput setaf 0
+	#echo "  If you find it useful, perhaps you could make a contribution towards hosting & development?  "
+	tput sgr0
+	#echo
+	echo
+
+}
+
+countdown() {
+	MSG="$1"
+	SEC=$2
+	tput civis
+	while [ $SEC -gt 0 ]; do
+		echo -ne "$MSG in $SEC\033[0K\r"
+		sleep 1
+		: $((SEC--))
+	done
+	echo -e "$MSG now..."
+	tput cnorm
+}
+
+droptoshell() {
+
+	exit 0
+
+	counter=15
+	counterest=$((counter*2))
+
+	echo -n "Stalling for network (approximately $counterest seconds)..."
+	until ping -c 1 -W 1 8.8.8.8 &>/dev/null
+	do
+		[ $counter -eq 0 ] && break
+		sleep 1;
+		let counter-=1
+	done
+
+	if [ $counter -eq 0 ]; then
+		NETWORKUP=0
+		echo " not available."
+		echo
+		countdown "Moving on" $1
+		sleep 1
+		clear
+	else
+		NETWORKUP=1
+		echo " network ready."
+		echo -n "Fetching network time..."
+		ntpdate 0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org 2>&1 >/dev/null
+		echo " done."
+		echo
+		countdown "Dropping to shell" $1
+		sleep 1
+		clear
+		ifconfig eth0 | grep inet | grep -v inet6 | sed 's/^ *//'
+		tput sgr0
+		echo
+	fi
+
+}
+
+shutitdown() {
+
+	tput sgr0
+	echo
+	echo
+	read -s -t $1 -n 1 -p "Press any key for a login prompt, or wait $1 seconds for shutdown..." GOTOLOGIN
+
+	echo > /etc/udev/rules.d/70-persistent-net.rules
+
+	if [[ "$GOTOLOGIN" != "" ]]; then
+		echo
+		droptoshell 3
+		sleep 1
+		exit 0
+	else
+		echo
+		echo
+		echo "This OpenFrame is about to shut down. When shutdown is complete, turn off the power and"
+		echo "disconnect the USB storage device. Restore the power and allow the OpenFrame to boot."
+		echo
+		countdown "Shutting down" 10
+		sleep 1
+		echo
+		echo
+		[ $DEBUG -eq 0 ] && poweroff || exit 0
+	fi
+
+}
+
+header
+
+if [ -e /dev/$RESCUE ]; then
+
+	echo
+	echo "Found the user storage partition!"
+	echo -n "Mounting read only..."
+	/bin/mount -o ro /dev/$RESCUE /mnt
+	echo 
+
+	exit 0
+
+
+else
+
+
+	echo
+	echo "Cannot find the partiion."
+	shutitdown $SADSTOP
+
+fi
+
+
+
+
+
+
+
+

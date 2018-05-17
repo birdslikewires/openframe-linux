@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## openframe-identifier v2.01 (5th March 2018)
+## openframe-identifier v2.02 (22nd March 2018)
 ##  Identifies what kind of OpenFrame device we're running on.
 
 OPENFRAME="1"
@@ -10,7 +10,7 @@ if [ -e /boot/openframe.ver ]; then
 	# Look for an override file.
 	OPENFRAME=`cat /boot/openframe.ver | cut -b1`
 	MMCSIZE=""
-	echo "OVERRIDDEN to OpenFrame $OPENFRAME"
+	echo "Identified an OpenFrame $OPENFRAME from override file."
 
 else 
 
