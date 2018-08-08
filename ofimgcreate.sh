@@ -6,7 +6,6 @@
 #set -x
 
 DBSERVER="http://gb.archive.ubuntu.com/ubuntu/"
-#DBSERVER="http://ubuntu.datahop.net/ubuntu/"
 
 countdown() {
   local i
@@ -62,6 +61,13 @@ fi
 
 TSIZE="$3"
 OFVARIANT="$3"
+
+# Create our own loop devices so we're not in competition with anyone.
+if [ ! -e /dev/of-loop0 ]; then
+	mknod /dev/of-loop0 b 7 200
+	mknod /dev/of-loop1 b 7 201
+	mknod /dev/of-loop2 b 7 202
+fi
 
 # If 'of1' or 'of2' is given for size, create an image that matches the OpenFrame 1 or 2 internal storage.
 # We fake 1028MB or 2055MB for the calculations, but dd will create an image file of the correct size later.
@@ -210,12 +216,12 @@ loop_create()
 {
   OFFSET=$(get_part_byte_offset $2 1)
   SIZE=$(get_part_byte_offset $2 3)
-  losetup /dev/loop$1 --offset $OFFSET --sizelimit $SIZE "$FILENAME"
+  losetup /dev/of-loop$1 --offset $OFFSET --sizelimit $SIZE "$FILENAME"
 }
 
 loop_delete()
 {
-  losetup -d /dev/loop$1
+  losetup -d /dev/of-loop$1
 }
 
 loop_mount()
@@ -228,13 +234,13 @@ loop_mount()
 
 filesystems_create()
 {
-  mkfs.vfat -F 16 -n "$BNAME" /dev/loop0
+  mkfs.vfat -F 16 -n "$BNAME" /dev/of-loop0
 
   if [[ "$SSIZE" > "0" ]]; then
-    mkswap -L "$SNAME" /dev/loop1
-    ROOTLOOP="/dev/loop2"
+    mkswap -L "$SNAME" /dev/of-loop1
+    ROOTLOOP="/dev/of-loop2"
   else
-    ROOTLOOP="/dev/loop1"
+    ROOTLOOP="/dev/of-loop1"
   fi
 
   case $1 in
@@ -376,11 +382,11 @@ case $FS in
 esac
 
 # Mount the image file.
-mount -t $FS -o $MOUNTOPTS /dev/loop$RLOOPNUM $MP
+mount -t $FS -o $MOUNTOPTS /dev/of-loop$RLOOPNUM $MP
 mkdir $MP/boot
-umount /dev/loop0 2>/dev/null
+umount /dev/of-loop0 2>/dev/null
 sleep 4
-mount -t vfat /dev/loop0 $MP/boot
+mount -t vfat /dev/of-loop0 $MP/boot
 
 
 # Go to work.
@@ -450,14 +456,13 @@ if [[ "$INSTALL" != "" ]]; then
 		cp -R $DBSLOC $BLDLOC
 		
 		# Modify.
-	    if [[ "$OVERLAY" != "" ]] && [[ "$KERNELDIR" != "" ]]; then
+    if [[ "$OVERLAY" != "" ]] && [[ "$KERNELDIR" != "" ]]; then
 
-	      echo
-	      echo "Preparing system for OpenFrame..."
-
-		  echo
+      echo
+      echo "Preparing system for OpenFrame..."
+      echo
       echo "Copying '$OVERLAY'..."
-      cp -R $OVERLAY/* $BLDLOC
+      cp -Rv $OVERLAY/* $BLDLOC
 
       # Replace the placeholders in grub.cfg
       sed -i "s/UBUNTUVER/$UBUNTUVER/" $BLDLOC/boot/grub.cfg
