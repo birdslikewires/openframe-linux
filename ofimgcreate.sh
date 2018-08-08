@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofimgcreate v1.37 (14th April 2015)
+# ofimgcreate v1.38 (8th August 2018)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
