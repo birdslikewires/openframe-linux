@@ -1,0 +1,6 @@
+#!/bin/sh
+
+# of-getip v1.00 (23rd August 2018)
+#  Spits out the active IP addresses and their interfaces.
+
+ip route | grep default | awk -F\  {'print $9" "$5'}

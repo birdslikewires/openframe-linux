@@ -1,2 +1,0 @@
-#!/bin/bash
-[ ! -f /etc/ssh/ssh_host_dsa_key ] && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure openssh-server && exit 0

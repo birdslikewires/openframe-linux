@@ -1,0 +1,14 @@
+#!/bin/sh
+
+# of-startx v1.01 (29th August 2018)
+#  Start the X11 server if it's been installed.
+
+## THIS DOESN'T WORK - I think because it's firing onto tty2, not tty1.
+
+echo "FARTBISCUITS ***************************************************************************"
+
+if [ $(tty) = /dev/tty1 ]; then
+  /bin/su root -l -c /usr/bin/startx -- VT08
+fi
+
+exit 0

@@ -1,0 +1,11 @@
+[Unit]
+Description=OpenFrame MAC address identification
+Before=network-pre.target
+Wants=network-pre.target
+
+[Service]
+ExecStart=/usr/local/sbin/of-netplan
+StandardOutput=syslog+console
+
+[Install]
+WantedBy=multi-user.target

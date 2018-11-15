@@ -1,0 +1,9 @@
+[Unit]
+Description=OpenFrame encryption key check
+
+[Service]
+ExecStart=/usr/local/sbin/of-keycheck
+StandardOutput=syslog+console
+
+[Install]
+WantedBy=multi-user.target

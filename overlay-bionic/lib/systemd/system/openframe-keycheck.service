@@ -1,9 +1,0 @@
-[Unit]
-Description=Check for encryption keys
-
-[Service]
-ExecStart=/usr/sbin/openframe-keycheck
-StandardOutput=syslog+console
-
-[Install]
-WantedBy=multi-user.target
