@@ -1,9 +1,24 @@
 #!/bin/bash
 
-## openframe-identifier v2.03 (2nd September 2018)
+## openframe-identifier v2.05 (26th April 2019)
 ##  Identifies what kind of OpenFrame device we're running on.
 
 OPENFRAME="1"
+KERNMAJVER=`uname -r | awk -F. '{print $1}'`
+
+applystac9202pinpatch() {
+	if [ ! -f /etc/modprobe.d/of1-stac9202.conf ]; then
+		echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202.patch" > /etc/modprobe.d/of1-stac9202.conf
+		/sbin/alsa force-reload
+	fi
+}
+
+removestac9202pinpatch() {
+	if [ -f /etc/modprobe.d/of1-stac9202.conf ]; then
+		rm /etc/modprobe.d/of1-stac9202.conf
+		/sbin/alsa force-reload
+	fi
+}
 
 if [ -e /boot/openframe.ver ]; then
 
@@ -61,10 +76,7 @@ if [ "$OPENFRAME" -eq 1 ]; then
 	## Here be the OpenFrame 1 tweaks.
 
 	# Ensure that the audio firmware patch is applied.
-	if [ ! -f /etc/modprobe.d/of1-stac9202.conf ]; then
-		echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202.patch" > /etc/modprobe.d/of1-stac9202.conf
-		/sbin/alsa force-reload
-	fi
+	[ $KERNMAJVER -eq 3 ] && applystac9202pinpatch || removestac9202pinpatch
 
 	# We're not bothered about restricting the b43 driver.
 	[ -f /etc/modprobe.d/blacklist-of2-b43.conf ] && rm /etc/modprobe.d/blacklist-of2-b43.conf
@@ -74,10 +86,7 @@ elif [ "$OPENFRAME" -eq 2 ]; then
 	## Here be the OpenFrame 2 tweaks.
 
 	# Ensure that the OpenFrame 1's audio firmware patch is removed.
-	if [ -f /etc/modprobe.d/of1-stac9202.conf ]; then
-		rm /etc/modprobe.d/of1-stac9202.conf
-		/sbin/alsa force-reload
-	fi
+	removestac9202pinpatch
 
 	# Ensure that the b43 wireless driver is disabled (we use brcmsmac).
 	if [ ! -f /etc/modprobe.d/blacklist-of2-b43.conf ]; then
