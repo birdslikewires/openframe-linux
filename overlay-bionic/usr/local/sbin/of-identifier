@@ -1,22 +1,26 @@
 #!/bin/bash
 
-## openframe-identifier v2.05 (26th April 2019)
-##  Identifies what kind of OpenFrame device we're running on.
+## openframe-identifier v2.11 (24th July 2019)
+##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 OPENFRAME="1"
 KERNMAJVER=`uname -r | awk -F. '{print $1}'`
 
 applystac9202pinpatch() {
 	if [ ! -f /etc/modprobe.d/of1-stac9202.conf ]; then
+		echo -n "Applying STAC9202 audio configuration..."
 		echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202.patch" > /etc/modprobe.d/of1-stac9202.conf
-		/sbin/alsa force-reload
+		/sbin/alsa force-reload &>/dev/null
+		echo " done."
 	fi
 }
 
 removestac9202pinpatch() {
 	if [ -f /etc/modprobe.d/of1-stac9202.conf ]; then
+		echo -n "Removing STAC9202 audio configuration..."
 		rm /etc/modprobe.d/of1-stac9202.conf
-		/sbin/alsa force-reload
+		/sbin/alsa force-reload &>/dev/null
+		echo " done."
 	fi
 }
 
@@ -71,15 +75,21 @@ fi
 
 echo $OPENFRAME > /tmp/openframe.ver
 
+if [ -f /root/resize ]; then
+	echo "Resizing root filesystem."
+	/sbin/resize2fs `cat /root/resize`
+	rm /root/resize
+	/usr/bin/aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
+fi
+
 if [ "$OPENFRAME" -eq 1 ]; then
 
 	## Here be the OpenFrame 1 tweaks.
 
-	# Ensure that the audio firmware patch is applied.
-	[ $KERNMAJVER -eq 3 ] && applystac9202pinpatch || removestac9202pinpatch
-
-	# We're not bothered about restricting the b43 driver.
-	[ -f /etc/modprobe.d/blacklist-of2-b43.conf ] && rm /etc/modprobe.d/blacklist-of2-b43.conf
+	# If the kernel is from the 3.x series, we'll be using the patch.
+	[ $KERNMAJVER -eq 3 ] && applystac9202pinpatch
+	# More modern kernels... they're on their own. Good luck!
+	[ $KERNMAJVER -gt 3 ] && removestac9202pinpatch
 
 elif [ "$OPENFRAME" -eq 2 ]; then
 
@@ -87,15 +97,6 @@ elif [ "$OPENFRAME" -eq 2 ]; then
 
 	# Ensure that the OpenFrame 1's audio firmware patch is removed.
 	removestac9202pinpatch
-
-	# Ensure that the b43 wireless driver is disabled (we use brcmsmac).
-	if [ ! -f /etc/modprobe.d/blacklist-of2-b43.conf ]; then
-
-		echo "blacklist b43" > /etc/modprobe.d/blacklist-of2-b43.conf
-		/sbin/modprobe -rv b43
-		/sbin/modprobe brcmsmac
-
-	fi
 
 else
 

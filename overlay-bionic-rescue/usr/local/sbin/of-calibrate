@@ -1,7 +1,0 @@
-#!/bin/bash
-
-# of-calibrate v1.00 (23rd August 2018)
-#  Calibrates the touch screen for Xorg.
-
-mkdir -p /etc/X11/xorg.conf.d
-xinput_calibrator | sed -n '/^Section/,$p' >/etc/X11/xorg.conf.d/99-calibration.conf

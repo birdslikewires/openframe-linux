@@ -1,7 +1,0 @@
-#!/bin/bash
-
-echo '
-if [ $(tty) = /dev/tty1 ]; then
-  /usr/local/sbin/of-rescue
-fi
-' > /root/.bash_profile

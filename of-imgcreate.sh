@@ -1,11 +1,12 @@
 #!/bin/bash
 
-# ofimgcreate v1.42 (1st September 2018)
+# ofimgcreate v1.44 (23rd July 2019)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
 
 DBSERVER="http://gb.archive.ubuntu.com/ubuntu/"
+#KNSERVER="https://dl.birdslikewires.net/"
 
 countdown() {
   local i
@@ -34,6 +35,7 @@ if [[ "$#" < 6 ]]; then
   echo
   echo "  overlay:         Location of overlay files to be copied (required when using Ubuntu release name as source)."
   echo "  kerneldir:       Location of linux-image and linux-header packages (required when using Ubuntu release name as source)."
+#  echo "  webkernel:       Enter '1' to fetch kernel from a kernel server (eg. birdslikewires.net) or '0' to use local files."
   echo
   exit 0
 fi
@@ -49,7 +51,7 @@ if [ "$DBPRESENT" == "" ]; then
   exit 0
 fi
 
-NAME="$1"
+NAME="${1^^}"
 FS="$2"
 if [ "$FS" == "ext3" ]; then
 	echo "We don't support ext3. Setting to ext4 instead."
@@ -109,6 +111,7 @@ SSIZE="$6"
 INSTALL="$7"
 OVERLAY="$8"
 KERNELDIR="$9"
+#WEBKERNEL="$10"
 OFF=0
 RSIZE=$(($TSIZE-$BSIZE-$SSIZE))
 
@@ -135,12 +138,12 @@ fi
 # Sort out the filenames.
 if [[ "$INSTALL" != "" ]] && [[ "$KERNELDIR" != "" ]]; then
   KERNVER=`ls $KERNELDIR | grep linux-image | awk -F\- '{print $3}' | awk -F\_ '{print $1}'`
-  FILENAME="$NAME-$FS-$TSIZE-$BSIZE-$INSTALL-$KERNVER.img"
+  FILENAME="${NAME,,}-$FS-$TSIZE-$BSIZE-$INSTALL-$KERNVER.img"
 else
   if [[ "$INSTALL" =~ "tgz" ]]; then
     CLONENAME=`echo $INSTALL | awk -F\. {'print $1'}`
   else
-    CLONENAME="$NAME"
+    CLONENAME="${NAME,,}"
   fi
   FILENAME="$CLONENAME"_"$OFVARIANT".img
 fi
@@ -174,7 +177,7 @@ sleep 1
 
 # Set up the debootstrap cache and build directory names.
 DBSLOC=$INSTALL"_dbscache"
-BLDLOC=$INSTALL"-"$NAME"-openframe-"$KERNVER
+BLDLOC=$INSTALL"-"${NAME,,}"-openframe-"$KERNVER
 
 # Juggle partition numbers if we've got no swap area.
 if [[ "$SSIZE" == "0" ]]; then
@@ -190,9 +193,9 @@ if [[ ${#NAME} > 5 ]]; then
   echo "Name prefix must be 5 characters or fewer."
   exit 0
 else
-  RNAME="$NAME"-root
-  BNAME="$NAME"-boot
-  SNAME="$NAME"-swap
+  RNAME="$NAME"-ROOT
+  BNAME="$NAME"-BOOT
+  SNAME="$NAME"-SWAP
   echo "Partitions will be:"
   echo "  boot: $BNAME"
   echo "        ("$BSIZE"MB)"
@@ -495,6 +498,11 @@ if [[ "$INSTALL" != "" ]]; then
       echo
       echo "Preparing system for OpenFrame..."
       echo
+      echo -n "Sanitsing overlay..."
+      find $OVERLAY -type f -name .DS_Store -delete
+      echo " done."
+      sync
+      sleep 1
       echo "Copying '$OVERLAY'..."
       cp -Rv $OVERLAY/* $BLDLOC
 

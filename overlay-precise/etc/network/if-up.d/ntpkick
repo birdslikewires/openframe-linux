@@ -1,3 +1,0 @@
-#!/bin/bash
-ntpdate ntp2b.mcc.ac.uk &>/dev/null
-ntpdate ntp2d.mcc.ac.uk &>/dev/null

@@ -1,6 +1,0 @@
-#!/bin/bash
-
-# of-keycheck v1.01 (28th August 2018)
-#  Regenerate the key files if they're not present.
-
-[ ! -f /etc/ssh/ssh_host_rsa_key ] && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure openssh-server && exit 0

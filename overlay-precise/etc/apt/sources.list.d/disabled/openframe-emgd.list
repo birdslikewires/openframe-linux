@@ -1,4 +1,0 @@
-deb http://ppa.launchpad.net/jools/emgd-xorg1.9/ubuntu UBUNTUVER main
-deb-src http://ppa.launchpad.net/jools/emgd-xorg1.9/ubuntu UBUNTUVER main
-
-deb http://old-releases.ubuntu.com/ubuntu maverick main

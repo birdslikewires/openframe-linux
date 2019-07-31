@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# of-expand v1.00 (24th July 2019)
+#  Expands the root partition to fill the drive.
+
+if [ "$USER" != "root" ]; then
+  echo "You need to run this with superuser privileges."
+  exit 1
+fi
+
+countdown() {
+	MSG="$1"
+	SEC=$2
+	tput civis
+	while [ $SEC -gt 0 ]; do
+		echo -ne "$MSG in $SEC\033[0K\r"
+		sleep 1
+		: $((SEC--))
+	done
+	echo -e "$MSG now..."
+	tput cnorm
+}
+
+echo "WARNING! Resizing the root partition risks potential data loss!"
+echo -n "Are you sure? (y/N): "
+read -t 10 INSPECT
+if [[ ! "$INSPECT" == "y" ]] && [[ ! "$INSPECT" == "Y" ]]; then
+	echo "Stopping."
+	exit 0
+fi
+
+echo
+
+ROOTISON=`mount | grep "on / " | awk -F\  {'print $1'}`
+ROOTPARTNO=`echo "${ROOTISON: -1}"`
+ROOTISON=`echo "${ROOTISON:: -1}"`
+ROOTSTART=`fdisk -l | grep $ROOTISON$ROOTPARTNO | awk -F\  {'print $2'}`
+
+echo "Found / on $ROOTISON partition $ROOTPARTNO starting at $ROOTSTART."
+
+/sbin/fdisk $ROOTISON <<EOF
+p
+d
+$ROOTPARTNO
+n
+p
+$ROOTPARTNO
+$ROOTSTART
+
+n
+w
+EOF
+
+echo "$ROOTISON$ROOTPARTNO" > /root/resize
+
+/sbin/fdisk -l $ROOTISON
+
+echo
+echo
+echo "The table for $ROOTISON$ROOTPARTNO has been extended and the partition must now be resized."
+echo "This will take a few minutes, depending upon the size of the new partition."
+echo
+echo "Do not power off the system until disk access has calmed down."
+echo
+countdown "The system will reboot" 20
+/sbin/reboot
+
+exit 0

@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# of-install-xorg v1.34 (24th July 2019)
+#  Installs Xorg server.
+
+#set -x
+
+if [ "$USER" != "root" ]; then
+  echo "You need to run this with superuser privileges."
+  exit 1
+fi
+
+apt-get update
+
+# Remove the XTerm defaults to avoid installation prompt.
+rm /etc/X11/app-defaults/XTerm &>/dev/null
+
+echo "Installing Xorg..."
+echo
+apt-get -y install xserver-xorg x11-utils xinit xterm
+echo
+
+if [[ "$@" == "mplayer" ]]; then
+	echo "Installing mplayer..."
+	echo
+	apt-get -y install mplayer
+	echo -e "\n###OpenFrame Specific\nvo=x11\nva=x11\nao=alsa\nzoom=yes\nfs=yes" >> /etc/mplayer/mplayer.conf
+	echo -e "\n###OpenFrame Specific\nMOUSE_BTN0_DBL quit\nMOUSE_BTN0-MOUSE_BTN0_DBL quit" >> /etc/mplayer/input.conf
+	echo
+fi
+
+echo "Setting XTerm geometry..."
+echo "*xterm*geometry: 132x36+0+0" > /etc/X11/app-defaults/XTerm
+echo
+
+if ! grep -q startx /etc/profile; then
+	echo "Enabling Xorg at tty1 login..."
+	echo -e "\nif [[ "'$(tty)'" = /dev/tty1 ]]; then\n  exec /usr/bin/startx &>/dev/null\nfi\n" >> /etc/profile
+	echo
+fi
+
+sync
+sync
+echo "Xorg setup complete."
+
+exit 0

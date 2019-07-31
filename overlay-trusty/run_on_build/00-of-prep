@@ -1,13 +1,12 @@
 #!/bin/bash
 
-# of-prep.sh v1.65 (23rd July 2019)
+# of-prep.sh v1.64 (3rd July 2019)
 #  Set up the basics.
 
 #set -x
 
 
 OPENFRAMEUSER="root"
-KNSERVER="https://dl.birdslikewires.net"
 
 
 ##  Things to do before installing the kernel.
@@ -47,14 +46,17 @@ else
 
 fi
 
-echo "Setting terminal preferences..."
+echo "Setting login preferences..."
+# Set the autologin user.
+sed -i "s/OPENFRAMEUSER/$OPENFRAMEUSER/" /etc/systemd/system/getty@tty1.service.d/override.conf
+# Allow sudo without a password for all users. Now there's a security risk!
+echo "%admin ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 # Colour terminal for all!
 for f in `find / -iname *bashrc 2>/dev/null`; do
 	sed -i 's/#force_color_prompt=yes/force_color_prompt=yes/' $f
 done
 echo
 
-## Plough on. I sometimes use this on a network where pings are blocked. Not by me, I might add.
 # echo "Waiting for network..."
 # until ping -c 3 1.1.1.1 &>/dev/null
 # do
@@ -73,7 +75,7 @@ DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 ## System Goodies
 
 # nfs-common 		- DO NOT add nfs-common here. It stuffs up rebooting and has to be installed once the system is live.
-APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools ntpdate patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unzip usbmount wget wpasupplicant wireless-tools xauth x11-xserver-utils zlibc"
+APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools ntpdate parted patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unzip usbmount wget wpasupplicant wireless-tools xauth x11-xserver-utils zlibc"
 APT_AUDIO="alsa-base alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
 
@@ -139,46 +141,27 @@ echo
 sleep 2
 
 KERNVER=`ls /mnt/ | grep linux-image | awk -F\- '{print $3}' | awk -F\_ '{print $1}'`
-KERNMAJVER=`echo $KERNVER | awk -F\. {'print $1'}`
-KERNMIDVER=`echo $KERNVER | awk -F\. {'print $2'}`
-KERNMINVER=`echo $KERNVER | awk -F\. {'print $3'}`
-source /etc/lsb-release
 
-echo "Installing kernel $KERNVER into ${DISTRIB_CODENAME^} chroot..."
+echo "Installing kernel $KERNVER..."
 dpkg -i /mnt/linux-*.deb
 echo
 
-
-KERNELURL="$KNSERVER/openframe/kernel/$KERNMAJVER.$KERNMIDVER/$DISTRIB_CODENAME/$KERNVER"
-if curl -f "$KERNELURL/modules.tgz" >/dev/null 2>&1; then
+if [ -f /mnt/fh.ko ]; then
+	echo "Installing Intel Firmware Hub module..."
+	[ -d /lib/modules/$KERNVER/extra ] || mkdir /lib/modules/$KERNVER/extra
+	cp /mnt/fh.ko /lib/modules/$KERNVER/extra/
+	chmod 644 /lib/modules/$KERNVER/extra/fh.ko
+	depmod -a $KERNVER
 	echo
-	echo "Found additional modules on $KNSERVER for $KERNVER. Downloading and installing."
-	echo
-	curl -o /modules.tgz "$KERNELURL/modules.tgz"
-	if [ -f /modules.tgz ]; then
-		tar zxvf /modules.tgz -C /
-		rm /modules.tgz
-	fi
 fi
 
-#if [ -f /mnt/fh.ko ]; then
-#	echo "Installing Intel Firmware Hub module..."
-#	[ -d /lib/modules/$KERNVER/extra ] || mkdir /lib/modules/$KERNVER/extra
-#	cp /mnt/fh.ko /lib/modules/$KERNVER/extra/
-#	chmod 644 /lib/modules/$KERNVER/extra/fh.ko
-#	echo
-#fi
-
-depmod -a $KERNVER
-echo
-
 if [ `grep -c initrd /boot/grub.cfg` -gt 0 ]; then
-	echo -n "Making initrd..."
+	echo "Making initrd..."
 	#sed -i 's/MODULES\=most/MODULES\=dep/g' /etc/initramfs-tools/initramfs.conf
 	#sed -i 's/COMPRESS\=gzip/COMPRESS\=xz/g' /etc/initramfs-tools/initramfs.conf
 	mkinitramfs -o /boot/initrd.img-$KERNVER $KERNVER
 	sleep 2
-	echo " done!"
+	echo
 fi
 
 ## Wind down.
