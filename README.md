@@ -1,17 +1,17 @@
 Ubuntu for OpenFrame
-====================
+=====================
 
 These are the scripts and overlays which I use to create debootstrapped operating systems for OpenFrame devices, notably the OpenFrame 1 (sold in the UK as the O2 Joggler) and OpenFrame 2.
 
 
 ofcnc.sh
---------
+---------
 
 Some things are best done on a running Joggler (eg. compiling drivers) so this script provides a handy method of copying everything back from a device for packaging up into a .tgz. That .tgz can then magically be used by __ofimgcreate.sh__ to generate another new image.
 
 
 ofimgcreate.sh
---------------
+---------------
 
 This script does the hard work of creating an image file of a given size, creating  filesystem on it, mounting it, and then going on to fetch and install Ubuntu using debootstrap. It's usage is as follows:
 
@@ -23,7 +23,7 @@ So, if you wish to create a 2GB Ubuntu Trusty image with no swap:
 
 You will also need the overlay files provided in this repo, plus working kernel image packages.
 
-###Kernel###
+### Kernel ###
 
 The [vanilla kernel](http://kernel.org "kernel.org") will work, just not very well. For full support, you can download [patches, config files and kernels I have compiled](http://birdslikewires.co.uk/download/openframe/kernel). What's missing on anything later than kernel 3.2 is the ability to compile Intel's EMGD drivers. Luckily we have the GMA500 kernel drivers working, but you won't get 3D or hardware video decoding. Please shout at Intel.
 
@@ -31,7 +31,7 @@ If you require snazzy video functionality, you'll need either the 3.2 kernel and
 
 
 ofimgmnt.sh
------------
+------------
 
 Used to mount image files for minor tweaks, meaning we don't need to rebuild things every time.
 
