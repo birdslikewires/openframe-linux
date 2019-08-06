@@ -397,8 +397,8 @@ loop_mount
 filesystems_create $FS
 
 # Create mount points.
-MP=/tmp/img$RANDOM
-mkdir $MP
+MP=./tmp/img$RANDOM
+mkdir -p $MP
 echo
 echo "Mounting image file as $MP..."
 
