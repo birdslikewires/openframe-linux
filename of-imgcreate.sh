@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofimgcreate v1.44 (23rd July 2019)
+# ofimgcreate v1.45 (6th August 2019)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -250,12 +250,12 @@ loop_create()
   fi
   OFFSET=$(get_part_byte_offset $2 1)
   SIZE=$(get_part_byte_offset $2 3)
-  losetup /dev/of-loop$1 --offset $OFFSET --sizelimit $SIZE "$FILENAME"
+  /sbin/losetup /dev/of-loop$1 --offset $OFFSET --sizelimit $SIZE "$FILENAME"
 }
 
 loop_delete()
 {
-  losetup -d /dev/of-loop$1
+  /sbin/losetup -d /dev/of-loop$1
 }
 
 loop_mount()
