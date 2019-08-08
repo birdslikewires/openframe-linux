@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# of-install-build v1.02 (24th July 2019)
+# of-install-build v1.03 (8th August 2019)
 #  Installs a build environment onto the OpenFrame.
 
 source /etc/lsb-release
@@ -16,7 +16,7 @@ KERNMAJVER=`uname -r | awk -F. '{print $1}'`
 KERNMIDVER=`uname -r | awk -F. '{print $2}'`
 KERNMINVER=`uname -r | awk -F. '{print $3}'`
 
-KERNELFETCHURL="$KERNELURL"/"$KERNMAJVER"."$KERNMIDVER"/"$DISTRIB_CODENAME"/`uname -r`
+KERNELFETCHURL="$KERNELURL"/"${DISTRIB_ID,,}"/"${DISTRIB_CODENAME,,}"/"$KERNMAJVER"."$KERNMIDVER"/`uname -r`
 echo $KERNELFETCHURL
 
 echo -n "Downloading `uname -r` kernel packages..."
