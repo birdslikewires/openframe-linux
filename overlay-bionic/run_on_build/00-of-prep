@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# of-prep.sh v1.65 (23rd July 2019)
+# of-prep.sh v1.66 (8th August 2019)
 #  Set up the basics.
 
 #set -x
@@ -145,7 +145,7 @@ KERNMINVER=`echo $KERNVER | awk -F\. {'print $3'}`
 source /etc/lsb-release
 
 echo "Installing kernel $KERNVER into ${DISTRIB_CODENAME^} chroot..."
-dpkg -i /mnt/linux-*.deb
+dpkg -i /mnt/linux-image*.deb
 echo
 
 
