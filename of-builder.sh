@@ -53,17 +53,17 @@ cleanup() {
 	echo " done."
 }
 
-if [ -d openframe-kernel ]; then
-	cd openframe-kernel ; git pull > /dev/null ; cd ..
-else
+if [ ! -d openframe-kernel ]; then
 	git clone https://github.com/andydvsn/openframe-kernel.git
 	echo
+#else
+#	cd openframe-ubuntu ; git pull > /dev/null ; cd ..
 fi
-if [ -d openframe-ubuntu ]; then
-	cd openframe-ubuntu ; git pull > /dev/null ; cd ..
-else
+if [ ! -d openframe-ubuntu ]; then
 	git clone https://github.com/andydvsn/openframe-ubuntu.git
 	echo
+#else
+#	cd openframe-ubuntu ; git pull > /dev/null ; cd ..
 fi
 
 if [[ "$KBUILDIT" == 0 ]]; then
