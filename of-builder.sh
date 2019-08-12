@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ## of-builder.sh v1.03 (8th August 2019)
-##  Grabs a kernel, patches and builds it.
+##  Grabs a kernel, patches it, builds it.
 
 if [ $# -lt 1 ]; then
 	echo "Usage: $0 <kernelbranch> [codename]"
@@ -155,6 +155,12 @@ else
 	cleanup
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel compiled, packages ready."
+
+fi
+
+if [ ! -f $KDLPATH/modules.tgz ]; then
+
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Building $KOURNAME kernel companion modules..."
 
 fi
 
