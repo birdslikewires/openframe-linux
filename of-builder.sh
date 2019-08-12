@@ -160,7 +160,21 @@ fi
 
 if [ ! -f $KDLPATH/modules.tgz ]; then
 
+	echo "No $KDLPATH/modules.tgz"
+
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Building $KOURNAME kernel companion modules..."
+
+	if [ ! -d rtl8821cu_wlan ]; then
+		git clone https://github.com/andydvsn/rtl8821cu_wlan.git
+	fi
+
+	dpkg -i $KDLPATH/linux-headers*
+
+	echo $KOURNAME
+	#sed -i 's/KVER  := $(shell uname -r)/KVER  := '$KOURNAME'/g' "./rtl8821cu_wlan/Makefile"
+
+
+	exit 0
 
 fi
 
