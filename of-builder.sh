@@ -183,9 +183,10 @@ else
 	[ -d rtl8821cu_bt ] && rm -rf rtl8821cu_bt
 	git clone https://github.com/andydvsn/rtl8821cu_bt.git
 	mkdir -p lib/modules/$KOURNAME/kernel/drivers/bluetooth
-	sed -i 's/KVER  := $(shell uname -r)/KVER  := '$KOURNAME'/g' "./rtl8821cu_bt/bluetooth_usb_driver/Makefile"
+	#sed -i 's/KVER  := $(shell uname -r)/KVER  := '$KOURNAME'/g' "./rtl8821cu_bt/bluetooth_usb_driver/Makefile"
 	cd rtl8821cu_bt/bluetooth_usb_driver
-	make -j`nproc`
+	#make -j`nproc`
+	make -C /lib/modules/$KOURNAME/build M=`pwd` modules
 	cd ..
 	cp rtl8821cu_bt/bluetooth_usb_driver/rtk_btusb.ko lib/modules/$KOURNAME/kernel/drivers/bluetooth
 	#rm -rf rtl8821cu_bt
