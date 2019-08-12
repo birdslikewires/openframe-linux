@@ -474,7 +474,7 @@ if [[ "$INSTALL" != "" ]]; then
       echo
       echo "Preparing system for OpenFrame..."
       echo
-      echo -n "Sanitsing overlay..."
+      echo -n "Sanitising overlay..."
       find $OVERLAY -type f -name .DS_Store -delete
       echo " done."
       sync
