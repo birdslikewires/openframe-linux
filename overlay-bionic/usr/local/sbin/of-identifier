@@ -5,7 +5,6 @@
 
 OPENFRAME="1"
 KERNMAJVER=`uname -r | awk -F. '{print $1}'`
-FIRSTBOOT=`cat /etc/firstboot >/dev/null 2>&1`
 
 applystac9202pinpatch() {
 	if [ ! -f /etc/modprobe.d/of1-stac9202.conf ]; then
@@ -106,12 +105,12 @@ else
 
 fi
 
-if [ ! -f /etc/firstboot ];
+if [ -f /etc/firstboot ]; then
 
 	# Apply a new UUID to the root partition and use this for future booting.
 	ROOTLOC=`/sbin/blkid | grep BIO-ROOT | awk -F\: {'print $1'}`
 	NEWUUID=`/usr/bin/uuid`
-	/sbin/tune2fs $ROOTLOC -U $NEWUUID
+	/sbin/tune2fs $ROOTLOC -U $NEWUUID >/dev/null
 	sed -i 's/LABEL=BIO-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
 	sed -i 's/LABEL=BIO-ROOT/UUID='$NEWUUID'/g' /etc/fstab
 
