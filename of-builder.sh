@@ -166,7 +166,7 @@ else
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Building $KOURNAME kernel companion modules..."
 
-	dpkg -i $KDLPATH/linux-headers*
+	[ ! -d /lib/modules/$KOURNAME ] && dpkg -i $KDLPATH/linux-headers*
 
 	## RTL8821CU Wireless Support
 	[ -d rtl8821cu_wlan ] && rm -rf rtl8821cu_wlan
@@ -177,7 +177,7 @@ else
 	make -j`nproc`
 	cd ..
 	cp rtl8821cu_wlan/rtl8821cu.ko lib/modules/$KOURNAME/kernel/drivers/net/wireless
-	#rm -rf rtl8821cu_wlan
+	rm -rf rtl8821cu_wlan
 
 	## RTL8821CU Bluetooth Support
 	[ -d rtl8821cu_bt ] && rm -rf rtl8821cu_bt
@@ -187,9 +187,9 @@ else
 	cd rtl8821cu_bt/bluetooth_usb_driver
 	#make -j`nproc`
 	make -C /lib/modules/$KOURNAME/build M=`pwd` modules
-	cd ..
+	cd ../..
 	cp rtl8821cu_bt/bluetooth_usb_driver/rtk_btusb.ko lib/modules/$KOURNAME/kernel/drivers/bluetooth
-	#rm -rf rtl8821cu_bt
+	rm -rf rtl8821cu_bt
 
 	## Firmware Hub Module
 	[ -d fh ] && rm -rf fh
@@ -199,12 +199,12 @@ else
 	make -C /lib/modules/$KOURNAME/build M=`pwd` modules
 	cd ..
 	cp fh/fh.ko lib/modules/$KOURNAME/extra
-	#rm -rf fh
+	rm -rf fh
 
 	tar zcvf modules.tgz lib
-	#rm -rf lib
+	rm -rf lib
 
-	#mv modules.tgz $KDLPATH
+	mv modules.tgz $KDLPATH
 
 	exit 0
 
