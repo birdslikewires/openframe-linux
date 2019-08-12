@@ -113,6 +113,7 @@ if [ ! -f /etc/firstboot ];
 	NEWUUID=`/usr/bin/uuid`
 	/sbin/tune2fs $ROOTLOC -U $NEWUUID
 	sed -i 's/LABEL=BIO-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
+	sed -i 's/LABEL=BIO-ROOT/UUID='$NEWUUID'/g' /etc/fstab
 
 	# Set a sensible default audio level.
 	/usr/bin/amixer -c 0 sset "Master" 50% unmute >/dev/null 2>&1

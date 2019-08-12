@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofimgcreate v1.45 (6th August 2019)
+# ofimgcreate v1.46 (6th August 2019)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -485,12 +485,11 @@ if [[ "$INSTALL" != "" ]]; then
       # Replace the placeholders in grub.cfg
       if [[ "$OFVARIANT" == "of1" ]] || [[ "$OFVARIANT" == "of2" ]]; then
         sed -i "s/KERNVERLABEL/$KERNVER (Internal)/" $BLDLOC/boot/grub.cfg
-        sed -i "s/ROOTDEV/\/dev\/mmcblk0p2/" $BLDLOC/boot/grub.cfg
       else
         sed -i "s/KERNVERLABEL/$KERNVER/" $BLDLOC/boot/grub.cfg
-        sed -i "s/ROOTDEV/\/dev\/sda2/" $BLDLOC/boot/grub.cfg
       fi
- 
+
+      sed -i "s/ROOTDEV/LABEL=$RNAME/" $BLDLOC/boot/grub.cfg
       sed -i "s/UBUNTUVER/$UBUNTUVER/" $BLDLOC/boot/grub.cfg
       sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
       sed -i "s/ROOTFST/$FS/" $BLDLOC/boot/grub.cfg
@@ -501,17 +500,11 @@ if [[ "$INSTALL" != "" ]]; then
       fi
 
       # Replace the placeholders in fstab
+      sed -i "s/BOOTDEV/LABEL=$BNAME/" $BLDLOC/etc/fstab
+      sed -i "s/ROOTDEV/LABEL=$RNAME/" $BLDLOC/etc/fstab
       sed -i "s/FS/$FS/" $BLDLOC/etc/fstab
       sed -i "s/MOUNTOPTS/$MOUNTOPTS/" $BLDLOC/etc/fstab
       sed -i "s/CHECK/$CHECK/" $BLDLOC/etc/fstab
-
-      if [[ "$OFVARIANT" == "of1" ]] || [[ "$OFVARIANT" == "of2" ]]; then
-        sed -i "s/ROOTDEV/\/dev\/mmcblk0p2/" $BLDLOC/etc/fstab
-        sed -i "s/BOOTDEV/\/dev\/mmcblk0p1/" $BLDLOC/etc/fstab
-      else
-        sed -i "s/ROOTDEV/\/dev\/sda2/" $BLDLOC/etc/fstab
-        sed -i "s/BOOTDEV/\/dev\/sda1/" $BLDLOC/etc/fstab
-      fi
 
       if [[ "$SSIZE" > "0" ]]; then
         sed -i "s/SNAME/$SNAME/" $BLDLOC/etc/fstab
