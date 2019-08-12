@@ -1,10 +1,11 @@
 #!/bin/bash
 
-## openframe-identifier v2.11 (24th July 2019)
+## openframe-identifier v2.12 (12th August 2019)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 OPENFRAME="1"
 KERNMAJVER=`uname -r | awk -F. '{print $1}'`
+FIRSTBOOT=`cat /etc/firstboot >/dev/null 2>&1`
 
 applystac9202pinpatch() {
 	if [ ! -f /etc/modprobe.d/of1-stac9202.conf ]; then
@@ -104,5 +105,9 @@ else
 	exit 1
 
 fi
+
+[ -f /etc/firstboot ] && /usr/bin/amixer -c 0 sset "Master" 50% unmute >/dev/null 2>&1
+
+[ -f /etc/firstboot ] && rm /etc/firstboot
 
 exit 0

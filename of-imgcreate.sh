@@ -67,10 +67,10 @@ OFVARIANT="$4"
 BSIZE="$5"
 
 ## If 'of1' or 'of2' is given for size, create an image that exactly matches the OpenFrame 1 or 2 internal storage.
-##  On the OpenFrame1 we override the boot partition size to 34MB. This is the minimum size that still allows update-initramfs to work.
+##  On the OpenFrame1 we override the boot partition size to 32MB. This is the minimum size that still allows update-initramfs to work.
 if [[ "$TSIZE" == "of1" ]]; then
 
-  MMCINT="1028128768"
+  BYTESSIZE="1028128768"
   TSIZE="1028"
 
   if [ $USEINITRD -gt 0 ] && [ $BSIZE -eq 0 ]; then
@@ -85,12 +85,17 @@ if [[ "$TSIZE" == "of1" ]]; then
 
 elif [[ "$TSIZE" == "of2" ]]; then
 
-	MMCINT="2055208960"
+	BYTESSIZE="2055208960"
 	TSIZE="2055"
+
+elif [[ "$TSIZE" == "uni" ]]; then
+
+  BYTESSIZE="1028128768"
+  TSIZE="1028"
 
 else
 
-	MMCINT="0"
+	BYTESSIZE="0"
 
 	if [ $USEINITRD -gt 0 ] && [ $BSIZE -lt 32 ]; then
 		BSIZE="32"
@@ -351,8 +356,8 @@ trap cleanup INT
 
 # Make the image file.
 echo "Creating "$TSIZE"MB image file..."
-if [ "$MMCINT" != "0" ]; then
-	dd if=/dev/zero of="$FILENAME" bs=$MMCINT count=1
+if [ "$BYTESSIZE" != "0" ]; then
+	dd if=/dev/zero of="$FILENAME" bs=$BYTESSIZE count=1
 else
 	dd if=/dev/zero of="$FILENAME" bs=1MB count=$TSIZE
 fi

@@ -82,12 +82,6 @@ apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
 echo
 sleep 2
 
-## This is a job for the of-identifier script on first boot.
-#echo "Setting sensible audio level..."
-#echo
-#/usr/bin/amixer -c 0 sset "Master" 50% unmute
-#echo
-
 # We use this for simple command line control of yaml files, eg. the netplan config file.
 echo "Installing yq..."
 curl -o /usr/local/bin/yq https://dl.birdslikewires.net/openframe/deps/yq_linux_386
@@ -150,10 +144,9 @@ dpkg -i /mnt/linux-image*.deb
 echo
 
 
-KERNELURL="$KNSERVER/openframe/kernel/$KERNMAJVER.$KERNMIDVER/$DISTRIB_CODENAME/$KERNVER"
-#if curl -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
-	echo "looking at $KERNELURL/modules-$KERNVER.tgz"
-if curl -f "$KERNELURL/modules-$KERNVER.tgz"; then
+KERNELURL="$KNSERVER/openframe/kernel/${DISTRIB_ID,,}/${DISTRIB_CODENAME,,}/$KERNMAJVER.$KERNMIDVER/$KERNVER"
+echo "Checking $KERNELURL for companion modules..."
+if curl -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
 	echo
 	echo "Found additional modules on $KNSERVER for $KERNVER. Downloading and installing."
 	echo
@@ -163,14 +156,6 @@ if curl -f "$KERNELURL/modules-$KERNVER.tgz"; then
 		rm /modules-$KERNVER.tgz
 	fi
 fi
-
-#if [ -f /mnt/fh.ko ]; then
-#	echo "Installing Intel Firmware Hub module..."
-#	[ -d /lib/modules/$KERNVER/extra ] || mkdir /lib/modules/$KERNVER/extra
-#	cp /mnt/fh.ko /lib/modules/$KERNVER/extra/
-#	chmod 644 /lib/modules/$KERNVER/extra/fh.ko
-#	echo
-#fi
 
 depmod -a $KERNVER
 echo
