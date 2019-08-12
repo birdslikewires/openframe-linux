@@ -171,8 +171,8 @@ if [ ! -f $KDLPATH/modules.tgz ]; then
 	sed -i 's/KVER  := $(shell uname -r)/KVER  := '$KOURNAME'/g' "./rtl8821cu_wlan/Makefile"
 	cd rtl8821cu_wlan
 	make -j`nproc`
-	cp rtl8821cu_wlan/rtl8821cu.ko lib/modules/$KOURNAME/kernel/drivers/net/wireless
 	cd ..
+	cp rtl8821cu_wlan/rtl8821cu.ko lib/modules/$KOURNAME/kernel/drivers/net/wireless
 	rm -rf rtl8821cu_wlan
 
 	## RTL8821CU Bluetooth Support
@@ -182,8 +182,8 @@ if [ ! -f $KDLPATH/modules.tgz ]; then
 	sed -i 's/KVER  := $(shell uname -r)/KVER  := '$KOURNAME'/g' "./rtl8821cu_bt/bluetooth_usb_driver/Makefile"
 	cd rtl8821cu_bt/bluetooth_usb_driver
 	make -j`nproc`
-	cp rtl8821cu_bt/bluetooth_usb_driver/rtk_btusb.ko lib/modules/$KOURNAME/kernel/drivers/bluetooth
 	cd ..
+	cp rtl8821cu_bt/bluetooth_usb_driver/rtk_btusb.ko lib/modules/$KOURNAME/kernel/drivers/bluetooth
 	rm -rf rtl8821cu_bt
 
 	## Firmware Hub Module
@@ -192,8 +192,8 @@ if [ ! -f $KDLPATH/modules.tgz ]; then
 	mkdir -p lib/modules/$KOURNAME/extra
 	cd fh
 	make -C /lib/modules/$KOURNAME/build M=`pwd` modules
-	cp fh.ko lib/modules/$KOURNAME/extra
 	cd ..
+	cp fh/fh.ko lib/modules/$KOURNAME/extra
 	rm -rf fh
 
 	tar zcvf modules.tgz lib
