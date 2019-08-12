@@ -221,7 +221,7 @@ else
 
 	rm -rf ./*.img*
 
-	openframe-ubuntu/of-imgcreate.sh `echo ${ICODENAME,,} | head -c 3` ext2 1 1000 32 0 ${ICODENAME,,} openframe-ubuntu/overlay-${ICODENAME,,} $KDLPATH
+	openframe-ubuntu/of-imgcreate.sh `echo ${ICODENAME,,} | head -c 3` ext2 1 uni 32 0 ${ICODENAME,,} openframe-ubuntu/overlay-${ICODENAME,,} $KDLPATH
 
 	# This checks through the exit codes so far and kills us if any have been greater than zero.
 	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
