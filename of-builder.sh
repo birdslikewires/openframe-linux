@@ -160,7 +160,7 @@ fi
 
 if [ -f $KDLPATH/modules.tgz ]; then
 
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules for kernel $KBRANCH have already been processed for $KOURNAME."
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules for kernel $KOURNAME have already been processed."
 
 else
 
@@ -211,7 +211,7 @@ fi
 
 if [[ "$IBUILDIT" == 0 ]]; then
 
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image for kernel $KBRANCH has already been processed as $KOURNAME."
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image for kernel $KOURNAME has already been processed."
 
 else
 
