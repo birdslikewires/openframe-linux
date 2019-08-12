@@ -12,7 +12,7 @@ source /etc/lsb-release
 
 ## Configurable Bits
 
-OURVER="op1"
+OURVER="op"
 PATHTODOWNLOADAREA="/home/andy/Public/download_blw/openframe"
 COREDIVIDER=1
 
