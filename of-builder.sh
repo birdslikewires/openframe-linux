@@ -177,7 +177,7 @@ else
 	make -j`nproc`
 	cd ..
 	cp rtl8821cu_wlan/rtl8821cu.ko lib/modules/$KOURNAME/kernel/drivers/net/wireless
-	rm -rf rtl8821cu_wlan
+	#rm -rf rtl8821cu_wlan
 
 	## RTL8821CU Bluetooth Support
 	[ -d rtl8821cu_bt ] && rm -rf rtl8821cu_bt
@@ -188,7 +188,7 @@ else
 	make -j`nproc`
 	cd ..
 	cp rtl8821cu_bt/bluetooth_usb_driver/rtk_btusb.ko lib/modules/$KOURNAME/kernel/drivers/bluetooth
-	rm -rf rtl8821cu_bt
+	#rm -rf rtl8821cu_bt
 
 	## Firmware Hub Module
 	[ -d fh ] && rm -rf fh
@@ -198,12 +198,12 @@ else
 	make -C /lib/modules/$KOURNAME/build M=`pwd` modules
 	cd ..
 	cp fh/fh.ko lib/modules/$KOURNAME/extra
-	rm -rf fh
+	#rm -rf fh
 
 	tar zcvf modules.tgz lib
-	rm -rf lib
+	#rm -rf lib
 
-	mv modules.tgz $KDLPATH
+	#mv modules.tgz $KDLPATH
 
 	exit 0
 
