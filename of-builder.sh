@@ -158,7 +158,11 @@ else
 
 fi
 
-if [ ! -f $KDLPATH/modules.tgz ]; then
+if [ -f $KDLPATH/modules.tgz ]; then
+
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules for kernel $KBRANCH have already been processed for $KOURNAME."
+
+else
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Building $KOURNAME kernel companion modules..."
 
