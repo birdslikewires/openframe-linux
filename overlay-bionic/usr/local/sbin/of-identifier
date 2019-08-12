@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## openframe-identifier v2.12 (12th August 2019)
+## openframe-identifier v2.13 (12th August 2019)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 OPENFRAME="1"
@@ -106,8 +106,19 @@ else
 
 fi
 
-[ -f /etc/firstboot ] && /usr/bin/amixer -c 0 sset "Master" 50% unmute >/dev/null 2>&1
+if [ ! -f /etc/firstboot ];
 
-[ -f /etc/firstboot ] && rm /etc/firstboot
+	# Apply a new UUID to the root partition and use this for future booting.
+	ROOTLOC=`/sbin/blkid | grep BIO-ROOT | awk -F\: {'print $1'}`
+	NEWUUID=`/usr/bin/uuid`
+	/sbin/tune2fs $ROOTLOC -U $NEWUUID
+	sed -i 's/LABEL=BIO-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
+
+	# Set a sensible default audio level.
+	/usr/bin/amixer -c 0 sset "Master" 50% unmute >/dev/null 2>&1
+
+	rm /etc/firstboot
+
+fi
 
 exit 0

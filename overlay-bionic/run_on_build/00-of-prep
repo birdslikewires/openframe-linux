@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# of-prep.sh v1.67 (12th August 2019)
+# of-prep.sh v1.68 (12th August 2019)
 #  Set up the basics.
 
 #set -x
@@ -73,7 +73,7 @@ DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 ## System Goodies
 
 # nfs-common 		- DO NOT add nfs-common here. It stuffs up rebooting and has to be installed once the system is live.
-APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools ntpdate patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unzip usbmount wget wpasupplicant wireless-tools xauth x11-xserver-utils zlibc"
+APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools ntpdate patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unzip usbmount uuid wget wpasupplicant wireless-tools xauth x11-xserver-utils zlibc"
 APT_AUDIO="alsa-base alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
 
