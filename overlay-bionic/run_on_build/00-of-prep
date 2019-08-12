@@ -82,10 +82,11 @@ apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
 echo
 sleep 2
 
-echo "Setting sensible audio level..."
-echo
-/usr/bin/amixer -c 0 sset "Master" 50% unmute
-echo
+## This is a job for the of-identifier script on first boot.
+#echo "Setting sensible audio level..."
+#echo
+#/usr/bin/amixer -c 0 sset "Master" 50% unmute
+#echo
 
 # We use this for simple command line control of yaml files, eg. the netplan config file.
 echo "Installing yq..."
@@ -150,7 +151,9 @@ echo
 
 
 KERNELURL="$KNSERVER/openframe/kernel/$KERNMAJVER.$KERNMIDVER/$DISTRIB_CODENAME/$KERNVER"
-if curl -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
+#if curl -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
+	echo "looking at $KERNELURL/modules-$KERNVER.tgz"
+if curl -f "$KERNELURL/modules-$KERNVER.tgz"; then
 	echo
 	echo "Found additional modules on $KNSERVER for $KERNVER. Downloading and installing."
 	echo

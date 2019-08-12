@@ -35,7 +35,6 @@ if [[ "$#" < 6 ]]; then
   echo
   echo "  overlay:         Location of overlay files to be copied (required when using Ubuntu release name as source)."
   echo "  kerneldir:       Location of linux-image and linux-header packages (required when using Ubuntu release name as source)."
-#  echo "  webkernel:       Enter '1' to fetch kernel from a kernel server (eg. birdslikewires.net) or '0' to use local files."
   echo
   exit 0
 fi
@@ -111,7 +110,6 @@ SSIZE="$6"
 INSTALL="$7"
 OVERLAY="$8"
 KERNELDIR="$9"
-#WEBKERNEL="$10"
 OFF=0
 RSIZE=$(($TSIZE-$BSIZE-$SSIZE))
 
@@ -321,32 +319,6 @@ mmc_cfg() {
     sed -i "s,$EXISTINGROOTLOCATION,/dev/mmcblk0p2," $MP/boot/grub.cfg 
 
     echo " done."
-  fi
-
-  # Set some system defaults for first boot if of1 or of2 specified.
-  if [[ "$OFVARIANT" == "of1" ]]; then
-    echo -n "Configuring internal OpenFrame 1 first boot defaults..."
-
-    # Ensure that the audio firmware patch is applied.
-    [ ! -f $MP/etc/modprobe.d/of1-stac9202.conf ] && echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202.patch" > $MP/etc/modprobe.d/of1-stac9202.conf
-
-    # We're not bothered about restricting the b43 driver.
-    [ -f $MP/etc/modprobe.d/blacklist-of2-b43.conf ] && rm $MP/etc/modprobe.d/blacklist-of2-b43.conf
-
-    echo " done."
-    echo
-  elif [[ "$OFVARIANT" == "of2" ]]; then
-    echo
-    echo -n "Configuring internal OpenFrame 2 first boot defaults..."
-
-    # Ensure that the OF1 audio firmware patch is removed.
-    [ -f $MP/etc/modprobe.d/of1-stac9202.conf ] && rm $MP/etc/modprobe.d/of1-stac9202.conf
-
-    # Ensure that the b43 wireless driver is disabled (we use brcmsmac).
-    [ ! -f $MP/etc/modprobe.d/blacklist-of2-b43.conf ] && echo "blacklist b43" > $MP/etc/modprobe.d/blacklist-of2-b43.conf
-
-    echo " done."
-    echo
   fi
 }
 

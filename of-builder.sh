@@ -239,9 +239,9 @@ else
 	echo -n "Moving to webserver..."
 	mkdir -p $IDLPATH
 	mv ./*.img* $IDLPATH
-	echo "$IDLPATH"
 	echo "$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/latest"
-	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/latest"
+	[ -L "$PATHTODOWNLOADAREA/images/ubuntu/latest" ] && rm "$PATHTODOWNLOADAREA/images/ubuntu/latest"
+	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/images/ubuntu/latest"
 	echo " done."
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image build completed."
