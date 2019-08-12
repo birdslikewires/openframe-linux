@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# of-prep.sh v1.66 (8th August 2019)
+# of-prep.sh v1.67 (12th August 2019)
 #  Set up the basics.
 
 #set -x
@@ -150,14 +150,14 @@ echo
 
 
 KERNELURL="$KNSERVER/openframe/kernel/$KERNMAJVER.$KERNMIDVER/$DISTRIB_CODENAME/$KERNVER"
-if curl -f "$KERNELURL/modules.tgz" >/dev/null 2>&1; then
+if curl -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
 	echo
 	echo "Found additional modules on $KNSERVER for $KERNVER. Downloading and installing."
 	echo
-	curl -o /modules.tgz "$KERNELURL/modules.tgz"
-	if [ -f /modules.tgz ]; then
-		tar zxvf /modules.tgz -C /
-		rm /modules.tgz
+	curl -o /modules-$KERNVER.tgz "$KERNELURL/modules-$KERNVER.tgz"
+	if [ -f /modules-$KERNVER.tgz ]; then
+		tar zxvf /modules-$KERNVER.tgz -C /
+		rm /modules-$KERNVER.tgz
 	fi
 fi
 

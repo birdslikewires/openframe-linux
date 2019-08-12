@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.03 (8th August 2019)
+## of-builder.sh v1.04 (12th August 2019)
 ##  Grabs a kernel, patches it, builds it.
 
 if [ $# -lt 1 ]; then
@@ -158,7 +158,7 @@ else
 
 fi
 
-if [ -f $KDLPATH/modules.tgz ]; then
+if [ -f $KDLPATH/modules-$KOURNAME.tgz ]; then
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules for kernel $KOURNAME have already been processed."
 
@@ -201,10 +201,10 @@ else
 	cp fh/fh.ko lib/modules/$KOURNAME/extra
 	rm -rf fh
 
-	tar zcvf modules.tgz lib
+	tar zcvf modules-$KOURNAME.tgz lib
 	rm -rf lib
 
-	mv modules.tgz $KDLPATH
+	mv modules-$KOURNAME.tgz $KDLPATH
 
 	exit 0
 
