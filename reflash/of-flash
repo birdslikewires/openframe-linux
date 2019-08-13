@@ -1,6 +1,6 @@
 #! /bin/bash
 
-## offlash v1.13 (8th April 2015) by Andy Davison
+## of-flash v1.13 (8th April 2015) by Andy Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
 
 COLOUR=6
