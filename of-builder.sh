@@ -68,7 +68,7 @@ fi
 
 if [[ "$KBUILDIT" == 0 ]]; then
 
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel $KBRANCH has already been processed as $KOURNAME."
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel $KOURNAME has already been processed."
 
 else
 
@@ -78,8 +78,8 @@ else
 	if [ ! -f "$KFILENAME" ]; then
 		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Downloading $KFILENAME..."
 		echo
-		wget "$KDOWNLOAD"
-		echo
+		wget --quiet "$KDOWNLOAD"
+		echo " done."
 	else
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel archive $KFILENAME found."
 	fi
@@ -166,7 +166,7 @@ fi
 
 if [ -f $KDLPATH/modules-$KOURNAME.tgz ]; then
 
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules for kernel $KOURNAME have already been processed."
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Modules for kernel $KOURNAME have already been processed."
 
 else
 
