@@ -260,7 +260,6 @@ else
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Moving to webserver..."
 	mkdir -p $IDLPATH
 	mv ./*.img* $IDLPATH
-	echo "$IDLPATH"
 	[ -L "$PATHTODOWNLOADAREA/images/ubuntu/latest" ] && rm "$PATHTODOWNLOADAREA/images/ubuntu/latest"
 	[ -L "$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/latest" ] && rm "$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/latest"
 	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/images/ubuntu/latest"
