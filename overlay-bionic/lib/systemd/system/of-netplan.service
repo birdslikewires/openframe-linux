@@ -5,7 +5,7 @@ Wants=network-pre.target
 
 [Service]
 ExecStart=/usr/local/sbin/of-netplan
-StandardOutput=syslog+console
+StandardOutput=syslog
 
 [Install]
 WantedBy=multi-user.target
