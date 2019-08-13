@@ -216,7 +216,7 @@ else
 	fi
 
 	echo
-	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules built successfully, compressing and moving..."
+	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules done, but check the log above. Compressing and moving..."
 	tar zcvf modules-$KOURNAME.tgz lib
 	rm -rf lib
 	mv modules-$KOURNAME.tgz $KDLPATH
