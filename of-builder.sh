@@ -77,7 +77,6 @@ else
 
 	if [ ! -f "$KFILENAME" ]; then
 		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Downloading $KFILENAME..."
-		echo
 		wget --quiet "$KDOWNLOAD"
 		echo " done."
 	else
