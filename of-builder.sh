@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.04 (12th August 2019)
+## of-builder.sh v1.05 (13th August 2019)
 ##  Grabs a kernel, patches it, builds it.
 
 if [ $# -lt 1 ]; then
@@ -23,7 +23,7 @@ KARCHIVES=`curl --silent https://www.kernel.org/index.html`
 KDOWNLOAD=`echo "$KARCHIVES" | grep -m 1 "linux-$KBRANCH" | grep ".xz" | awk -F\" {'print $2'}`
 
 if [[ ! "$KDOWNLOAD" ]]; then
-	echo "Kernel branch $KBRANCH was not found as stable or longterm on the kernel.org homepage."
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel branch $KBRANCH was not found as stable or longterm on the kernel.org homepage."
 	exit 1
 fi
 
@@ -76,48 +76,52 @@ else
 	echo
 
 	if [ ! -f "$KFILENAME" ]; then
-		echo -n "Downloading $KFILENAME..."
+		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Downloading $KFILENAME..."
 		echo
 		wget "$KDOWNLOAD"
 		echo
 	else
-		echo "Kernel archive $KFILENAME found."
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel archive $KFILENAME found."
 	fi
 
 	if [ ! -f "$KFILENAME" ]; then
-		echo "Download appears to have failed."
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Download appears to have failed."
 		exit 1
 	fi
 
 	if [ -d "$KOURBUILD" ]; then
-		echo -n "Removing previous build cruft..."
+		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Removing previous build cruft..."
 		rm -rf "$KOURBUILD"
 		rm -rf *.deb
 		rm -rf ./tmp/*
 		echo " done."
 	fi
 
-	echo -n "Decompressing $KFILENAME..."
+	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Decompressing $KFILENAME..."
 	tar xJf $KFILENAME
 	echo " done."
 
-	echo "Applying OpenFrame kernel patches..."
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Applying OpenFrame kernel patches..."
 	for p in `ls openframe-kernel/patches/$KLATESTMAJVER.$KLATESTMIDVER`; do
 		patch -f -p1 -d "$KOURBUILD" < "openframe-kernel/patches/$KLATESTMAJVER.$KLATESTMIDVER/$p"
 	done
 
 	# This checks through the exit codes so far and kills us if any have been greater than zero.
 	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
-	[[ $RC -gt 0 ]] && exit $RC
+	if [[ $RC -gt 0 ]]; then
+		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Build failed, check the log."
+		cleanup
+		exit $RC
+	fi
 
-	echo -n "Applying extraversion to makefile..."
+	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying extraversion to makefile..."
 	KMAKEFILE=`cat "$KOURBUILD/Makefile"`
 	if [[ ! "$KMAKEFILE" =~ "EXTRAVERSION = $OURVER" ]]; then
 		sed -i "s/EXTRAVERSION =/EXTRAVERSION = $OURVER/g" "$KOURBUILD/Makefile"
 	fi
 	echo " done."
 
-	echo "Updating config file with new defaults..."
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Updating config file with new defaults..."
 	KCONFIGFILE=`ls openframe-kernel/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
 	cp "openframe-kernel/configs/$KCONFIGFILE" "$KOURBUILD/.config"
 	cd "$KOURBUILD"
@@ -131,30 +135,32 @@ else
 	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
 	if [[ $RC -gt 0 ]]; then
 		echo
-		echo "Build failed, check the log."
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Build failed, check the log."
 		cleanup
 		exit $RC
 	fi
 
 	echo
-	echo "Build succeeded!"
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel build succeeded!"
 	echo
 
 	mkdir -p $KDLPATH
 	cd ..
-	echo -n "Moving kernel $KOURNAME packages..."
+	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Moving kernel $KOURNAME packages..."
 	mv *.deb $KDLPATH
 	echo " done."
-	echo -n "Copying kernel $KOURNAME config file..."
+	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Copying kernel $KOURNAME config file..."
 	cp "$KOURBUILD/.config" "$KDLPATH/$KOURNAME.config"
 	echo " done."
-	echo -n "Copying kernel $KOURNAME patches..."
+	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Copying kernel $KOURNAME patches..."
 	cp -R "openframe-kernel/patches/$KLATESTMAJVER.$KLATESTMIDVER" "$KDLPATH/patches"
 	echo " done."
 	echo
 	cleanup
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel compiled, packages ready."
+	echo
+	echo
 
 fi
 
@@ -201,12 +207,27 @@ else
 	cp fh/fh.ko lib/modules/$KOURNAME/extra
 	rm -rf fh
 
+	# This checks through the exit codes so far and kills us if any have been greater than zero.
+	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
+	if [[ $RC -gt 0 ]]; then
+		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Build failed, check the log."
+		cleanup
+		exit $RC
+	fi
+
+	echo
+	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules built successfully, compressing and moving..."
 	tar zcvf modules-$KOURNAME.tgz lib
 	rm -rf lib
-
 	mv modules-$KOURNAME.tgz $KDLPATH
+	echo " done."
 
-	exit 0
+	echo
+	cleanup
+	echo
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules ready."
+	echo
+	echo
 
 fi
 
@@ -226,17 +247,17 @@ else
 	# This checks through the exit codes so far and kills us if any have been greater than zero.
 	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
 	if [[ $RC -gt 0 ]]; then
-		echo -n "Build failed, check the log."
+		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Build failed, check the log."
 		cleanup
 		exit $RC
 	fi
 
-	echo -n "Compressing and checkumming..."
+	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Compressing and checkumming..."
 	IBUILTIT=`ls | grep -m 1 .img`
 	gzip $IBUILTIT
 	md5sum $IBUILTIT.gz > $IBUILTIT.gz.md5
 	echo " done."
-	echo -n "Moving to webserver..."
+	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Moving to webserver..."
 	mkdir -p $IDLPATH
 	mv ./*.img* $IDLPATH
 	echo "$IDLPATH"
@@ -246,6 +267,8 @@ else
 	echo " done."
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image build completed."
+	echo
+	echo
 
 fi
 
