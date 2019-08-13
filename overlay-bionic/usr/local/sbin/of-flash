@@ -1,6 +1,6 @@
-#! /bin/bash
+#!/bin/bash
 
-## of-flash v1.13 (8th April 2015) by Andy Davison
+## of-flash v1.15 (13th August 2019) by Andy Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
 
 COLOUR=6
@@ -26,10 +26,10 @@ header() {
 	echo
 	echo
 	tput setaf $COLOUR
-	echo "                                                                 OpenFrame Reflash System v1.13"
+	echo "                                                                        OpenFrame Reflash v1.15"
 	[ $DEBUG -eq 0 ] && echo "==============================================================================================="
 	[ $DEBUG -ne 0 ] && echo "====== DEBUG =================================================================================="
-	echo "                                                                           birdslikewires.co.uk"
+	echo "                                                                             birdslikewires.net"
 	echo
 	tput setab $COLOUR
 	tput setaf 0
@@ -84,7 +84,7 @@ droptoshell() {
 		countdown "Dropping to shell" $1
 		sleep 1
 		clear
-		ifconfig eth0 | grep inet | grep -v inet6 | sed 's/^ *//'
+		/usr/local/sbin/of-getip
 		tput sgr0
 		echo
 	fi
@@ -452,13 +452,14 @@ else
 
 			if [ $FILECOUNT -eq 0 ]; then
 
-				echo "No valid firmware image found."
+				echo "No firmware image found."
 				echo
 				echo
 				tput setaf 3
-				echo "    When your USB flash memory device is connected to your PC, there will be a volume"
-				echo "    named 'rfl-boot' which will contain a directory named 'reflash'. Please copy the two"
-				echo "    firmware image files into this 'reflash' directory."
+				echo "    When your USB flash memory device is connected to a computer, there will be a volume"
+				echo "    named '"`cat /etc/fstab | grep vfat | awk -F\  {'print $1'} | awk -F\= {'print $2'}`"' which should contain a directory named 'reflash'."
+				echo
+				echo "    Please copy the two firmware image files into this 'reflash' directory."
 				echo
 				echo "    Firmware must be in '.img.gz' format and be accompanied by a '.img.gz.md5' checksum file."
 
@@ -525,7 +526,7 @@ else
 
 	else
 
-		echo "No 'reflash' directory found. Have you deleted it?"
+		echo "No /boot/reflash directory found. Has it been deleted?"
 		echo
 		echo
 		tput setaf 3
