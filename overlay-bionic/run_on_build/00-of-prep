@@ -99,6 +99,7 @@ echo
 
 echo "Enable custom systemd services..."
 chmod +x /usr/local/sbin/of-*
+chmod +x /usr/sbin/*
 
 for f in `ls -1 /lib/systemd/system | grep 'of-' | grep '.service'`; do
   SERVICE=`echo $f | awk -F\.service {'print $1'}`
