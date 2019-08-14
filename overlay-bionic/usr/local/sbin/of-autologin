@@ -1,17 +1,28 @@
-#!/bin/sh
+#!/bin/bash
 
-# of-autologin v1.00 (24rd July 2019)
+# of-autologin v1.01 (14th August 2019)
 #  Toggles automatic login on tty1 via getty.
 
-AUTOLOGINUSER="$1"
-[ $# -ne 1 ] && AUTOLOGINUSER="root"
+if [ "$USER" != "root" ]; then
+	echo "You need to run this with superuser privileges."
+	exit 1
+fi
 
-if [ -f /etc/systemd/system/getty@tty1.service.d/override.conf ]; then
-	echo -n "Enabling tty1 autologin for '$AUTOLOGINUSER' user..."
-	rm /etc/systemd/system/getty@tty1.service.d/override.conf
+if [ $# -ne 1 ]; then
+	echo "Usage: $0 <username>"
+	exit 1
+fi
+
+AUTOLOGINUSER="$1"
+
+[ ! -d /etc/systemd/system/getty@tty1.service.d ] && mkdir -p /etc/systemd/system/getty@tty1.service.d
+
+if [ -f /etc/systemd/system/getty@tty1.service.d/autologin.conf ]; then
+	echo -n "Disabling autologin..."
+	rm /etc/systemd/system/getty@tty1.service.d/autologin.conf
 	echo " done."
 else
-	echo -n "Disabling tty1 autologin..."
-	echo -e '[Service]\nExecStart=\nExecStart=-/sbin/agetty -a '$AUTOLOGINUSER' --noclear %I $TERM\n' > /etc/systemd/system/getty@tty1.service.d/override.conf
+	echo -n "Enabling autologin for $AUTOLOGINUSER..."
+	echo -e "[Service]\nExecStart=\nExecStart=-/sbin/agetty -a $AUTOLOGINUSER --noclear %I \$TERM\n" > /etc/systemd/system/getty@tty1.service.d/autologin.conf
 	echo " done."
 fi
