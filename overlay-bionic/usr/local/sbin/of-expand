@@ -53,6 +53,10 @@ EOF
 
 echo "$ROOTISON$ROOTPARTNO" > /root/resize
 
+# Remove memory caching of apt lists from /etc/fstab
+sed -i '/\/var\/cache\/apt/d' /etc/fstab
+sed -i '\/var\/lib\/apt\/lists/d' /etc/fstab
+
 /sbin/fdisk -l $ROOTISON
 
 echo
