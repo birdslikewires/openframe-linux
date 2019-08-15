@@ -1,9 +1,0 @@
-[Unit]
-Description=OpenFrame X11 server kick
-After=systemd-user-sessions.service
-
-[Service]
-ExecStart=/usr/local/sbin/of-startx
-
-[Install]
-WantedBy=multi-user.target
