@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# of-prep.sh v1.69 (14th August 2019)
+# of-prep.sh v1.70 (15th August 2019)
 #  Set up the basics.
 
 #set -x
 
 
 OPENFRAMEUSER="root"
-KNSERVER="https://dl.birdslikewires.net"
+DLSERVER="https://dl.birdslikewires.net"
 
 
 ##  Things to do before installing the kernel.
@@ -70,24 +70,33 @@ sleep 4
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 
-## System Goodies
-
-# nfs-common 		- DO NOT add nfs-common here. It stuffs up rebooting and has to be installed once the system is live.
+# Additions
 APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools ntpdate patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip usbmount uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput zlibc"
 APT_AUDIO="alsa-base alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
 
-apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
+# Removals
+APT_REM_SYSTEM="ubuntu-advantage-tools ubuntu-minimal"
 
+apt-get remove -y --purge $APT_REM_SYSTEM
+echo
+apt-get autoremove -y
+echo
+apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
 echo
 sleep 2
 
-# We use this for simple command line control of yaml files, eg. the netplan config file.
-echo "Installing yq..."
-curl -o /usr/local/bin/yq https://dl.birdslikewires.net/openframe/deps/yq_linux_386
+# Plain old-fashioned deletions.
+echo "Removing unnecessary components..."
+rm -v /etc/update-motd.d/00-header /etc/update-motd.d/10-help-text /etc/update-motd.d/50-motd-news
 echo
 
-echo "Clarify user permissions..."
+# We use this for simple command line control of yaml files, eg. the netplan config file.
+echo "Installing yq..."
+curl -o /usr/local/bin/yq $DLSERVER/openframe/deps/yq_linux_386
+echo
+
+echo "Correct user permissions..."
 chown root:root /home
 [[ "$OPENFRAMEUSER" != "root" ]] && chown -R $OPENFRAMEUSER:$OPENFRAMEUSER $HOMEPATH $HOMEPATH/.*
 chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo /usr/sbin/ntpdate
@@ -120,12 +129,6 @@ chown root:root /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
 chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
 echo
 
-## This one is no longer needed - so long as 'quiet' is used in the boot paramters, initramfs now respects it.
-#echo "Silence initramfs..."
-#sed -i 's/ || echo "Loading, please wait..."//g' /usr/share/initramfs-tools/init
-#echo
-
-
 
 ## Install the kernel.
 
@@ -145,11 +148,11 @@ dpkg -i /mnt/linux-image*.deb
 echo
 
 
-KERNELURL="$KNSERVER/openframe/kernel/${DISTRIB_ID,,}/${DISTRIB_CODENAME,,}/$KERNMAJVER.$KERNMIDVER/$KERNVER"
+KERNELURL="$DLSERVER/openframe/kernel/${DISTRIB_ID,,}/${DISTRIB_CODENAME,,}/$KERNMAJVER.$KERNMIDVER/$KERNVER"
 echo "Checking $KERNELURL for companion modules..."
 if curl -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
 	echo
-	echo "Found additional modules on $KNSERVER for $KERNVER. Downloading and installing."
+	echo "Found additional modules on $DLSERVER for $KERNVER. Downloading and installing."
 	echo
 	curl -o /modules-$KERNVER.tgz "$KERNELURL/modules-$KERNVER.tgz"
 	if [ -f /modules-$KERNVER.tgz ]; then
@@ -169,6 +172,7 @@ if [ `grep -c initrd /boot/grub.cfg` -gt 0 ]; then
 	sleep 2
 	echo " done!"
 fi
+
 
 ## Wind down.
 
