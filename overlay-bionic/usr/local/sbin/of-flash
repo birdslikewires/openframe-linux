@@ -1,7 +1,18 @@
 #!/bin/bash
 
-## of-flash v1.15 (13th August 2019) by Andy Davison
+## of-flash v1.16 (15th August 2019) by Andy Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
+
+if [[ "$USER" != "root" ]]; then
+	echo "Must be run as root."
+	exit 1
+fi
+
+if [ "$1" ]; then
+	IMGLOC="$1"
+else
+	IMGLOC="/boot/reflash"
+fi
 
 COLOUR=6
 HAPPYSTOP=10
@@ -10,10 +21,7 @@ DEBUG=0
 
 tput cnorm
 
-if [[ "$USER" != "root" ]]; then
-	echo "Must be run as root."
-	exit 1
-fi
+
 
 /usr/bin/amixer -c 0 sset "Master" 20% unmute &>/dev/null
 
@@ -26,7 +34,7 @@ header() {
 	echo
 	echo
 	tput setaf $COLOUR
-	echo "                                                                        OpenFrame Reflash v1.15"
+	echo "                                                                        OpenFrame Reflash v1.16"
 	[ $DEBUG -eq 0 ] && echo "==============================================================================================="
 	[ $DEBUG -ne 0 ] && echo "====== DEBUG =================================================================================="
 	echo "                                                                             birdslikewires.net"
@@ -122,7 +130,7 @@ shutitdown() {
 
 header
 
-REFLASHCONTENTS=`find /boot/reflash/ -maxdepth 1 -type f -iname "*.img*" -not -path '*/\.*' -printf '%f\n' | sort`
+REFLASHCONTENTS=`find $IMGLOC -maxdepth 1 -type f -iname "*.img*" -not -path '*/\.*' -printf '%f\n' | sort`
 
 [ "$REFLASHCONTENTS" == "" ] && FILECOUNT=0 || FILECOUNT=`echo "$REFLASHCONTENTS" | wc -l`
 
@@ -133,10 +141,10 @@ EFIPRESENT=`echo "$REFLASHCONTENTS" | grep -c _efi_`
 if [ $FILECOUNT -eq 2 ] && [ $IMGPRESENT -eq 1 ] && [ $CHKPRESENT -eq 1 ]; then
 
 	IMG=`echo "$REFLASHCONTENTS" | head -1 | awk -F\.img.gz {'print $1'}`
-	IMGSUM=`cat /boot/reflash/$IMG.img.gz.md5 | awk -F\   {'print $1'}`
+	IMGSUM=`cat $IMGLOC/$IMG.img.gz.md5 | awk -F\   {'print $1'}`
 
 	echo -n "Checking integrity of image..."
-	CHECKSUM=`md5sum /boot/reflash/$IMG.img.gz | awk -F\  '{print $1}'`
+	CHECKSUM=`md5sum $IMGLOC/$IMG.img.gz | awk -F\  '{print $1}'`
 	if [ "$CHECKSUM" == "$IMGSUM" ]; then
 
 		echo " successful."
@@ -152,7 +160,9 @@ if [ $FILECOUNT -eq 2 ] && [ $IMGPRESENT -eq 1 ] && [ $CHKPRESENT -eq 1 ]; then
 		tput setaf $COLOUR
 		echo -n "$IMG.img.gz"
 		tput sgr0
-		echo ". The process should take 5-7 minutes to complete."
+		echo "."
+		echo
+		echo "The process should take 5-7 minutes to complete."
 		echo
 		echo "To stop this, turn off the power to this device BEFORE THE COUNTDOWN ENDS."
 		echo
@@ -169,7 +179,7 @@ if [ $FILECOUNT -eq 2 ] && [ $IMGPRESENT -eq 1 ] && [ $CHKPRESENT -eq 1 ]; then
 		tput setaf 7
 		echo
 		[ $DEBUG -eq 0 ] && MMCDEST="/dev/mmcblk0" || MMCDEST="/dev/null"
-		gzip -dc /boot/reflash/$IMG.img.gz | dd of=$MMCDEST bs=1M
+		gzip -dc $IMGLOC/$IMG.img.gz | dd of=$MMCDEST bs=1M
 		sleep 1
 
 		/usr/bin/aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
@@ -211,14 +221,14 @@ elif [ $FILECOUNT -eq 2 ] && [ $EFIPRESENT -eq 2 ]; then
 			OFVER=`cat /tmp/openframe.ver`
 
 			EFI=`echo "$REFLASHCONTENTS" | head -1 | awk -F\.img {'print $1'}`
-			EFISUM=`cat /boot/reflash/$EFI.img.md5 | awk -F\   {'print $1'}`
+			EFISUM=`cat $IMGLOC/$EFI.img.md5 | awk -F\   {'print $1'}`
 			EFIVER=`echo $EFI | head -1 | awk -F\of {'print $2'} | awk -F\_ {'print $1'}`
 
 			echo -n "Checking integrity of EFI image..."
 
 			if [ "$EFIVER" == "$OFVER" ]; then
 
-				CHECKSUM=`md5sum /boot/reflash/$EFI.img | awk -F\  '{print $1}'`
+				CHECKSUM=`md5sum $IMGLOC/$EFI.img | awk -F\  '{print $1}'`
 				if [ "$CHECKSUM" == "$EFISUM" ]; then
 
 					echo " successful."
@@ -262,7 +272,7 @@ elif [ $FILECOUNT -eq 2 ] && [ $EFIPRESENT -eq 2 ]; then
 					tput setaf 7
 					echo
 					[ $DEBUG -eq 0 ] && EFIDEST="/dev/fh" || EFIDEST="/dev/null"
-					dd if=/boot/reflash/$EFI.img of=$EFIDEST bs=1024k count=1
+					dd if=$IMGLOC/$EFI.img of=$EFIDEST bs=1024k count=1
 					echo
 					sleep 2
 					tput setaf 3
@@ -274,8 +284,8 @@ elif [ $FILECOUNT -eq 2 ] && [ $EFIPRESENT -eq 2 ]; then
 
 					if [ "$EFIPOSTSUM" == "$EFISUM" ]; then
 
-						[ ! -d /boot/reflash/complete ] && mkdir /boot/reflash/complete
-						mv /boot/reflash/$EFI.img /boot/reflash/$EFI.img.md5 /boot/reflash/complete/
+						[ ! -d $IMGLOC/complete ] && mkdir $IMGLOC/complete
+						mv $IMGLOC/$EFI.img $IMGLOC/$EFI.img.md5 $IMGLOC/complete/
 
 						/usr/bin/aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
 
@@ -446,7 +456,7 @@ else
 
 	header
 
-	if [ -d /boot/reflash ]; then
+	if [ -d $IMGLOC ]; then
 
 		if [ $FILECOUNT -ne 2 ]; then
 
@@ -489,7 +499,7 @@ else
 
 			if [ $IMGPRESENT -eq 0 ]; then
 
-				IMGDECOMP=`ls -1 /boot/reflash | sed -n 1p | grep -c .img`
+				IMGDECOMP=`ls -1 $IMGLOC | sed -n 1p | grep -c .img`
 
 				if [ $IMGDECOMP -eq 1 ]; then
 
@@ -526,7 +536,7 @@ else
 
 	else
 
-		echo "No /boot/reflash directory found. Has it been deleted?"
+		echo "No $IMGLOC directory found."
 		echo
 		echo
 		tput setaf 3
