@@ -8,10 +8,22 @@ KERNMAJVER=`uname -r | awk -F. '{print $1}'`
 
 applystac9202pinpatch() {
 	if [ ! -f /etc/modprobe.d/of1-stac9202.conf ]; then
-		echo -n "Applying STAC9202 audio configuration..."
-		echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202.patch" > /etc/modprobe.d/of1-stac9202.conf
+
+	echo -n "Applying STAC9202 audio patch for kernel series v$KERNMAJVER..."
+
+		if [ $KERNMAJVER -lt 4 ]; then
+
+			echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202v$KERNMAJVER.patch" > /etc/modprobe.d/of1-stac9202.conf
+
+		else
+
+			echo "options snd-hda-intel patch=of1-stac9202v$KERNMAJVER.patch" > /etc/modprobe.d/of1-stac9202.conf
+
+		fi
+
 		/sbin/alsa force-reload &>/dev/null
 		echo " done."
+
 	fi
 }
 
@@ -85,17 +97,11 @@ fi
 if [ "$OPENFRAME" -eq 1 ]; then
 
 	## Here be the OpenFrame 1 tweaks.
-
-	# If the kernel is from the 3.x series, we'll be using the patch.
-	[ $KERNMAJVER -eq 3 ] && applystac9202pinpatch
-	# More modern kernels... they're on their own. Good luck!
-	[ $KERNMAJVER -gt 3 ] && removestac9202pinpatch
+	applystac9202pinpatch
 
 elif [ "$OPENFRAME" -eq 2 ]; then
 
 	## Here be the OpenFrame 2 tweaks.
-
-	# Ensure that the OpenFrame 1's audio firmware patch is removed.
 	removestac9202pinpatch
 
 else

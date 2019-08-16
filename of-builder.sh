@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.05 (13th August 2019)
+## of-builder.sh v1.06 (16th August 2019)
 ##  Grabs a kernel, patches it, builds it.
 
 if [ $# -lt 1 ]; then
@@ -174,28 +174,30 @@ else
 
 	[ ! -d /lib/modules/$KOURNAME ] && dpkg -i $KDLPATH/linux-headers*
 
-	## RTL8821CU Wireless Support
-	[ -d rtl8821cu_wlan ] && rm -rf rtl8821cu_wlan
-	git clone https://github.com/andydvsn/rtl8821cu_wlan.git
-	mkdir -p lib/modules/$KOURNAME/kernel/drivers/net/wireless
-	sed -i 's/KVER  := $(shell uname -r)/KVER  := '$KOURNAME'/g' "./rtl8821cu_wlan/Makefile"
-	cd rtl8821cu_wlan
-	make -j`nproc`
-	cd ..
-	cp rtl8821cu_wlan/rtl8821cu.ko lib/modules/$KOURNAME/kernel/drivers/net/wireless
-	rm -rf rtl8821cu_wlan
+	if [[ "$KLATESTMAJVER" -lt 4 ]]; then
 
-	## RTL8821CU Bluetooth Support
-	[ -d rtl8821cu_bt ] && rm -rf rtl8821cu_bt
-	git clone https://github.com/andydvsn/rtl8821cu_bt.git
-	mkdir -p lib/modules/$KOURNAME/kernel/drivers/bluetooth
-	#sed -i 's/KVER  := $(shell uname -r)/KVER  := '$KOURNAME'/g' "./rtl8821cu_bt/bluetooth_usb_driver/Makefile"
-	cd rtl8821cu_bt/bluetooth_usb_driver
-	#make -j`nproc`
-	make -C /lib/modules/$KOURNAME/build M=`pwd` modules
-	cd ../..
-	cp rtl8821cu_bt/bluetooth_usb_driver/rtk_btusb.ko lib/modules/$KOURNAME/kernel/drivers/bluetooth
-	rm -rf rtl8821cu_bt
+		## RTL8821CU Wireless Support
+		[ -d rtl8821cu_wlan ] && rm -rf rtl8821cu_wlan
+		git clone https://github.com/andydvsn/rtl8821cu_wlan.git
+		mkdir -p lib/modules/$KOURNAME/kernel/drivers/net/wireless
+		sed -i 's/KVER  := $(shell uname -r)/KVER  := '$KOURNAME'/g' "./rtl8821cu_wlan/Makefile"
+		cd rtl8821cu_wlan
+		make -j`nproc`
+		cd ..
+		cp rtl8821cu_wlan/rtl8821cu.ko lib/modules/$KOURNAME/kernel/drivers/net/wireless
+		rm -rf rtl8821cu_wlan
+
+		## RTL8821CU Bluetooth Support
+		[ -d rtl8821cu_bt ] && rm -rf rtl8821cu_bt
+		git clone https://github.com/andydvsn/rtl8821cu_bt.git
+		mkdir -p lib/modules/$KOURNAME/kernel/drivers/bluetooth
+		cd rtl8821cu_bt/bluetooth_usb_driver
+		make -C /lib/modules/$KOURNAME/build M=`pwd` modules
+		cd ../..
+		cp rtl8821cu_bt/bluetooth_usb_driver/rtk_btusb.ko lib/modules/$KOURNAME/kernel/drivers/bluetooth
+		rm -rf rtl8821cu_bt
+
+	fi
 
 	## Firmware Hub Module
 	[ -d fh ] && rm -rf fh
@@ -206,14 +208,6 @@ else
 	cd ..
 	cp fh/fh.ko lib/modules/$KOURNAME/extra
 	rm -rf fh
-
-	# This checks through the exit codes so far and kills us if any have been greater than zero.
-	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
-	if [[ $RC -gt 0 ]]; then
-		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Build failed, check the log."
-		cleanup
-		exit $RC
-	fi
 
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules done, but check the log above. Compressing and moving..."
