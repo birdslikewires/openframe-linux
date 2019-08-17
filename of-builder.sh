@@ -1,7 +1,7 @@
 #!/bin/bash
 
-## of-builder.sh v1.06 (16th August 2019)
-##  Grabs a kernel, patches it, builds it.
+## of-builder.sh v1.07 (17th August 2019)
+##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
 	echo "Usage: $0 <kernelbranch> [codename]"
@@ -136,6 +136,7 @@ else
 	if [[ $RC -gt 0 ]]; then
 		echo
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Build failed, check the log."
+		cd ..
 		cleanup
 		exit $RC
 	fi
