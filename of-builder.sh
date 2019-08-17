@@ -44,8 +44,8 @@ IDLPATH="$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/$KLATESTMAJVER.$KLATES
 
 cleanup() {
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Cleaning up..."
-	chown -R www-data:www-data $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/images
-	chmod -R 774 $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/images
+	chown -R www-data:www-data $PATHTODOWNLOADAREA/build $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/images
+	chmod -R 774 $PATHTODOWNLOADAREA/build $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/images
 	rm -rf ./$KOURBUILD*
 	rm -rf ./*.deb
 	rm -rf ./*.img*
