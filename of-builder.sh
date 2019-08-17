@@ -121,6 +121,15 @@ else
 	fi
 	echo " done."
 
+	if [ $KLATESTMAJVER -eq 5 ];
+		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying -d flag to dpkg-buildpackage to work around cross-compiling misidentification issue..."
+		KMAKEFILE=`cat "$KOURBUILD/Makefile"`
+		if [[ ! "$KMAKEFILE" =~ "EXTRAVERSION = $OURVER" ]]; then
+			sed -i "s/dpkg-buildpackage/dpkg-buildpackage -d/g" "$KOURBUILD/scripts/package/Makefile"
+		fi
+		echo " done."
+	fi
+
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Updating config file with new defaults..."
 	KCONFIGFILE=`ls openframe-kernel/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
 	cp "openframe-kernel/configs/$KCONFIGFILE" "$KOURBUILD/.config"
@@ -256,7 +265,7 @@ else
 	mv ./*.img* $IDLPATH
 	[ -L "$PATHTODOWNLOADAREA/images/ubuntu/latest" ] && rm "$PATHTODOWNLOADAREA/images/ubuntu/latest"
 	[ -L "$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/latest" ] && rm "$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/latest"
-	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/images/ubuntu/latest"
+	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/images/ubuntu/latest$KLATESTMAJVER$KLATESTMIDVER"
 	echo " done."
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image build completed."
