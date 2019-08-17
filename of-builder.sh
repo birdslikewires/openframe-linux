@@ -121,7 +121,7 @@ else
 	fi
 	echo " done."
 
-	if [ $KLATESTMAJVER -eq 5 ];
+	if [ $KLATESTMAJVER -eq 5 ]; then
 		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying -d flag to dpkg-buildpackage to work around cross-compiling misidentification issue..."
 		KMAKEFILE=`cat "$KOURBUILD/Makefile"`
 		if [[ ! "$KMAKEFILE" =~ "EXTRAVERSION = $OURVER" ]]; then
