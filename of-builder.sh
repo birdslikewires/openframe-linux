@@ -121,11 +121,11 @@ else
 	fi
 	echo " done."
 
-	if [ $KLATESTMAJVER -eq 5 ]; then
-		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying -d flag to dpkg-buildpackage to work around cross-compiling misidentification issue..."
-		sed -i "s/dpkg-buildpackage/dpkg-buildpackage -d/g" "$KOURBUILD/scripts/package/Makefile"
-		echo " done."
-	fi
+#	if [ $KLATESTMAJVER -eq 5 ]; then
+#		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying -d flag to dpkg-buildpackage to work around cross-compiling misidentification issue..."
+#		sed -i "s/dpkg-buildpackage/dpkg-buildpackage -d/g" "$KOURBUILD/scripts/package/Makefile"
+#		echo " done."
+#	fi
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Updating config file with new defaults..."
 	KCONFIGFILE=`ls openframe-kernel/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
