@@ -262,7 +262,7 @@ else
 	mv ./*.img* $IDLPATH
 	[ -L "$PATHTODOWNLOADAREA/images/ubuntu/latest" ] && rm "$PATHTODOWNLOADAREA/images/ubuntu/latest"
 	[ -L "$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/latest" ] && rm "$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/latest"
-	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/images/ubuntu/latest$KLATESTMAJVER$KLATESTMIDVER"
+	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/images/ubuntu/latest_$KLATESTMAJVER$KLATESTMIDVER"
 	echo " done."
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image build completed."
