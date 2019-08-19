@@ -1,11 +1,18 @@
 #!/bin/bash
 
-# of-expand v1.00 (24th July 2019)
+# of-expand v1.01 (19th August 2019)
 #  Expands the root partition to fill the drive.
 
 if [ "$USER" != "root" ]; then
   echo "You need to run this with superuser privileges."
   exit 1
+fi
+
+if [ -f /root/expand ]; then
+	/sbin/resize2fs `cat /root/expand`
+	rm /root/expand
+	/usr/bin/aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
+	exit 0
 fi
 
 countdown() {
@@ -51,7 +58,7 @@ n
 w
 EOF
 
-echo "$ROOTISON$ROOTPARTNO" > /root/resize
+echo "$ROOTISON$ROOTPARTNO" > /root/expand
 
 # Remove memory caching of apt lists from /etc/fstab
 sed -i '/\/var\/cache\/apt/d' /etc/fstab

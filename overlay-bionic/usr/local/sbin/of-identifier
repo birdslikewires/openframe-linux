@@ -87,11 +87,8 @@ fi
 
 echo $OPENFRAME > /tmp/openframe.ver
 
-if [ -f /root/resize ]; then
-	echo "Resizing root filesystem."
-	/sbin/resize2fs `cat /root/resize`
-	rm /root/resize
-	/usr/bin/aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
+if [ -f /root/expand ]; then
+	/usr/local/sbin/of-expand &
 fi
 
 if [ "$OPENFRAME" -eq 1 ]; then
