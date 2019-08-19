@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.07 (17th August 2019)
+## of-builder.sh v1.08 (19th August 2019)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -18,6 +18,7 @@ COREDIVIDER=1
 
 ## Everything Else
 
+STARTTIME=`date +'%Y-%m-%d-%H%M'`
 KBRANCH="$1"
 KARCHIVES=`curl --silent https://www.kernel.org/index.html`
 KDOWNLOAD=`echo "$KARCHIVES" | grep -m 1 "linux-$KBRANCH" | grep ".xz" | awk -F\" {'print $2'}`
