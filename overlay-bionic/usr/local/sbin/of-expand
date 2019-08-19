@@ -1,18 +1,11 @@
 #!/bin/bash
 
-# of-expand v1.01 (19th August 2019)
+# of-expand v1.02 (19th August 2019)
 #  Expands the root partition to fill the drive.
 
 if [ "$USER" != "root" ]; then
   echo "You need to run this with superuser privileges."
   exit 1
-fi
-
-if [ -f /root/expand ]; then
-	/sbin/resize2fs `cat /root/expand`
-	rm /root/expand
-	/usr/bin/aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
-	exit 0
 fi
 
 countdown() {
@@ -28,7 +21,14 @@ countdown() {
 	tput cnorm
 }
 
+echo
+echo "This will expand the root filesystem to use any unallocated space on this drive."
+echo
+echo "The system will reboot immediately to begin resizing. Please DO NOT interrupt the"
+echo "process while there is drive activity and the /root/expand file still exists."
+echo
 echo "WARNING! Resizing the root partition risks potential data loss!"
+echo
 echo -n "Are you sure? (y/N): "
 read -t 10 INSPECT
 if [[ ! "$INSPECT" == "y" ]] && [[ ! "$INSPECT" == "Y" ]]; then
@@ -73,7 +73,7 @@ echo "This will take a few minutes, depending upon the size of the new partition
 echo
 echo "Do not power off the system until disk access has calmed down."
 echo
-countdown "The system will reboot" 20
+countdown "The system will reboot" 10
 /sbin/reboot
 
 exit 0
