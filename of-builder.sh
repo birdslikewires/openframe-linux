@@ -122,11 +122,13 @@ else
 	fi
 	echo " done."
 
-	if [ $KLATESTMAJVER -eq 5 ]; then
-		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying -d flag to dpkg-buildpackage to work around cross-compiling misidentification issue..."
-		sed -i "s/dpkg-buildpackage/dpkg-buildpackage -d/g" "$KOURBUILD/scripts/package/Makefile"
-		echo " done."
-	fi
+## This is unfortunately no good because overriding the architecture with '-d' still results in the packages being created
+## with the wrong filename, due to it believing a 64-bit build was in progress.
+#	if [ $KLATESTMAJVER -eq 5 ]; then
+#		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying -d flag to dpkg-buildpackage to work around cross-compiling misidentification issue..."
+#		sed -i "s/dpkg-buildpackage/dpkg-buildpackage -d/g" "$KOURBUILD/scripts/package/Makefile"
+#		echo " done."
+#	fi
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Updating config file with new defaults..."
 	KCONFIGFILE=`ls openframe-kernel/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
