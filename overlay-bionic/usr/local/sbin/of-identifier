@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## openframe-identifier v2.16 (19th August 2019)
+## openframe-identifier v2.17 (3rd December 2019)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 OPENFRAME="1"
@@ -87,10 +87,10 @@ fi
 
 echo $OPENFRAME > /tmp/openframe.ver
 
-if [ -f /root/expand ]; then
+if [ -f /root/expanding ]; then
 	echo "Expanding root filesystem..."
-	/sbin/resize2fs `cat /root/expand`
-	rm /root/expand
+	/sbin/resize2fs `cat /root/expanding`
+	rm /root/expanding
 fi
 
 if [ "$OPENFRAME" -eq 1 ]; then

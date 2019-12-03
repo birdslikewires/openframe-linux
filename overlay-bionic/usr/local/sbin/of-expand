@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# of-expand v1.02 (19th August 2019)
+# of-expand v1.03 (3rd December 2019)
 #  Expands the root partition to fill the drive.
 
 if [ "$USER" != "root" ]; then
@@ -25,7 +25,7 @@ echo
 echo "This will expand the root filesystem to use any unallocated space on this drive."
 echo
 echo "The system will reboot immediately to begin resizing. Please DO NOT interrupt the"
-echo "process while there is drive activity and the /root/expand file still exists."
+echo "process while there is drive activity and the /root/expanding file still exists."
 echo
 echo "WARNING! Resizing the root partition risks potential data loss!"
 echo
@@ -58,7 +58,7 @@ n
 w
 EOF
 
-echo "$ROOTISON$ROOTPARTNO" > /root/expand
+echo "$ROOTISON$ROOTPARTNO" > /root/expanding
 
 # Remove memory caching of apt lists from /etc/fstab
 sed -i '/\/var\/cache\/apt/d' /etc/fstab
