@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# of-expand v1.03 (3rd December 2019)
+# of-expand v1.04 (6th December 2019)
 #  Expands the root partition to fill the drive.
 
 if [ "$USER" != "root" ]; then
@@ -40,7 +40,8 @@ echo
 
 ROOTISON=`mount | grep "on / " | awk -F\  {'print $1'}`
 ROOTPARTNO=`echo "${ROOTISON: -1}"`
-ROOTISON=`echo "${ROOTISON:: -1}"`
+[[ "$ROOTISON" =~ "mmc" ]] && TRIM=2 || TRIM=1
+ROOTISON=`echo "${ROOTISON:: -$TRIM}"`
 ROOTSTART=`fdisk -l | grep $ROOTISON$ROOTPARTNO | awk -F\  {'print $2'}`
 
 echo "Found / on $ROOTISON partition $ROOTPARTNO starting at $ROOTSTART."
