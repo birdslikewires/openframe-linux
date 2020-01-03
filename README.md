@@ -10,13 +10,13 @@ of-builder.sh
 So you want to automatically build images for OpenFrame devices on your server? This is the script for you.
 
 
-ofcnc.sh
+of-cnc.sh
 ---------
 
 This script provides a handy method of copying everything back from a storage device for packaging up into a .tgz. That .tgz can then magically be used by __ofimgcreate.sh__ to generate a reasonably fresh image.
 
 
-ofimgcreate.sh
+of-imgcreate.sh
 ---------------
 
 This script does the hard work of creating an image file of a given size, creating  filesystem on it, mounting it, and then going on to fetch and install Ubuntu using debootstrap.
@@ -24,7 +24,7 @@ This script does the hard work of creating an image file of a given size, creati
 You will also need the overlay files provided in this repo and some working kernel image packages.
 
 
-ofimgmnt.sh
+of-imgmnt.sh
 ------------
 
 Used to mount image files for minor tweaks, meaning we don't need to rebuild things every time. Now with variable partition support!
