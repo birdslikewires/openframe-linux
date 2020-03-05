@@ -72,7 +72,7 @@ echo
 echo "The table for $ROOTISON$ROOTPARTNO has been extended and the partition must now be resized."
 echo "This will take a few minutes, depending upon the size of the new partition."
 echo
-echo "Do not power off the system until disk access has calmed down."
+echo "Do not power off the system until the file /root/expanding has disappeared."
 echo
 countdown "The system will reboot" 10
 /sbin/reboot
