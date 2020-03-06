@@ -20,27 +20,26 @@ fi
 ### Setup
 
 source /etc/lsb-release
-KERNMAJVER=`uname -r | awk -F. '{print $1}'`
-KERNMIDVER=`uname -r | awk -F. '{print $2}'`
-KERNMINVER=`uname -r | awk -F. '{print $3}'`
-/usr/bin/apt update
+KERNMAJVER=$(uname -r | awk -F. '{print $1}')
+KERNMIDVER=$(uname -r | awk -F. '{print $2}')
+KERNMINVER=$(uname -r | awk -F. '{print $3}')
 
 ### Installers
 
-if [[ "$@" =~ "build" ]]; then
+build() {
 
 	echo "Installing build environment..."
 
-	KERNELFETCHURL="$KERNELURL"/"${DISTRIB_ID,,}"/"${DISTRIB_CODENAME,,}"/"$KERNMAJVER"."$KERNMIDVER"/`uname -r`
+	KERNELFETCHURL=""$KERNELURL"/"${DISTRIB_ID,,}"/"${DISTRIB_CODENAME,,}"/"$KERNMAJVER"."$KERNMIDVER"/$(uname -r)/"
 	echo $KERNELFETCHURL
 
-	echo -n "Downloading `uname -r` kernel packages..."
-	mkdir -p /tmp/`uname -r`
-	if wget -q -r -l1 -np -nd -P /tmp/`uname -r` -A .deb $KERNELFETCHURL; then
+	echo -n "Downloading $(uname -r) kernel packages..."
+	mkdir -p /tmp/£(uname -r)
+	if wget -q -r -l1 -nd -N -np -A.deb -erobots=off -P /tmp/$(uname -r) $KERNELFETCHURL; then
 
 		echo " done."
 		echo "Installing headers..."
-		dpkg -i /tmp/`uname -r`/linux-headers*.deb
+		dpkg -i /tmp/$(uname -r)/linux-headers*.deb
 		echo "Installing build-essential..."
 		apt-get update
 		apt-get -y install build-essential
@@ -57,9 +56,9 @@ if [[ "$@" =~ "build" ]]; then
 	sync
 	echo "Build install complete."
 
-fi
+}
 
-if [[ "$@" =~ "xorg" ]]; then
+xorg() {
 
 	echo "Installing Xorg..."
 	echo
@@ -89,6 +88,14 @@ if [[ "$@" =~ "xorg" ]]; then
 	sync
 	echo "Xorg install complete."
 
-fi
+}
+
+### Triggers
+
+echo "Installing $@..."
+echo
+#/usr/bin/apt update
+[[ "$@" =~ "build" ]] && build
+[[ "$@" =~ "xorg" ]] && xorg
 
 exit 0
