@@ -152,7 +152,7 @@ else
   FILENAME="$CLONENAME"_"$OFVARIANT".img
 fi
 
-FILEWARN=`ls | grep -c $FILENAME`
+FILEWARN=$(ls | grep -c "$FILENAME")
 if [[ "$FILEWARN" != "0" ]]; then
   echo
   echo "There is already a file called '$FILENAME' in this location!"
