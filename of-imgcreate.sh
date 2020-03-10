@@ -5,8 +5,6 @@
 
 #set -x
 
-DBSERVER="http://gb.archive.ubuntu.com/ubuntu/"
-
 countdown() {
   local i
   echo -n $1
@@ -27,13 +25,13 @@ if [[ "$#" < 6 ]]; then
   echo "  totalMB:         The total size of the image file; specify 'of1' or 'of2' for respective internal MMC."
   echo "  bootMB:          The size of the FAT16 boot volume (8 MB minimum with no initrd, otherwise 32 MB minimum)."
   echo "  swapMB:          The size of the swap partition. Enter 0 for no swap."
-  echo "  source:          Source of operating system, MUST BE QUOTED. You have three options here:"
+  echo "  source:          Source of operating system, MUST BE QUOTED. You have two options here:"
   echo "                      1) Give an official distro name and code name, eg. "ubuntu bionic"."
-  echo "                      2) Point to a local path containing boot and root structures."
-  echo "                      3) Point to a local .tgz file containing boot and root structures."
+  echo "                      2) Point to a local .tgz file containing boot and root structures."
   echo
   echo "  overlay:         Location of overlay files to be copied (required when using distro name and code name as source)."
   echo "  kerneldir:       Location of linux-image and linux-header packages (required when using distro name and code name as source)."
+  echo "  server:          Package download URL (required when using distro name and code name as source)."
   echo
   exit 0
 fi
@@ -50,7 +48,7 @@ if [ "$DBPRESENT" == "" ]; then
 fi
 
 NAME="${1^^}"
-FS="$2"
+FS="${2}"
 if [ "$FS" == "ext3" ]; then
 	echo "We don't support ext3. Setting to ext4 instead."
 	FS="ext4"
@@ -60,10 +58,10 @@ if [ "$FS" == "btrfs" ]; then
   FS="ext2"
 fi
 
-USEINITRD="$3"
-TSIZE="$4"
-OFVARIANT="$4"
-BSIZE="$5"
+USEINITRD="${3}"
+TSIZE="${4}"
+OFVARIANT="${4}"
+BSIZE="${5}"
 
 ## If 'of1' or 'of2' is given for size, create an image that exactly matches the OpenFrame 1 or 2 internal storage.
 ##  On the OpenFrame1 we override the boot partition size to 32MB. This is the minimum size that still allows update-initramfs to work.
@@ -110,15 +108,26 @@ else
 
 fi
 
-SSIZE="$6"
-INSTALL="$7"
+SSIZE="${6}"
+INSTALL="${7}"
 DISTNAME=$(echo "$INSTALL" | awk -F\  {'print $1'})
 CODENAME=$(echo "$INSTALL" | awk -F\  {'print $2'})
 INSTALL="$CODENAME"
-OVERLAY="$8"
-KERNELDIR="$9"
+OVERLAY="${8}"
+KERNELDIR="${9}"
+DBSERVER="${10}"
 OFF=0
 RSIZE=$(($TSIZE-$BSIZE-$SSIZE))
+
+if [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$DBSERVER" == "" ]]; then
+  echo "You have not provided a download server or a .tgz to work from."
+  echo "Perhaps you need one of these:"
+  echo
+  echo "  http://ftp.uk.debian.org/debian/"
+  echo "  http://gb.archive.ubuntu.com/ubuntu/"
+  echo
+  exit 1
+fi
 
 if [[ "$INSTALL" != "" ]] && [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$#" < 8 ]] && [ ! -d "$INSTALL" ]; then
   echo "Overlay and kernel files are required for a working system."
