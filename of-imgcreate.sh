@@ -6,7 +6,6 @@
 #set -x
 
 DBSERVER="http://gb.archive.ubuntu.com/ubuntu/"
-#KNSERVER="https://dl.birdslikewires.net/"
 
 countdown() {
   local i
@@ -28,13 +27,13 @@ if [[ "$#" < 6 ]]; then
   echo "  totalMB:         The total size of the image file; specify 'of1' or 'of2' for respective internal MMC."
   echo "  bootMB:          The size of the FAT16 boot volume (8 MB minimum with no initrd, otherwise 32 MB minimum)."
   echo "  swapMB:          The size of the swap partition. Enter 0 for no swap."
-  echo "  source:          Source of operating system. You have three options here:"
-  echo "                      1) Give an official Ubuntu release name, eg. 'bionic'."
+  echo "  source:          Source of operating system, MUST BE QUOTED. You have three options here:"
+  echo "                      1) Give an official distro name and code name, eg. "ubuntu bionic"."
   echo "                      2) Point to a local path containing boot and root structures."
   echo "                      3) Point to a local .tgz file containing boot and root structures."
   echo
-  echo "  overlay:         Location of overlay files to be copied (required when using Ubuntu release name as source)."
-  echo "  kerneldir:       Location of linux-image and linux-header packages (required when using Ubuntu release name as source)."
+  echo "  overlay:         Location of overlay files to be copied (required when using distro name and code name as source)."
+  echo "  kerneldir:       Location of linux-image and linux-header packages (required when using distro name and code name as source)."
   echo
   exit 0
 fi
@@ -113,6 +112,8 @@ fi
 
 SSIZE="$6"
 INSTALL="$7"
+DISTNAME=$(echo "$INSTALL" | awk -F\  {'print $1'})
+CODENAME=$(echo "$INSTALL" | awk -F\  {'print $2'})
 OVERLAY="$8"
 KERNELDIR="$9"
 OFF=0
@@ -446,11 +447,11 @@ if [[ "$INSTALL" != "" ]]; then
   # Otherwise, fetch, duplicate, modify and chrootitoot.
   else
 
-    UBUNTUVER=`echo "${INSTALL[@]^}"`
+    CODENAME=`echo "${INSTALL[@]^}"`
 
 	# Fetch.
 	if [ ! -d $DBSLOC ]; then
-		echo "Fetching Ubuntu $UBUNTUVER with debootstrap from $DBSERVER..."
+		echo "Fetching ${DISTNAME^} $CODENAME with debootstrap from $DBSERVER..."
 		echo
 		mkdir $DBSLOC
 		debootstrap --arch i386 $INSTALL $DBSLOC $DBSERVER
@@ -490,7 +491,7 @@ if [[ "$INSTALL" != "" ]]; then
       fi
 
       sed -i "s/ROOTDEV/LABEL=$RNAME/" $BLDLOC/boot/grub.cfg
-      sed -i "s/UBUNTUVER/$UBUNTUVER/" $BLDLOC/boot/grub.cfg
+      sed -i "s/CODENAME/$CODENAME/" $BLDLOC/boot/grub.cfg
       sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
       sed -i "s/ROOTFST/$FS/" $BLDLOC/boot/grub.cfg
 
@@ -520,7 +521,7 @@ if [[ "$INSTALL" != "" ]]; then
 
       # Replace the placeholders used for apt
       sed -i "s=DBSERVER=$DBSERVER=" $BLDLOC/etc/apt/sources.list
-      sed -i "s/UBUNTUVER/$INSTALL/" $BLDLOC/etc/apt/sources.list
+      sed -i "s/CODENAME/$INSTALL/" $BLDLOC/etc/apt/sources.list
 
       # Make sure that the console font isn't changed. I'm not keen on that.
       sed -i "s/FONTFACE=\"Fixed\"/FONTFACE=\"VGA\"/" $BLDLOC/etc/default/console-setup
@@ -579,7 +580,7 @@ if [[ "$INSTALL" != "" ]]; then
   echo "Removing large unnecessary firmwares..."
   rm -rf $BLDLOC/lib/firmware/liquidio $BLDLOC/lib/firmware/netronome $BLDLOC/lib/firmware/amdgpu $BLDLOC/lib/firmware/radeon $BLDLOC/lib/firmware/qed $BLDLOC/lib/firmware/ti-connectivity $BLDLOC/lib/firmware/cxgb4 2>/dev/null
 	echo
-	echo -n "Moving prepared Ubuntu $UBUNTUVER from '$BLDLOC' to image file on '$MP'..."
+	echo -n "Moving prepared ${DISTNAME^} ${CODENAME^} from '$BLDLOC' to image file on '$MP'..."
 	rsync -a $BLDLOC/ $MP
   sleep 2
   sync

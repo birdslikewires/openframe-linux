@@ -1,5 +1,5 @@
-Ubuntu for OpenFrame
-=====================
+Linux for OpenFrame
+====================
 
 These are the scripts and overlays which I use to create debootstrapped operating systems for OpenFrame devices, notably the OpenFrame 1 (sold in the UK as the O2 Joggler) and OpenFrame 2.
 
