@@ -16,7 +16,7 @@ countdown() {
   printf "\b\b\b\bnow..."
 }
 
-if [[ "${#}" < 6 ]]; then
+if [[ "$#" -lt 6 ]]; then
   echo "Usage: $0 <name> <filesystem> <initramfs> <totalMB> <bootMB> <swapMB> <source> [overlay] [kerneldir]"
   echo
   echo "  name:            System name. Will be used for filename and partition prefix."
@@ -129,7 +129,7 @@ if [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$DBSERVER" == "" ]]; then
   exit 1
 fi
 
-if [[ "$INSTALL" != "" ]] && [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$#" < 8 ]] && [ ! -d "$INSTALL" ]; then
+if [[ "$INSTALL" != "" ]] && [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$#" -lt 8 ]] && [ ! -d "$INSTALL" ]; then
   echo "Overlay and kernel files are required for a working system."
   echo "You will have a raw debootstrap system with no kernel and"
   echo "no OpenFrame customisations."
