@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ofimgcreate v1.46 (6th August 2019)
+# ofimgcreate v1.46 (10th March 2020)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -501,7 +501,8 @@ if [[ "$INSTALL" != "" ]]; then
       fi
 
       sed -i "s/ROOTDEV/LABEL=$RNAME/" $BLDLOC/boot/grub.cfg
-      sed -i "s/CODENAME/$CODENAME/" $BLDLOC/boot/grub.cfg
+      sed -i "s/DISTNAME/${DISTNAME^}/" $BLDLOC/boot/grub.cfg
+      sed -i "s/CODENAME/${CODENAME^}/" $BLDLOC/boot/grub.cfg
       sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
       sed -i "s/ROOTFST/$FS/" $BLDLOC/boot/grub.cfg
 
