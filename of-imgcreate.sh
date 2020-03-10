@@ -114,6 +114,7 @@ SSIZE="$6"
 INSTALL="$7"
 DISTNAME=$(echo "$INSTALL" | awk -F\  {'print $1'})
 CODENAME=$(echo "$INSTALL" | awk -F\  {'print $2'})
+INSTALL="$CODENAME"
 OVERLAY="$8"
 KERNELDIR="$9"
 OFF=0
