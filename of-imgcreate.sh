@@ -16,7 +16,7 @@ countdown() {
   printf "\b\b\b\bnow..."
 }
 
-if [[ "$#" < 6 ]]; then
+if [[ "${#}" < 6 ]]; then
   echo "Usage: $0 <name> <filesystem> <initramfs> <totalMB> <bootMB> <swapMB> <source> [overlay] [kerneldir]"
   echo
   echo "  name:            System name. Will be used for filename and partition prefix."
