@@ -1,17 +1,40 @@
 #!/bin/bash
 
-# of-prep.sh v1.70 (15th August 2019)
+# 00-of-prep-debian v1.00 (10th March 2020)
 #  Set up the basics.
 
 #set -x
 
 
 OPENFRAMEUSER="root"
-DLSERVER="https://dl.birdslikewires.net"
+DLSERVER="https://birdslikewires.net/download"
 
 
 ##  Things to do before installing the kernel.
 
+echo
+echo "-- Packages"
+echo
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
+
+# Additions
+/usr/bin/add-apt-repository -y ppa:rmescandon/yq
+
+APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools ntpdate patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput yq zlibc"
+APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
+APT_SSH="ssh openssh-server"
+
+# Removals
+APT_REM_SYSTEM=""
+
+[[ "$APT_REM_SYSTEM" != "" ]] && apt-get remove -y --purge $APT_REM_SYSTEM
+echo
+apt-get autoremove -y
+echo
+apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
+echo
+sleep 2
 
 echo
 echo "-- Permissions and Customisation"
@@ -62,39 +85,15 @@ echo
 # done
 # echo
 
-echo "Running up apt..."
-echo
-sleep 4
-
-## Update and remove some stuff.
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
-
-# Additions
-APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools ntpdate patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip usbmount uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput zlibc"
-APT_AUDIO="alsa-base alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
-APT_SSH="ssh openssh-server"
-
-# Removals
-APT_REM_SYSTEM="ubuntu-advantage-tools ubuntu-minimal"
-
-apt-get remove -y --purge $APT_REM_SYSTEM
-echo
-apt-get autoremove -y
-echo
-apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
-echo
-sleep 2
 
 # Plain old-fashioned deletions.
-echo "Removing unnecessary components..."
-rm -v /etc/update-motd.d/00-header /etc/update-motd.d/10-help-text /etc/update-motd.d/50-motd-news
-echo
+# echo "Removing unnecessary components..."
+# echo
 
 # We use this for simple command line control of yaml files, eg. the netplan config file.
-echo "Installing yq..."
-curl -o /usr/local/bin/yq $DLSERVER/openframe/deps/yq_linux_386
-echo
+#echo "Installing yq..."
+#curl -o /usr/local/bin/yq $DLSERVER/openframe/deps/yq_linux_386
+#echo
 
 echo "Correct user permissions..."
 chown root:root /home
@@ -121,13 +120,13 @@ echo "Enable password authentication for root user over SSH..."
 [[ "$OPENFRAMEUSER" == "root" ]] && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
 echo
 
-echo "Configure usbmount..."
-cp /temp/usbmount/usbmount.conf /etc/usbmount/usbmount.conf
-cp /temp/usbmount/mount.d/* /etc/usbmount/mount.d/
-cp /temp/usbmount/umount.d/* /etc/usbmount/umount.d/
-chown root:root /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
-chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
-echo
+# echo "Configure usbmount..."
+# cp /temp/usbmount/usbmount.conf /etc/usbmount/usbmount.conf
+# cp /temp/usbmount/mount.d/* /etc/usbmount/mount.d/
+# cp /temp/usbmount/umount.d/* /etc/usbmount/umount.d/
+# chown root:root /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
+# chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
+# echo
 
 
 ## Install the kernel.
