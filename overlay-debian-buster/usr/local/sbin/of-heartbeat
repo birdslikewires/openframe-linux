@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# of-heartbeat v1.00 (15th August 2019)
+#  Enables updating of-* scripts without reimaging. Doesn't do anything right now.
+
+while true; do
+
+	#echo "OpenFrame Heartbeat"
+	sleep 21600
+
+done
+
+exit 0
