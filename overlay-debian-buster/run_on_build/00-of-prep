@@ -20,7 +20,7 @@ DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 
 # Additions
 
-APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools ntpdate patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput zlibc"
+APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools initramfs-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools ntpdate patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput zlibc"
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
 
@@ -92,7 +92,7 @@ echo
 
 # We use this for simple command line control of yaml files, eg. the netplan config file.
 echo "Installing yq..."
-curl -o /usr/local/bin/yq $DLSERVER/openframe/deps/yq_linux_386
+curl -k -o /usr/local/bin/yq $DLSERVER/openframe/deps/yq_linux_386
 echo
 
 echo "Correct user permissions..."
@@ -101,6 +101,7 @@ chown root:root /home
 chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo /usr/sbin/ntpdate
 chown root:root /usr/local/bin/*
 chown root:root /usr/local/sbin/*
+chmod 755 /usr/local/bin/*
 chmod 755 /usr/local/sbin/*
 echo
 
