@@ -105,7 +105,7 @@ chmod 755 /usr/local/bin/*
 chmod 755 /usr/local/sbin/*
 echo
 
-echo "Enable custom systemd services..."
+echo "Enable systemd services..."
 chmod +x /usr/local/sbin/of-*
 chmod +x /usr/sbin/*
 
@@ -114,6 +114,9 @@ for f in `ls -1 /lib/systemd/system | grep 'of-' | grep '.service'`; do
   /bin/systemctl enable $SERVICE
   echo "Enabled $SERVICE"
 done
+
+/bin/systemctl enable systemd-resolved.service
+
 echo
 
 echo "Enable password authentication for root user over SSH..."
