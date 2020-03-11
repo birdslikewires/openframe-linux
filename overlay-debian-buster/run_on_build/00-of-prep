@@ -148,7 +148,7 @@ dpkg -i /mnt/linux-image*.deb
 echo
 
 
-KERNELURL="$DLSERVER/openframe/kernel/${ID,,}/${VERSION_CODENAME,,}/$KERNMAJVER.$KERNMIDVER/$KERNVER"
+KERNELURL="$DLSERVER/openframe/kernel/$KERNMAJVER.$KERNMIDVER/$KERNVER"
 echo "Checking $KERNELURL for companion modules..."
 if curl -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
 	echo
