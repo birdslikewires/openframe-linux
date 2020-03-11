@@ -150,12 +150,11 @@ echo
 
 KERNELURL="$DLSERVER/openframe/kernel/$KERNMAJVER.$KERNMIDVER/$KERNVER"
 echo "Checking $KERNELURL for companion modules..."
-#if curl -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
-if curl -f "$KERNELURL/modules-$KERNVER.tgz"; then
+if curl -k -f "$KERNELURL/modules-$KERNVER.tgz"; then
 	echo
 	echo "Found additional modules on $DLSERVER for $KERNVER. Downloading and installing."
 	echo
-	curl -o /modules-$KERNVER.tgz "$KERNELURL/modules-$KERNVER.tgz"
+	curl -k -o /modules-$KERNVER.tgz "$KERNELURL/modules-$KERNVER.tgz"
 	if [ -f /modules-$KERNVER.tgz ]; then
 		tar zxvf /modules-$KERNVER.tgz -C /
 		rm /modules-$KERNVER.tgz
