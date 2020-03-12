@@ -1,20 +1,43 @@
 #!/bin/bash
 
-# of-prep.sh v1.70 (15th August 2019)
+# 00-of-prep-bionic v1.00 (12th March 2020)
 #  Set up the basics.
 
 #set -x
 
+DLSERVER="https://birdslikewires.net/download"
 
 OPENFRAMEUSER="root"
-DLSERVER="https://dl.birdslikewires.net"
 
-
-##  Things to do before installing the kernel.
-
+### Packages
 
 echo
-echo "-- Permissions and Customisation"
+echo "-- Packages"
+echo
+sleep 2
+
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
+
+# Additions
+APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools initramfs-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools netplan.io ntpdate patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput zlibc"
+APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
+APT_SSH="ssh openssh-server"
+
+# Removals
+APT_REM_SYSTEM=""
+
+[[ "$APT_REM_SYSTEM" != "" ]] && apt-get remove -y --purge $APT_REM_SYSTEM
+echo
+apt-get autoremove -y
+echo
+apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
+echo
+
+### Tweaks and Permissions
+
+echo
+echo "-- Tweaks and Permissions"
 echo
 sleep 2
 
@@ -54,49 +77,17 @@ for f in `find / -iname *bashrc 2>/dev/null`; do
 done
 echo
 
-## Plough on. I sometimes use this on a network where pings are blocked. Not by me, I might add.
-# echo "Waiting for network..."
-# until ping -c 3 1.1.1.1 &>/dev/null
-# do
-# 	sleep 1
-# done
-# echo
-
-echo "Running up apt..."
-echo
-sleep 4
-
-## Update and remove some stuff.
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
-
-# Additions
-APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools ntpdate patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip usbmount uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput zlibc"
-APT_AUDIO="alsa-base alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
-APT_SSH="ssh openssh-server"
-
-# Removals
-APT_REM_SYSTEM="ubuntu-advantage-tools ubuntu-minimal"
-
-apt-get remove -y --purge $APT_REM_SYSTEM
-echo
-apt-get autoremove -y
-echo
-apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
-echo
-sleep 2
-
 # Plain old-fashioned deletions.
 echo "Removing unnecessary components..."
-rm -v /etc/update-motd.d/00-header /etc/update-motd.d/10-help-text /etc/update-motd.d/50-motd-news
+#rm -v NOTHING HERE AT THE MO!
 echo
 
 # We use this for simple command line control of yaml files, eg. the netplan config file.
 echo "Installing yq..."
-curl -o /usr/local/bin/yq $DLSERVER/openframe/deps/yq_linux_386
+curl -k -o /usr/local/bin/yq $DLSERVER/openframe/deps/yq_linux_386
 echo
 
-echo "Correct user permissions..."
+echo "Ensure correct user permissions..."
 chown root:root /home
 [[ "$OPENFRAMEUSER" != "root" ]] && chown -R $OPENFRAMEUSER:$OPENFRAMEUSER $HOMEPATH $HOMEPATH/.*
 chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo /usr/sbin/ntpdate
@@ -106,10 +97,10 @@ chmod 755 /usr/local/bin/*
 chmod 755 /usr/local/sbin/*
 echo
 
-echo "Enable custom systemd services..."
+echo "Enable systemd services..."
+/bin/systemctl enable systemd-resolved.service
 chmod +x /usr/local/sbin/of-*
 chmod +x /usr/sbin/*
-
 for f in `ls -1 /lib/systemd/system | grep 'of-' | grep '.service'`; do
   SERVICE=`echo $f | awk -F\.service {'print $1'}`
   /bin/systemctl enable $SERVICE
@@ -121,17 +112,15 @@ echo "Enable password authentication for root user over SSH..."
 [[ "$OPENFRAMEUSER" == "root" ]] && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
 echo
 
-echo "Configure usbmount..."
-cp /temp/usbmount/usbmount.conf /etc/usbmount/usbmount.conf
-cp /temp/usbmount/mount.d/* /etc/usbmount/mount.d/
-cp /temp/usbmount/umount.d/* /etc/usbmount/umount.d/
-chown root:root /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
-chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
-echo
+# echo "Configure usbmount..."
+# cp /temp/usbmount/usbmount.conf /etc/usbmount/usbmount.conf
+# cp /temp/usbmount/mount.d/* /etc/usbmount/mount.d/
+# cp /temp/usbmount/umount.d/* /etc/usbmount/umount.d/
+# chown root:root /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
+# chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
+# echo
 
-
-## Install the kernel.
-
+### Kernel Installation
 
 echo "-- Kernel Installation"
 echo
@@ -141,24 +130,28 @@ KERNVER=`ls /mnt/ | grep linux-image | awk -F\- '{print $3}' | awk -F\_ '{print 
 KERNMAJVER=`echo $KERNVER | awk -F\. {'print $1'}`
 KERNMIDVER=`echo $KERNVER | awk -F\. {'print $2'}`
 KERNMINVER=`echo $KERNVER | awk -F\. {'print $3'}`
-source /etc/lsb-release
 
-echo "Installing kernel $KERNVER into ${DISTRIB_CODENAME^} chroot..."
+source /etc/os-release
+
+echo "Installing kernel $KERNVER into ${VERSION_CODENAME^} chroot..."
 dpkg -i /mnt/linux-image*.deb
 echo
 
-
-KERNELURL="$DLSERVER/openframe/kernel/${DISTRIB_ID,,}/${DISTRIB_CODENAME,,}/$KERNMAJVER.$KERNMIDVER/$KERNVER"
+KERNELURL="$DLSERVER/openframe/kernel/$KERNMAJVER.$KERNMIDVER/$KERNVER"
 echo "Checking $KERNELURL for companion modules..."
-if curl -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
+if curl -k -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
 	echo
 	echo "Found additional modules on $DLSERVER for $KERNVER. Downloading and installing."
 	echo
-	curl -o /modules-$KERNVER.tgz "$KERNELURL/modules-$KERNVER.tgz"
+	curl -k -o /modules-$KERNVER.tgz "$KERNELURL/modules-$KERNVER.tgz"
 	if [ -f /modules-$KERNVER.tgz ]; then
 		tar zxvf /modules-$KERNVER.tgz -C /
 		rm /modules-$KERNVER.tgz
 	fi
+else
+	echo
+	echo "No additional modules found."
+	echo
 fi
 
 depmod -a $KERNVER
@@ -173,9 +166,7 @@ if [ `grep -c initrd /boot/grub.cfg` -gt 0 ]; then
 	echo " done!"
 fi
 
-
-## Wind down.
-
+### Wind Down
 
 echo "-- Wind Down"
 echo

@@ -1,0 +1,146 @@
+#!/bin/bash
+
+## openframe-identifier v2.17 (3rd December 2019)
+##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
+
+OPENFRAME="1"
+KERNMAJVER=`uname -r | awk -F. '{print $1}'`
+
+applystac9202pinpatch() {
+	if [ ! -f /etc/modprobe.d/of1-stac9202.conf ]; then
+
+	echo -n "Applying STAC9202 audio patch for kernel series v$KERNMAJVER..."
+
+		if [ $KERNMAJVER -lt 4 ]; then
+
+			echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202v$KERNMAJVER.patch" > /etc/modprobe.d/of1-stac9202.conf
+
+		else
+
+			echo "options snd-hda-intel patch=of1-stac9202v$KERNMAJVER.patch" > /etc/modprobe.d/of1-stac9202.conf
+
+		fi
+
+		/sbin/alsa force-reload &>/dev/null
+		echo " done."
+
+	fi
+}
+
+removestac9202pinpatch() {
+	if [ -f /etc/modprobe.d/of1-stac9202.conf ]; then
+		echo -n "Removing STAC9202 audio configuration..."
+		rm /etc/modprobe.d/of1-stac9202.conf
+		/sbin/alsa force-reload &>/dev/null
+		echo " done."
+	fi
+}
+
+if [ -e /boot/openframe.ver ]; then
+
+	# Look for an override file.
+	OPENFRAME=`cat /boot/openframe.ver | cut -b1`
+	MMCSIZE=""
+	echo "Identified an OpenFrame $OPENFRAME from override file."
+
+else
+
+	MMC=`/bin/ls -1 /dev/mmcblk* 2>/dev/null | grep -v "p"`
+
+	if [ "$MMC" != "" ]; then
+
+		MMCCOUNT=`/bin/echo "$MMC" | /usr/bin/wc -l`
+
+		if [ $MMCCOUNT -le 1 ];  then
+
+			# If only one /dev/mmcblk appears, we can use it to identify the unit.
+
+			MMCNUM=`echo "${MMC: -1}"`
+			MMCSIZE=`/sbin/fdisk -l /dev/mmcblk$MMCNUM | grep mmcblk$MMCNUM: | awk -F\  {'print $5'}`
+
+			if [ $MMCSIZE -gt 1028128768 ]; then
+				OPENFRAME=2
+			fi
+
+			if [ $MMCSIZE -gt 0 ]; then
+				echo "OpenFrame $OPENFRAME with "$(($MMCSIZE/1024/1024))" MB internal storage."
+			else
+				echo "Could not identify MMC capacity. Assuming OpenFrame 1."
+			fi
+
+		else
+
+			# If we get more than one, we can't guarantee which is the internal one.
+			echo "Multiple MMC devices found. Assuming OpenFrame 1."
+
+		fi
+
+	else
+
+		echo "Could not identify an MMC device. Assuming OpenFrame 1."
+
+	fi
+
+fi
+
+[ ! $OPENFRAME ] || [ $OPENFRAME -lt 1 ] || [ $OPENFRAME -gt 2 ] && echo "Not a known device." && exit 1
+
+echo $OPENFRAME > /tmp/openframe.ver
+
+if [ -f /root/expanding ]; then
+	echo "Expanding root filesystem..."
+	/sbin/resize2fs `cat /root/expanding`
+	rm /root/expanding
+fi
+
+if [ "$OPENFRAME" -eq 1 ]; then
+
+	## Here be the OpenFrame 1 tweaks.
+	applystac9202pinpatch
+
+elif [ "$OPENFRAME" -eq 2 ]; then
+
+	## Here be the OpenFrame 2 tweaks.
+	removestac9202pinpatch
+
+else
+
+	echo "Unable to identify this device. Is it an OpenFrame?"
+	exit 1
+
+fi
+
+if [ -f /etc/firstboot ]; then
+
+	# Apply a new UUID to the root partition and rename boot and root to avoid conflicts.
+	source /etc/lsb-release
+	CODEPRE=${DISTRIB_CODENAME: 0:3}
+	BOOTLOC=`/sbin/blkid | grep ${CODEPRE^^}-BOOT | awk -F\: {'print $1'}`
+	ROOTLOC=`/sbin/blkid | grep ${CODEPRE^^}-ROOT | awk -F\: {'print $1'}`
+	NEWUUID=`/usr/bin/uuid`
+	NEWUUIDSHORT="${NEWUUID:(-4)}"
+
+	if [[ "$BOOTLOC" != "" ]]; then
+		sed -i 's/LABEL=BIO-BOOT/LABEL='BOOT${NEWUUIDSHORT^^}'/g' /etc/fstab
+		/sbin/dosfslabel $BOOTLOC "BOOT${NEWUUIDSHORT^^}" >/dev/null 2>&1
+	else
+		echo "Change of label aborted. Cannot find the boot partition labelled '${CODEPRE^^}-BOOT'."
+	fi
+
+	if [[ "$ROOTLOC" != "" ]]; then
+		/sbin/tune2fs $ROOTLOC -U $NEWUUID >/dev/null
+		sed -i 's/LABEL=BIO-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
+		sed -i 's/LABEL=BIO-ROOT/UUID='$NEWUUID'/g' /etc/fstab
+		/sbin/e2label $ROOTLOC "ROOT${NEWUUIDSHORT^^}"
+	else
+		echo "Change of UUID aborted. Cannot find the root partition labelled '${CODEPRE^^}-ROOT'."
+	fi
+
+	# Set a sensible default audio level.
+	/usr/bin/amixer -c 0 sset "Master" 50% unmute >/dev/null 2>&1
+
+	rm /etc/firstboot
+
+fi
+
+exit 0

@@ -1,10 +1,10 @@
 #!/bin/bash
 
-## of-builder.sh v1.08 (19th August 2019)
+## of-builder.sh v1.10 (11th March 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
-	echo "Usage: $0 <kernelbranch> [codename]"
+	echo "Usage: $0 <kernelbranch> [<distro> <codename>]"
 	exit 1
 fi
 
@@ -34,11 +34,12 @@ KLATESTMIDVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $2'}
 KLATESTMINVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $3'}`
 KOURNAME="$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER$OURVER"
 KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
-KDLPATH="$PATHTODOWNLOADAREA/kernel/ubuntu/$DISTRIB_CODENAME/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
+KDLPATH="$PATHTODOWNLOADAREA/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $KDLPATH ] && KBUILDIT=0 || KBUILDIT=1
 
-ICODENAME="$2"
-IDLPATH="$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
+IDISTNAME="$2"
+ICODENAME="$3"
+IDLPATH="$PATHTODOWNLOADAREA/images/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $IDLPATH ] && IBUILDIT=0 || IBUILDIT=1
 
 ## Work To Do!
@@ -58,13 +59,13 @@ if [ ! -d openframe-kernel ]; then
 	git clone https://github.com/andydvsn/openframe-kernel.git
 	echo
 #else
-#	cd openframe-ubuntu ; git pull > /dev/null ; cd ..
+#	cd openframe-linux ; git pull > /dev/null ; cd ..
 fi
-if [ ! -d openframe-ubuntu ]; then
-	git clone https://github.com/andydvsn/openframe-ubuntu.git
+if [ ! -d openframe-linux ]; then
+	git clone https://github.com/andydvsn/openframe-linux.git
 	echo
 #else
-#	cd openframe-ubuntu ; git pull > /dev/null ; cd ..
+#	cd openframe-linux ; git pull > /dev/null ; cd ..
 fi
 
 if [[ "$KBUILDIT" == 0 ]]; then
@@ -240,12 +241,12 @@ if [[ "$IBUILDIT" == 0 ]]; then
 
 else
 
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Building Ubuntu ${ICODENAME^} $KOURNAME image..."
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Building ${IDISTNAME^} ${ICODENAME^} $KOURNAME image..."
 	echo
 
 	rm -rf ./*.img*
 
-	openframe-ubuntu/of-imgcreate.sh `echo ${ICODENAME,,} | head -c 3` ext2 1 uni 32 0 ${ICODENAME,,} openframe-ubuntu/overlay-${ICODENAME,,} $KDLPATH
+	openframe-linux/of-imgcreate.sh `echo ${ICODENAME,,} | head -c 3` ext2 1 uni 32 0 ${ICODENAME,,} openframe-linux/overlay-${IDISTNAME,,}-${ICODENAME,,} $KDLPATH
 
 	# This checks through the exit codes so far and kills us if any have been greater than zero.
 	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
@@ -263,9 +264,9 @@ else
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Moving to webserver..."
 	mkdir -p $IDLPATH
 	mv ./*.img* $IDLPATH
-	[ -L "$PATHTODOWNLOADAREA/images/ubuntu/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/images/ubuntu/latest_$KLATESTMAJVER$KLATESTMIDVER"
-	[ -L "$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/images/ubuntu/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
-	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/images/ubuntu/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	[ -L "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	[ -L "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
 	echo " done."
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image build completed."

@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# of-allsudo v1.00 (24th July 2019)
+#  Punches a nice big hole in your security for convenience!
+
+if [ "$USER" != "root" ]; then
+  echo "You need to run this with superuser privileges."
+  exit 1
+fi
+
+echo "%admin ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
