@@ -1,10 +1,10 @@
 #!/bin/bash
 
-## of-builder.sh v1.10 (11th March 2020)
+## of-builder.sh v1.11 (12th March 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
-	echo "Usage: $0 <kernelbranch> [<distro> <codename>]"
+	echo "Usage: $0 <kernelbranch> <distro> <codename> <url>"
 	exit 1
 fi
 
@@ -39,6 +39,7 @@ KDLPATH="$PATHTODOWNLOADAREA/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 
 IDISTNAME="$2"
 ICODENAME="$3"
+IDOWNLURL="$4"
 IDLPATH="$PATHTODOWNLOADAREA/images/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $IDLPATH ] && IBUILDIT=0 || IBUILDIT=1
 
@@ -246,7 +247,7 @@ else
 
 	rm -rf ./*.img*
 
-	openframe-linux/of-imgcreate.sh `echo ${ICODENAME,,} | head -c 3` ext2 1 uni 32 0 ${ICODENAME,,} openframe-linux/overlay-${IDISTNAME,,}-${ICODENAME,,} $KDLPATH
+	openframe-linux/of-imgcreate.sh "$(echo ${ICODENAME,,} | head -c 3)" ext2 1 uni 32 0 "${IDISTNAME,,} ${ICODENAME,,}" "openframe-linux/overlay-${IDISTNAME,,}-${ICODENAME,,}" "$KDLPATH" "$IDOWNLURL"
 
 	# This checks through the exit codes so far and kills us if any have been greater than zero.
 	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
