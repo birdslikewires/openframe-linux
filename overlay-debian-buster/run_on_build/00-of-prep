@@ -1,25 +1,25 @@
 #!/bin/bash
 
-# 00-of-prep-debian v1.00 (11th March 2020)
+# 00-of-prep v1.00 (12th March 2020)
 #  Set up the basics.
 
 #set -x
 
-
-OPENFRAMEUSER="root"
 DLSERVER="https://birdslikewires.net/download"
 
+OPENFRAMEUSER="root"
 
-##  Things to do before installing the kernel.
+### Packages
 
 echo
 echo "-- Packages"
 echo
+sleep 2
+
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 
 # Additions
-
 APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools htop i2c-tools initramfs-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 nano net-tools netplan.io ntpdate patch pciutils psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput zlibc"
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
@@ -33,11 +33,11 @@ apt-get autoremove -y
 echo
 apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
 echo
-sleep 2
 
+### Tweaks and Permissions
 
 echo
-echo "-- Permissions and Customisation"
+echo "-- Tweaks and Permissions"
 echo
 sleep 2
 
@@ -77,25 +77,12 @@ for f in `find / -iname *bashrc 2>/dev/null`; do
 done
 echo
 
-## Plough on. I sometimes use this on a network where pings are blocked. Not by me, I might add.
-# echo "Waiting for network..."
-# until ping -c 3 1.1.1.1 &>/dev/null
-# do
-# 	sleep 1
-# done
-# echo
-
-
-# Plain old-fashioned deletions.
-# echo "Removing unnecessary components..."
-# echo
-
 # We use this for simple command line control of yaml files, eg. the netplan config file.
 echo "Installing yq..."
 curl -k -o /usr/local/bin/yq $DLSERVER/openframe/deps/yq_linux_386
 echo
 
-echo "Correct user permissions..."
+echo "Ensure correct user permissions..."
 chown root:root /home
 [[ "$OPENFRAMEUSER" != "root" ]] && chown -R $OPENFRAMEUSER:$OPENFRAMEUSER $HOMEPATH $HOMEPATH/.*
 chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo /usr/sbin/ntpdate
@@ -106,17 +93,14 @@ chmod 755 /usr/local/sbin/*
 echo
 
 echo "Enable systemd services..."
+/bin/systemctl enable systemd-resolved.service
 chmod +x /usr/local/sbin/of-*
 chmod +x /usr/sbin/*
-
 for f in `ls -1 /lib/systemd/system | grep 'of-' | grep '.service'`; do
   SERVICE=`echo $f | awk -F\.service {'print $1'}`
   /bin/systemctl enable $SERVICE
   echo "Enabled $SERVICE"
 done
-
-/bin/systemctl enable systemd-resolved.service
-
 echo
 
 echo "Enable password authentication for root user over SSH..."
@@ -131,9 +115,7 @@ echo
 # chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
 # echo
 
-
-## Install the kernel.
-
+### Kernel Installation
 
 echo "-- Kernel Installation"
 echo
@@ -149,7 +131,6 @@ source /etc/os-release
 echo "Installing kernel $KERNVER into ${VERSION_CODENAME^} chroot..."
 dpkg -i /mnt/linux-image*.deb
 echo
-
 
 KERNELURL="$DLSERVER/openframe/kernel/$KERNMAJVER.$KERNMIDVER/$KERNVER"
 echo "Checking $KERNELURL for companion modules..."
@@ -180,9 +161,7 @@ if [ `grep -c initrd /boot/grub.cfg` -gt 0 ]; then
 	echo " done!"
 fi
 
-
-## Wind down.
-
+### Wind Down
 
 echo "-- Wind Down"
 echo
