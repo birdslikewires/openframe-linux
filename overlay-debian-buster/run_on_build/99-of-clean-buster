@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# of-clean v1.23 (3rd September 2018)
+# 99-of-clean-buster v1.23 (3rd September 2018)
 #  Used to clean an OpenFrame.
 
 OPTIONS=""

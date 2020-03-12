@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 00-of-prep v1.00 (12th March 2020)
+# 00-of-prep-bionic v1.00 (12th March 2020)
 #  Set up the basics.
 
 #set -x
@@ -75,6 +75,11 @@ echo "Setting terminal preferences..."
 for f in `find / -iname *bashrc 2>/dev/null`; do
 	sed -i 's/#force_color_prompt=yes/force_color_prompt=yes/' $f
 done
+echo
+
+# Plain old-fashioned deletions.
+echo "Removing unnecessary components..."
+#rm -v NOTHING HERE AT THE MO!
 echo
 
 # We use this for simple command line control of yaml files, eg. the netplan config file.
