@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.11 (12th March 2020)
+## of-builder.sh v1.12 (16th March 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -47,8 +47,8 @@ IDLPATH="$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/${ICODENAME,,}/$KLATESTMAJVER
 
 cleanup() {
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Cleaning up..."
-	chown -R www-data:www-data $PATHTODOWNLOADAREA/build $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/images
-	chmod -R 774 $PATHTODOWNLOADAREA/build $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/images
+	chown -R www-data:www-data $PATHTODOWNLOADAREA/images $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/logs
+	chmod -R 774 $PATHTODOWNLOADAREA/images $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/logs
 	rm -rf ./$KOURBUILD*
 	rm -rf ./*.deb
 	rm -rf ./*.img*
