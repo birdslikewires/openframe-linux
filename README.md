@@ -9,6 +9,51 @@ of-builder.sh
 
 So you want to automatically build images for OpenFrame devices on your server? This is the script for you.
 
+### Build Environment
+
+The OpenFrame devices are all 32-bit, so for the vast majority of build operations you're going to need a i386 environment. Debian still provide i386 images, which is great, but Ubuntu do not.
+
+The solution is to create a 32-bit chroot on the 64-bit system. For Ubuntu Bionic, probably the last version worth doing this with, it can be achieved like this:
+
+```
+sudo apt install debootstrap schroot
+sudo nano /etc/schroot/chroot.d/bionic-i386.conf
+```
+
+Copy in:
+
+```
+[bionic-i386]
+description=bionic-i386
+type=directory
+union-type=overlay
+directory=/var/lib/schroot/chroots/bionic-i386
+personality=linux32
+groups=root,sudo
+root-groups=root,sudo
+```
+
+Then install the base system with debootstrap:
+
+```
+sudo mkdir -p /var/lib/schroot/chroots/bionic-i386
+sudo debootstrap --arch=i386 bionic /var/lib/schroot/chroots/bionic-i386 http://mirrors.ukfast.co.uk/sites/archive.ubuntu.com
+```
+
+Hop in to the chrooted environment like this:
+
+```
+sudo schroot -c source:bionic-i386
+```
+
+You can then complete the setup of your build environment.
+
+For normal use, get in to the chroot like this:
+
+```
+schroot -c bionic-i386
+```
+
 
 of-cnc.sh
 ---------
