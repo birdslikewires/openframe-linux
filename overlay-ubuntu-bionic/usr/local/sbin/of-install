@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-install v1.01 (13th March 2020)
+# of-install v1.02 (19th March 2020)
 #  Simple installers for software on OpenFrames.
 
 ### Configuration #####
@@ -90,7 +90,7 @@ xorg() {
 
 echo "Installing $@..."
 echo
-#/usr/bin/apt update
+/usr/bin/apt update
 [[ "$@" =~ "build" ]] && build
 [[ "$@" =~ "xorg" ]] && xorg
 
