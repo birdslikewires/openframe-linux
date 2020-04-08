@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-## openframe-identifier v2.18 (6th April 2020)
+## openframe-identifier v2.19 (9th April 2020)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 source /etc/lsb-release
 
-OPENFRAME="1"
+OPENFRAME=1
 KERNVER=$(uname -r)
 KERNMAJVER=$(echo "$KERNVER" | awk -F. '{print $1}')
 
@@ -31,6 +31,20 @@ removestac9202pinpatch() {
 	fi
 }
 
+systeminformation() {
+	DESC=$(echo ${DISTRIB_DESCRIPTION,,} | sed 's/\ /\//g')
+	MMRY=$(free -b | grep 'Mem:' | tr -s ' ' | cut -c6- | sed 's/ /\//g')
+	DRVE=$(df -B 1 | grep '/$' | sed 's/\/dev\///g' | tr -s ' ' | rev | cut -c3- | rev | sed 's/ /\//g')
+	ICPU=$(grep -Em1 "^model name.*Intel" /proc/cpuinfo | awk -F\  '{print $7}')
+	echo -n "$DESC"/"${DISTRIB_CODENAME,,}"/"$(uname -r)"/"$MMRY"/"$DRVE" > /tmp/openframe.nfo
+	[[ "$ICPU" != "" ]] && echo "/$ICPU" >> /tmp/openframe.nfo || echo >> /tmp/openframe.nfo
+}
+
+systemuid() {
+	UUID=$(cat /etc/fstab | grep 'UUID' | grep ' / ' | awk -F\= '{print $2}' | awk -F\  '{print $1}')
+	echo "$UUID" > /tmp/openframe.uid
+}
+
 if [ -e /boot/openframe.ver ]; then
 
 	OPENFRAME=`cat /boot/openframe.ver | cut -b1`
@@ -50,16 +64,16 @@ else
 			# If only one /dev/mmcblk appears, we can use it to identify the unit.
 
 			MMCNUM=`echo "${MMC: -1}"`
-			MMCSIZE=`/sbin/fdisk -l /dev/mmcblk$MMCNUM | grep mmcblk$MMCNUM: | awk -F\  {'print $5'}`
+			MMCSIZE=`/sbin/fdisk -l /dev/mmcblk$MMCNUM | grep -m1 mmcblk$MMCNUM: | awk -F\  {'print $5'}`
 
 			if [ $MMCSIZE -gt 1028128768 ]; then
 				OPENFRAME=2
 			fi
 
-			if [ $MMCSIZE -gt 0 ]; then
-				echo "OpenFrame $OPENFRAME with "$(($MMCSIZE/1024/1024))" MB internal storage."
-			else
+			if [ ! $MMCSIZE -gt 0 ]; then
 				echo "Could not identify MMC capacity. Assuming OpenFrame 1."
+			#else
+				#echo "OpenFrame $OPENFRAME with "$(($MMCSIZE/1024/1024))" MB internal storage."
 			fi
 
 		else
@@ -129,9 +143,8 @@ if [ -f /etc/firstboot ]; then
 
 fi
 
-UUID=$(cat /etc/fstab | grep 'UUID' | grep ' / ' | awk -F\= '{print $2}' | awk -F\  '{print $1}')
-
-echo "$UUID" > openframe.nfo
+systemuid
+systeminformation
 
 if [ -f /root/expanding ]; then
 	echo "Expanding root filesystem..."
