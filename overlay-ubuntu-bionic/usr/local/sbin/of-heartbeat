@@ -1,12 +1,47 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-# of-heartbeat v1.00 (15th August 2019)
-#  Enables updating of-* scripts without reimaging. Doesn't do anything right now.
+# of-heartbeat v1.01 (9th April 2020)
+#  Automated updates without reimaging.
+
+SERVER="https://openbeak.net"
+PULSE="/hb/heartbeat.php"
+
+outputmac() {
+	MACW=$(ip link | sed -n '/wlan0/{n;p;}' | awk -F\  {'print $2'})
+	MACE=$(ip link | sed -n '/eth0/{n;p;}' | awk -F\  {'print $2'})
+	[[ "$MACW" == "" ]] && MACW="00:00:00:00:00:00"
+	[[ "$MACE" == "" ]] && MACW="00:00:00:00:00:00"
+	echo "$MACW"/"$MACE" > /tmp/openframe.mac
+}
+
+outputupandload() {
+	UPTM=$(awk -F. {'print $1'} /proc/uptime)
+	LOAD=$(sed -e 's/\//-/g' -e 's/ /\//g' /proc/loadavg)
+	echo "$UPTM"/"$LOAD" > /tmp/openframe.upl
+}
 
 while true; do
 
-	#echo "OpenFrame Heartbeat"
-	sleep 21600
+	/usr/bin/timeout 1 /bin/ping -c 1 openbeak.net &>/dev/null
+	if [[ $? -eq 0 ]] && [ -e /tmp/openframe.uid ]; then
+		outputmac
+		outputupandload
+		USER_AGENT="$(cat /tmp/openframe.uid)"/"$(cat /tmp/openframe.mac)"/"$(cat /tmp/openframe.nfo)"/"$(cat /tmp/openframe.ver)"/"$(cat /tmp/openframe.upl)"
+		PULSE_RESPONSE=$(/usr/bin/curl -sA "$USER_AGENT" "$SERVER$PULSE" )
+
+		# if [[ "$PULSE_RESPONSE" == "HI" ]]; then
+		# 	echo "Pulse successful."
+		# fi
+
+		# Pulse again tomorrow.
+		/bin/sleep 86400
+	else
+		outputmac
+		outputupandload
+
+		# Pulse again in 10 minutes.
+		/bin/sleep 600
+	fi
 
 done
 
