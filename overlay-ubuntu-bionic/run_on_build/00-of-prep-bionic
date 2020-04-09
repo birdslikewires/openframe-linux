@@ -77,9 +77,13 @@ for f in `find / -iname *bashrc 2>/dev/null`; do
 done
 echo
 
+# Stop the reporting and CLI spam.
+echo "Setting MOTD preferences..."
+sed -i 's/^ENABLED=.*/ENABLED=0/' /etc/default/motd-news
+
 # Plain old-fashioned deletions.
 echo "Removing unnecessary components..."
-#rm -v NOTHING HERE AT THE MO!
+rm -v /etc/update-motd.d/10-help-text
 echo
 
 # We use this for simple command line control of yaml files, eg. the netplan config file.
