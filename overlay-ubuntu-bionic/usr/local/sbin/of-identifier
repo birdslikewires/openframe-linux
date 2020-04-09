@@ -31,7 +31,7 @@ removestac9202pinpatch() {
 	fi
 }
 
-systeminformation() {
+outputsysteminformation() {
 	DESC=$(echo ${DISTRIB_DESCRIPTION,,} | sed 's/\ /\//g')
 	MMRY=$(free -b | grep 'Mem:' | tr -s ' ' | cut -c6- | sed 's/ /\//g')
 	DRVE=$(df -B 1 | grep '/$' | sed 's/\/dev\///g' | tr -s ' ' | rev | cut -c3- | rev | sed 's/ /\//g')
@@ -40,7 +40,7 @@ systeminformation() {
 	[[ "$ICPU" != "" ]] && echo "/$ICPU" >> /tmp/openframe.nfo || echo >> /tmp/openframe.nfo
 }
 
-systemuid() {
+outputsystemuid() {
 	UUID=$(cat /etc/fstab | grep 'UUID' | grep ' / ' | awk -F\= '{print $2}' | awk -F\  '{print $1}')
 	echo "$UUID" > /tmp/openframe.uid
 }
@@ -143,8 +143,8 @@ if [ -f /etc/firstboot ]; then
 
 fi
 
-systemuid
-systeminformation
+outputsystemuid
+outputsysteminformation
 
 if [ -f /root/expanding ]; then
 	echo "Expanding root filesystem..."
