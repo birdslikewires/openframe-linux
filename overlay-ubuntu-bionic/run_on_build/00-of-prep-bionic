@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 00-of-prep-bionic v1.00 (12th March 2020)
+# 00-of-prep-bionic v1.01 (10th April 2020)
 #  Set up the basics.
 
 #set -x
@@ -101,6 +101,7 @@ chown root:root /usr/local/bin/*
 chown root:root /usr/local/sbin/*
 chmod 755 /usr/local/bin/*
 chmod 755 /usr/local/sbin/*
+chmod 644 /usr/local/sbin/*.ver
 echo
 
 echo "Enable systemd services..."
