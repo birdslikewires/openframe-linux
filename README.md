@@ -56,13 +56,13 @@ schroot -c bionic-i386
 
 
 of-cnc.sh
----------
+----------
 
 This script provides a handy method of copying everything back from a storage device for packaging up into a .tgz. That .tgz can then magically be used by __ofimgcreate.sh__ to generate a reasonably fresh image.
 
 
 of-imgcreate.sh
----------------
+----------------
 
 This script does the hard work of creating an image file of a given size, creating  filesystem on it, mounting it, and then going on to fetch and install Ubuntu using debootstrap.
 
@@ -70,7 +70,22 @@ You will also need the overlay files provided in this repo and some working kern
 
 
 of-imgmnt.sh
-------------
+-------------
 
 Used to mount image files for minor tweaks, meaning we don't need to rebuild things every time. Now with variable partition support!
 
+Overlays
+---------
+
+The overlay files provide modifications to the vanilla system to provide some necessary and some nice-to-have features, including automatically configured GRUB, network settings from the `/boot` volume (ideal for preconfiguring), sensible system defaults, minimal firmware files and helpful scripts.
+
+With regard to this last element, all OpenFrame related scripts are named `of-*` and live in `/usr/local/sbin`. There is one script, `of-heartbeat`, which polls a support server each day to check for script updates. For this reason, please don't edit `of-*` scripts directly, as anything with this prefix in this location may be overwritten.
+
+If this is not to your liking you may disable the heartbeat service as follows:
+
+```
+sudo systemctl disable of-heartbeat
+sudo systemctl stop of-heartbeat
+```
+
+You can run `sudo of-heartbeat` to manually check for updates, or download individual scripts from this repository.
