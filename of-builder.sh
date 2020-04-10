@@ -34,6 +34,7 @@ if [[ ! -d "$THISSCRIPTPATH/../openframe-kernel" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You're going to need $GITREPOURL/openframe-kernel as well. Cloning..."
 	git clone "$GITREPOURL/openframe-kernel" "$THISSCRIPTPATH/../openframe-kernel"
 else
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Pulling $GITREPOURL/openframe-kernel..."
 	git -C "$THISSCRIPTPATH/../openframe-kernel" pull
 fi
 
@@ -42,6 +43,7 @@ if [[ ! -d "$THISSCRIPTPATH/../openframe-linux" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You seem to be running me outside of my repo. I'm not much use without the rest of $GITREPOURL/openframe-linux."
 	exit 1
 else
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Pulling $GITREPOURL/openframe-linux..."
 	git -C "$THISSCRIPTPATH/../openframe-linux" pull
 fi
 
