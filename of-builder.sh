@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.12 (16th March 2020)
+## of-builder.sh v1.13 (10th April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -8,16 +8,16 @@ if [ $# -lt 1 ]; then
 	exit 1
 fi
 
-source /etc/lsb-release
-
 ## Configurable Bits
 
-OURVER="op"
+OURKERNVER="op"
 PATHTODOWNLOADAREA="/home/andy/Public/download_blw/openframe"
+GITREPOURL="https://github.com/birdslikewires"
 COREDIVIDER=1
 
 ## Everything Else
 
+THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
 STARTTIME=`date +'%Y-%m-%d-%H%M'`
 KBRANCH="$1"
 KARCHIVES=`curl --silent https://www.kernel.org/index.html`
@@ -28,11 +28,28 @@ if [[ ! "$KDOWNLOAD" ]]; then
 	exit 1
 fi
 
+
+# Check whether we've got the kernel repo available, otherwise kernel builds will obviously fail.
+if [[ ! -d "$THISSCRIPTPATH/../openframe-kernel" ]]; then
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You're going to need $GITREPOURL/openframe-kernel as well. Cloning..."
+	git clone "$GITREPOURL/openframe-kernel" "$THISSCRIPTPATH/../openframe-kernel"
+else
+	git -C "$THISSCRIPTPATH/../openframe-kernel" pull
+fi
+
+# Check whether I've been removed from my repo or not. Die if I have.
+if [[ ! -d "$THISSCRIPTPATH/../openframe-linux" ]]; then
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You seem to be running me outside of my repo. I'm not much use without the rest of $GITREPOURL/openframe-linux."
+	exit 1
+else
+	git -C "$THISSCRIPTPATH/../openframe-linux" pull
+fi
+
 KFILENAME=`echo "$KDOWNLOAD" | sed 's:.*/::'`
 KLATESTMAJVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $1'}`
 KLATESTMIDVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $2'}`
 KLATESTMINVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $3'}`
-KOURNAME="$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER$OURVER"
+KOURNAME="$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER$OURKERNVER"
 KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
 KDLPATH="$PATHTODOWNLOADAREA/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $KDLPATH ] && KBUILDIT=0 || KBUILDIT=1
@@ -55,19 +72,6 @@ cleanup() {
 	rm -rf ./tmp
 	echo " done."
 }
-
-if [ ! -d openframe-kernel ]; then
-	git clone https://github.com/andydvsn/openframe-kernel.git
-	echo
-#else
-#	cd openframe-linux ; git pull > /dev/null ; cd ..
-fi
-if [ ! -d openframe-linux ]; then
-	git clone https://github.com/andydvsn/openframe-linux.git
-	echo
-#else
-#	cd openframe-linux ; git pull > /dev/null ; cd ..
-fi
 
 if [[ "$KBUILDIT" == 0 ]]; then
 
@@ -119,8 +123,8 @@ else
 
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying extraversion to makefile..."
 	KMAKEFILE=`cat "$KOURBUILD/Makefile"`
-	if [[ ! "$KMAKEFILE" =~ "EXTRAVERSION = $OURVER" ]]; then
-		sed -i "s/EXTRAVERSION =/EXTRAVERSION = $OURVER/g" "$KOURBUILD/Makefile"
+	if [[ ! "$KMAKEFILE" =~ "EXTRAVERSION = $OURKERNVER" ]]; then
+		sed -i "s/EXTRAVERSION =/EXTRAVERSION = $OURKERNVER/g" "$KOURBUILD/Makefile"
 	fi
 	echo " done."
 
