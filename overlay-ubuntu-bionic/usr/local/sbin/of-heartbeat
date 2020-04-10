@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-heartbeat v1.02 (10th April 2020)
+# of-heartbeat v1.03 (10th April 2020)
 #  Automated updates without reimaging.
 
 SERVER="https://openbeak.net"
@@ -41,6 +41,7 @@ while true; do
 			TMP_PATH=$(echo "$PULSE_RESPONSE" | awk -Fhttps:// '{print $2}')
 			TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
 
+			rm -rvf /usr/local/sbin/of-*
 			cp -v /tmp/"$TMP_PATH"of-* /usr/local/sbin
 			chown root:root /usr/local/sbin/of-*
 			chmod 755 /usr/local/sbin/of-*
