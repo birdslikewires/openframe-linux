@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-heartbeat v1.01 (9th April 2020)
+# of-heartbeat v1.02 (10th April 2020)
 #  Automated updates without reimaging.
 
 SERVER="https://openbeak.net"
@@ -14,33 +14,54 @@ outputmac() {
 	echo "$MACW"/"$MACE" > /tmp/openframe.mac
 }
 
-outputupandload() {
-	UPTM=$(awk -F. {'print $1'} /proc/uptime)
-	LOAD=$(sed -e 's/\//-/g' -e 's/ /\//g' /proc/loadavg)
-	echo "$UPTM"/"$LOAD" > /tmp/openframe.upl
-}
+# Wait for the system to come to life.
+[[ $# -gt 0 ]] && sleep 60
 
 while true; do
 
 	/usr/bin/timeout 1 /bin/ping -c 1 openbeak.net &>/dev/null
 	if [[ $? -eq 0 ]] && [ -e /tmp/openframe.uid ]; then
 		outputmac
-		outputupandload
-		USER_AGENT="$(cat /tmp/openframe.uid)"/"$(cat /tmp/openframe.mac)"/"$(cat /tmp/openframe.nfo)"/"$(cat /tmp/openframe.ver)"/"$(cat /tmp/openframe.upl)"
-		PULSE_RESPONSE=$(/usr/bin/curl -sA "$USER_AGENT" "$SERVER$PULSE" )
 
-		# if [[ "$PULSE_RESPONSE" == "HI" ]]; then
-		# 	echo "Pulse successful."
-		# fi
+		UPANDLOAD="$(awk -F. {'print $1'} /proc/uptime)"/"$(sed -e 's/\//-/g' -e 's/ /\//g' /proc/loadavg)"
+		USER_AGENT="$(cat /tmp/openframe.uid)"/"$(cat /tmp/openframe.mac)"/"$(cat /tmp/openframe.nfo)"/"$(cat /tmp/openframe.ver)"/"$UPANDLOAD"
+		OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
+		PULSE_RESPONSE=$(/usr/bin/curl -sA "$USER_AGENT" "$SERVER$PULSE?ver=$OFSCRIPTS_VER" )
+
+		if [[ "$PULSE_RESPONSE" == "OK" ]]; then
+
+			echo "Pulse successful."
+
+		elif [[ "$PULSE_RESPONSE" =~ "https://" ]]; then
+
+			echo "Updating..."
+
+			/usr/bin/timeout 10 /usr/bin/wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$PULSE_RESPONSE"
+
+			TMP_PATH=$(echo "$PULSE_RESPONSE" | awk -Fhttps:// '{print $2}')
+			TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
+
+			cp -v /tmp/"$TMP_PATH"of-* /usr/local/sbin
+			chown root:root /usr/local/sbin/of-*
+			chmod 755 /usr/local/sbin/of-*
+			chmod 644 /usr/local/sbin/of-*.ver
+			rm -rvf /tmp/"$TMP_HOST"
+
+		elif [[ "$PULSE_RESPONSE" =~ "http://" ]]; then
+
+			echo "Pulse returned an insecure HTTP address. Not interested."
+
+		else
+
+			echo "Unknown response."
+
+		fi
 
 		# Pulse again tomorrow.
-		/bin/sleep 86400
+		[[ $# -gt 0 ]] && /bin/sleep 86400 || exit 0
 	else
 		outputmac
-		outputupandload
-
-		# Pulse again in 10 minutes.
-		/bin/sleep 600
+		[[ $# -gt 0 ]] && /bin/sleep 600 || exit 0
 	fi
 
 done
