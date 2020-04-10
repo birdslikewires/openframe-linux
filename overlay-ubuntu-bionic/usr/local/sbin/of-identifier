@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## openframe-identifier v2.19 (9th April 2020)
+## openframe-identifier v2.20 (10th April 2020)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 source /etc/lsb-release
@@ -37,7 +37,8 @@ outputsysteminformation() {
 	DRVE=$(df -B 1 | grep '/$' | sed 's/\/dev\///g' | tr -s ' ' | rev | cut -c3- | rev | sed 's/ /\//g')
 	ICPU=$(grep -Em1 "^model name.*Intel" /proc/cpuinfo | awk -F\  '{print $7}')
 	echo -n "$DESC"/"${DISTRIB_CODENAME,,}"/"$(uname -r)"/"$MMRY"/"$DRVE" > /tmp/openframe.nfo
-	[[ "$ICPU" != "" ]] && echo "/$ICPU" >> /tmp/openframe.nfo || echo >> /tmp/openframe.nfo
+	echo -n "/$ICPU" >> /tmp/openframe.nfo || echo >> /tmp/openframe.nfo
+	echo "/openframe" >> /tmp/openframe.nfo
 }
 
 outputsystemuid() {

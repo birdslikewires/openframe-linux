@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-heartbeat v1.04 (10th April 2020)
+# of-heartbeat v1.05 (10th April 2020)
 #  Automated updates without reimaging.
 
 SERVER="https://openbeak.net"
@@ -11,7 +11,7 @@ outputmac() {
 	MACE=$(ip link | sed -n '/eth0/{n;p;}' | awk -F\  {'print $2'})
 	[[ "$MACW" == "" ]] && MACW="00:00:00:00:00:00"
 	[[ "$MACE" == "" ]] && MACW="00:00:00:00:00:00"
-	echo "$MACW"/"$MACE" > /tmp/openframe.mac
+	echo "$MACW"/"$MACE"/"$(hostname)" > /tmp/openframe.mac
 }
 
 # Wait for the system to come to life.
@@ -28,11 +28,7 @@ while true; do
 		OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
 		PULSE_RESPONSE=$(/usr/bin/curl -sA "$USER_AGENT" "$SERVER$PULSE?ver=$OFSCRIPTS_VER" )
 
-		if [[ "$PULSE_RESPONSE" == "OK" ]]; then
-
-			echo "Pulse successful."
-
-		elif [[ "$PULSE_RESPONSE" =~ "https://" ]]; then
+		if [[ "$PULSE_RESPONSE" =~ "https://" ]]; then
 
 			echo "Updating..."
 
@@ -56,7 +52,7 @@ while true; do
 
 		else
 
-			echo "Unknown response."
+			echo "$PULSE_RESPONSE"
 
 		fi
 
