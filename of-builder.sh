@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.13 (10th April 2020)
+## of-builder.sh v1.14 (11th April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -253,7 +253,7 @@ else
 
 	rm -rf ./*.img*
 
-	openframe-linux/of-imgcreate.sh "$(echo ${ICODENAME,,} | head -c 3)" ext2 1 uni 32 0 "${IDISTNAME,,} ${ICODENAME,,}" "openframe-linux/overlay-${IDISTNAME,,}-${ICODENAME,,}" "$KDLPATH" "$IDOWNLURL"
+	$THISSCRIPTPATH/of-imgcreate.sh "$(echo ${ICODENAME,,} | head -c 3)" ext2 1 uni 32 0 "${IDISTNAME,,} ${ICODENAME,,}" "$THISSCRIPTPATH/../openframe-linux/overlay-${IDISTNAME,,}-${ICODENAME,,}" "$KDLPATH" "$IDOWNLURL"
 
 	# This checks through the exit codes so far and kills us if any have been greater than zero.
 	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
