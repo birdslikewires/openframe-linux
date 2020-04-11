@@ -79,13 +79,13 @@ Overlays
 
 The overlay files provide modifications to the vanilla system to provide some necessary and some nice-to-have features, including automatically configured GRUB, network settings from the `/boot` volume (ideal for preconfiguring), sensible system defaults, minimal firmware files and helpful scripts.
 
-With regard to this last element, all OpenFrame related scripts are named `of-*` and live in `/usr/local/sbin`. There is one script, `of-heartbeat`, which polls a support server each day to check for script updates. For this reason, please don't edit `of-*` scripts directly, as anything with this prefix in this location may be overwritten.
+With regard to this last element, all OpenFrame related scripts are named `of-*` and live in `/usr/local/sbin`. There is one script, `of-update`, which polls a support server each day to check for script updates. For this reason, please don't edit `of-*` scripts directly, as anything with this prefix in this location may be overwritten.
 
-If this is not to your liking you may disable the heartbeat service as follows:
+If this is not to your liking you may disable the update service as follows:
 
 ```
-sudo systemctl disable of-heartbeat
-sudo systemctl stop of-heartbeat
+sudo systemctl disable of-update
+sudo systemctl stop of-update
 ```
 
-You can run `sudo of-heartbeat` to manually check for updates, or download individual scripts from this repository.
+You can run `sudo of-update` to manually check for updates, or download individual scripts from this repository.

@@ -1,0 +1,9 @@
+[Unit]
+Description=OpenFrame Update
+
+[Service]
+ExecStart=/usr/local/sbin/of-update systemd
+StandardOutput=syslog
+
+[Install]
+WantedBy=multi-user.target

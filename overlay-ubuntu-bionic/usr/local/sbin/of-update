@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-# of-heartbeat v1.05 (10th April 2020)
+# of-update v1.05 (10th April 2020)
 #  Automated updates without reimaging.
 
 SERVER="https://openbeak.net"
-PULSE="/hb/heartbeat.php"
+SERVICE="/service/update.php"
 
 outputmac() {
 	MACW=$(ip link | sed -n '/wlan0/{n;p;}' | awk -F\  {'print $2'})
@@ -26,15 +26,15 @@ while true; do
 		UPANDLOAD="$(awk -F. {'print $1'} /proc/uptime)"/"$(sed -e 's/\//-/g' -e 's/ /\//g' /proc/loadavg)"
 		USER_AGENT="$(cat /tmp/openframe.uid)"/"$(cat /tmp/openframe.mac)"/"$(cat /tmp/openframe.nfo)"/"$(cat /tmp/openframe.ver)"/"$UPANDLOAD"
 		OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
-		PULSE_RESPONSE=$(/usr/bin/curl -sA "$USER_AGENT" "$SERVER$PULSE?ver=$OFSCRIPTS_VER" )
+		SERVICE_RESPONSE=$(/usr/bin/curl -sA "$USER_AGENT" "$SERVER$SERVICE?ver=$OFSCRIPTS_VER" )
 
-		if [[ "$PULSE_RESPONSE" =~ "https://" ]]; then
+		if [[ "$SERVICE_RESPONSE" =~ "https://" ]]; then
 
 			echo "Updating..."
 
-			/usr/bin/timeout 10 /usr/bin/wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$PULSE_RESPONSE"
+			/usr/bin/timeout 10 /usr/bin/wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$SERVICE_RESPONSE"
 
-			TMP_PATH=$(echo "$PULSE_RESPONSE" | awk -Fhttps:// '{print $2}')
+			TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
 			TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
 
 			rm -rf /usr/local/sbin/of-*
@@ -44,15 +44,15 @@ while true; do
 			chmod 644 /usr/local/sbin/of-*.ver
 			rm -rf /tmp/"$TMP_HOST"
 
-			systemctl restart of-heartbeat
+			systemctl restart of-update
 
-		elif [[ "$PULSE_RESPONSE" =~ "http://" ]]; then
+		elif [[ "$SERVICE_RESPONSE" =~ "http://" ]]; then
 
 			echo "Pulse returned an insecure HTTP address. Not interested."
 
 		else
 
-			echo "$PULSE_RESPONSE"
+			echo "$SERVICE_RESPONSE"
 
 		fi
 
