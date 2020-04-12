@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 
-# of-update v1.07 (12th April 2020)
+# of-update v1.08 (12th April 2020)
 #  Automated updates without reimaging.
 
 SERVER="https://openbeak.net"
 SERVICE="/update/check.php"
 
-# Wait for the system to come to life.
-while [ ! -f /tmp/openframe.net ]; do sleep 1; done
+# We can't do anything useful until the system has decided upon its UUID. This relies upon of-identifier.
+while [ ! -f /tmp/openframe.uid ]; do sleep 1; done
 sync
 
 while true; do
 
 	/usr/bin/timeout 1 /bin/ping -c 1 openbeak.net &>/dev/null
-	if [[ $? -eq 0 ]] && [ -e /tmp/openframe.uid ]; then
+	if [[ $? -eq 0 ]]; then
 
 		UPANDLOAD="$(awk -F. {'print $1'} /proc/uptime)"/"$(awk '{$NF=""; print $0}' /proc/loadavg | awk '{$1=$1};1' | sed -e 's/\//-/g' -e 's/ /\//g')"
 		USER_AGENT="$(cat /tmp/openframe.uid)"/"$(cat /tmp/openframe.net)"/"$(cat /tmp/openframe.nfo)"/"$(cat /tmp/openframe.ver)"/"$UPANDLOAD"
