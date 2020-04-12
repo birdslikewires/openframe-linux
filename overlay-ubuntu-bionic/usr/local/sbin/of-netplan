@@ -1,11 +1,12 @@
 #!/bin/bash
 
-# openframe-netplan v1.07 (23rd August 2018)
+# of-netplan v1.07 (12th April 2020)
 #  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
 ##  Then we copy the MAC from WLAN to LAN, but with the local bit set.
 ##  If no WLAN interface is available, we generate a MAC for the LAN interface.
+##  
 ##  Finally, we put the modified file back into /boot.
 
 LAN="eth0"
@@ -14,6 +15,8 @@ WLANTIMEOUT=15
 CONFIGTIMEOUT=10
 NETPLANCONFIG="network.yaml"
 
+# Remove the network information file if present.
+[ -e /tmp/openframe.net ] && rm /tmp/openframe.net
 
 # See if there's a network.yaml config file on /boot.
 COUNT=0
@@ -77,7 +80,15 @@ fi
 
 # Copy the updated config file back to /boot for next time.
 cp /etc/netplan/$NETPLANCONFIG /boot/$NETPLANCONFIG
+
+# Go live with the changes.
 netplan apply
 
+# Create /tmp/openframe.net as a quick network information reference.
+MACW=$(ip link | sed -n '/wlan0/{n;p;}' | awk -F\  {'print $2'})
+MACE=$(ip link | sed -n '/eth0/{n;p;}' | awk -F\  {'print $2'})
+[[ "$MACW" == "" ]] && MACW="00:00:00:00:00:00"
+[[ "$MACE" == "" ]] && MACW="00:00:00:00:00:00"
+echo "$MACW"/"$MACE"/"$(hostname)" > /tmp/openframe.net
 
 exit 0
