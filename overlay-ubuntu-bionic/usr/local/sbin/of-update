@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+# of-update v1.08 (12th April 2020)
+#  Automated updates without reimaging.
+
+SERVER="https://openbeak.net"
+SERVICE="/update/check.php"
+
+# We can't do anything useful until the system has decided upon its UUID. This relies upon of-identifier.
+while [ ! -f /tmp/openframe.uid ]; do sleep 1; done
+sync
+
+while true; do
+
+	/usr/bin/timeout 1 /bin/ping -c 1 openbeak.net &>/dev/null
+	if [[ $? -eq 0 ]]; then
+
+		UPANDLOAD="$(awk -F. {'print $1'} /proc/uptime)"/"$(awk '{$NF=""; print $0}' /proc/loadavg | awk '{$1=$1};1' | sed -e 's/\//-/g' -e 's/ /\//g')"
+		USER_AGENT="$(cat /tmp/openframe.uid)"/"$(cat /tmp/openframe.net)"/"$(cat /tmp/openframe.nfo)"/"$(cat /tmp/openframe.ver)"/"$UPANDLOAD"
+		OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
+		SERVICE_RESPONSE=$(/usr/bin/curl -sA "$USER_AGENT" "$SERVER$SERVICE?ver=$OFSCRIPTS_VER" )
+
+		if [[ "$SERVICE_RESPONSE" =~ "https://" ]]; then
+
+			echo "Updating..."
+
+			/usr/bin/timeout 10 /usr/bin/wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$SERVICE_RESPONSE"
+
+			TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
+			TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
+
+			rm -rf /usr/local/sbin/of-*
+			cp /tmp/"$TMP_PATH"of-* /usr/local/sbin
+			chown root:root /usr/local/sbin/of-*
+			chmod 755 /usr/local/sbin/of-*
+			chmod 644 /usr/local/sbin/of-*.ver
+			rm -rf /tmp/"$TMP_HOST"
+
+			systemctl restart of-update
+
+		elif [[ "$SERVICE_RESPONSE" =~ "http://" ]]; then
+
+			echo "Returned an insecure HTTP address. Not interested."
+
+		else
+
+			echo "$SERVICE_RESPONSE"
+
+		fi
+
+		# Check again tomorrow.
+		[[ $# -gt 0 ]] && /bin/sleep 86400 || exit 0
+
+	else
+
+		[[ $# -gt 0 ]] && /bin/sleep 600 || exit 0
+
+	fi
+
+done
+
+exit 0

@@ -1,29 +1,28 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-## openframe-identifier v2.17 (3rd December 2019)
+## of-identifier v2.21 (12th April 2020)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
-OPENFRAME="1"
-KERNMAJVER=`uname -r | awk -F. '{print $1}'`
+source /etc/lsb-release
+
+OPENFRAME=1
+KERNVER=$(uname -r)
+KERNMAJVER=$(echo "$KERNVER" | awk -F. '{print $1}')
+
+# We can't do anything useful until the system has decided upon its MAC addresses. This relies upon of-netplan.
+while [ ! -f /tmp/openframe.net ]; do sleep 1; done
+sync
 
 applystac9202pinpatch() {
 	if [ ! -f /etc/modprobe.d/of1-stac9202.conf ]; then
-
 	echo -n "Applying STAC9202 audio patch for kernel series v$KERNMAJVER..."
-
 		if [ $KERNMAJVER -lt 4 ]; then
-
 			echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202v$KERNMAJVER.patch" > /etc/modprobe.d/of1-stac9202.conf
-
 		else
-
 			echo "options snd-hda-intel patch=of1-stac9202v$KERNMAJVER.patch" > /etc/modprobe.d/of1-stac9202.conf
-
 		fi
-
 		/sbin/alsa force-reload &>/dev/null
 		echo " done."
-
 	fi
 }
 
@@ -36,12 +35,26 @@ removestac9202pinpatch() {
 	fi
 }
 
+outputsysteminformation() {
+	DESC=$(echo ${DISTRIB_DESCRIPTION,,} | sed 's/\ /\//g')
+	MMRY=$(free -b | grep 'Mem:' | tr -s ' ' | cut -c6- | sed 's/ /\//g')
+	DRVE=$(df -B 1 | grep '/$' | sed 's/\/dev\///g' | tr -s ' ' | rev | cut -c3- | rev | sed 's/ /\//g')
+	ICPU=$(grep -Em1 "^model name.*Intel" /proc/cpuinfo | awk -F\  '{print $7}')
+	echo -n "$DESC"/"${DISTRIB_CODENAME,,}"/"$(uname -r)"/"$MMRY"/"$DRVE" > /tmp/openframe.nfo
+	echo -n "/$ICPU" >> /tmp/openframe.nfo || echo >> /tmp/openframe.nfo
+	echo "/openframe" >> /tmp/openframe.nfo
+}
+
+outputsystemuid() {
+	UUID=$(cat /etc/fstab | grep 'UUID' | grep ' / ' | awk -F\= '{print $2}' | awk -F\  '{print $1}')
+	echo "$UUID" > /tmp/openframe.uid
+}
+
 if [ -e /boot/openframe.ver ]; then
 
-	# Look for an override file.
 	OPENFRAME=`cat /boot/openframe.ver | cut -b1`
 	MMCSIZE=""
-	echo "Identified an OpenFrame $OPENFRAME from override file."
+	echo "Specified as OpenFrame $OPENFRAME via override file."
 
 else
 
@@ -56,16 +69,16 @@ else
 			# If only one /dev/mmcblk appears, we can use it to identify the unit.
 
 			MMCNUM=`echo "${MMC: -1}"`
-			MMCSIZE=`/sbin/fdisk -l /dev/mmcblk$MMCNUM | grep mmcblk$MMCNUM: | awk -F\  {'print $5'}`
+			MMCSIZE=`/sbin/fdisk -l /dev/mmcblk$MMCNUM | grep -m1 mmcblk$MMCNUM: | awk -F\  {'print $5'}`
 
 			if [ $MMCSIZE -gt 1028128768 ]; then
 				OPENFRAME=2
 			fi
 
-			if [ $MMCSIZE -gt 0 ]; then
-				echo "OpenFrame $OPENFRAME with "$(($MMCSIZE/1024/1024))" MB internal storage."
-			else
+			if [ ! $MMCSIZE -gt 0 ]; then
 				echo "Could not identify MMC capacity. Assuming OpenFrame 1."
+			#else
+				#echo "OpenFrame $OPENFRAME with "$(($MMCSIZE/1024/1024))" MB internal storage."
 			fi
 
 		else
@@ -87,19 +100,11 @@ fi
 
 echo $OPENFRAME > /tmp/openframe.ver
 
-if [ -f /root/expanding ]; then
-	echo "Expanding root filesystem..."
-	/sbin/resize2fs `cat /root/expanding`
-	rm /root/expanding
-fi
-
 if [ "$OPENFRAME" -eq 1 ]; then
-
 	## Here be the OpenFrame 1 tweaks.
 	applystac9202pinpatch
 
 elif [ "$OPENFRAME" -eq 2 ]; then
-
 	## Here be the OpenFrame 2 tweaks.
 	removestac9202pinpatch
 
@@ -113,7 +118,6 @@ fi
 if [ -f /etc/firstboot ]; then
 
 	# Apply a new UUID to the root partition and rename boot and root to avoid conflicts.
-	source /etc/lsb-release
 	CODEPRE=${DISTRIB_CODENAME: 0:3}
 	BOOTLOC=`/sbin/blkid | grep ${CODEPRE^^}-BOOT | awk -F\: {'print $1'}`
 	ROOTLOC=`/sbin/blkid | grep ${CODEPRE^^}-ROOT | awk -F\: {'print $1'}`
@@ -141,6 +145,15 @@ if [ -f /etc/firstboot ]; then
 
 	rm /etc/firstboot
 
+fi
+
+outputsystemuid
+outputsysteminformation
+
+if [ -f /root/expanding ]; then
+	echo "Expanding root filesystem..."
+	/sbin/resize2fs `cat /root/expanding`
+	rm /root/expanding
 fi
 
 exit 0

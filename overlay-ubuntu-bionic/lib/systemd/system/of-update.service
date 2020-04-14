@@ -1,8 +1,8 @@
 [Unit]
-Description=OpenFrame heartbeat
+Description=OpenFrame Update
 
 [Service]
-ExecStart=/usr/local/sbin/of-heartbeat
+ExecStart=/usr/local/sbin/of-update systemd
 StandardOutput=syslog
 
 [Install]

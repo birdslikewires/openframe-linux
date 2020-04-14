@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.11 (12th March 2020)
+## of-builder.sh v1.19 (14th April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -8,66 +8,104 @@ if [ $# -lt 1 ]; then
 	exit 1
 fi
 
-source /etc/lsb-release
-
 ## Configurable Bits
 
-OURVER="op"
+OURKERNVER="op"
 PATHTODOWNLOADAREA="/home/andy/Public/download_blw/openframe"
+GITREPOURL="https://github.com/birdslikewires"
+GITREPOKER="openframe-kernel"
+GITREPOLIN="openframe-linux"
 COREDIVIDER=1
 
 ## Everything Else
 
+THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
 STARTTIME=`date +'%Y-%m-%d-%H%M'`
 KBRANCH="$1"
 KARCHIVES=`curl --silent https://www.kernel.org/index.html`
 KDOWNLOAD=`echo "$KARCHIVES" | grep -m 1 "linux-$KBRANCH" | grep ".xz" | awk -F\" {'print $2'}`
+GITKERNELUPDATED=0
+GITLINUXOUPDATED=0
 
 if [[ ! "$KDOWNLOAD" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel branch $KBRANCH was not found as stable or longterm on the kernel.org homepage."
 	exit 1
 fi
 
+
+# Check whether we've got the kernel repo available, otherwise kernel builds will obviously fail.
+if [[ ! -d "$THISSCRIPTPATH/../$GITREPOKER" ]]; then
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You're going to need $GITREPOURL/$GITREPOKER as well. Cloning..."
+	git clone "$GITREPOURL/$GITREPOKER" "$THISSCRIPTPATH/../$GITREPOKER"
+else
+	KSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" stash)
+	KPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" pull)
+	if [[ "$KPULL" == "Already up to date." ]]; then
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' is up to date."
+	elif [[ "$KPULL" =~ "error: " ]] || [[ "$KPULL" =~ "fatal: " ]]; then
+		echo
+		echo "$KPULL"
+		echo
+		exit 1
+	else
+		GITKERNELUPDATED=1
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' requires update..."
+		echo
+		echo "$KPULL"
+		echo
+	fi
+fi
+
+# Check whether I've been removed from my repo or not. Die if I have.
+if [[ ! -d "$THISSCRIPTPATH/../$GITREPOLIN" ]]; then
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You seem to be running me outside of my repo. I'm not much use without the rest of $GITREPOURL/$GITREPOLIN."
+	exit 1
+else
+	LSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash)
+	LPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull)
+	if [[ "$LPULL" == "Already up to date." ]]; then
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOLIN' is up to date."
+	elif [[ "$LPULL" =~ "error: " ]] || [[ "$LPULL" =~ "fatal: " ]]; then
+		echo
+		echo "$LPULL"
+		echo
+		exit 1
+	else
+		GITLINUXOUPDATED=1
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOLIN' requires update..."
+		echo
+		echo "$LPULL"
+		echo
+	fi
+fi
+
 KFILENAME=`echo "$KDOWNLOAD" | sed 's:.*/::'`
 KLATESTMAJVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $1'}`
 KLATESTMIDVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $2'}`
 KLATESTMINVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $3'}`
-KOURNAME="$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER$OURVER"
+KOURNAME="$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER$OURKERNVER"
 KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
 KDLPATH="$PATHTODOWNLOADAREA/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
-[ -d $KDLPATH ] && KBUILDIT=0 || KBUILDIT=1
+[ -d $KDLPATH ] && [ $GITKERNELUPDATED -eq 0 ] && KBUILDIT=0 || KBUILDIT=1
 
 IDISTNAME="$2"
 ICODENAME="$3"
 IDOWNLURL="$4"
 IDLPATH="$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/${ICODENAME,,}/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
-[ -d $IDLPATH ] && IBUILDIT=0 || IBUILDIT=1
+[ -d $IDLPATH ] && [ $GITLINUXOUPDATED -eq 0 ] && IBUILDIT=0 || IBUILDIT=1
 
 ## Work To Do!
 
 cleanup() {
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Cleaning up..."
-	chown -R www-data:www-data $PATHTODOWNLOADAREA/build $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/images
-	chmod -R 774 $PATHTODOWNLOADAREA/build $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/images
+	chown -R www-data:www-data $PATHTODOWNLOADAREA/images $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/logs
+	chmod -R 774 $PATHTODOWNLOADAREA/images $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/logs
 	rm -rf ./$KOURBUILD*
 	rm -rf ./*.deb
 	rm -rf ./*.img*
 	rm -rf ./tmp
 	echo " done."
 }
-
-if [ ! -d openframe-kernel ]; then
-	git clone https://github.com/andydvsn/openframe-kernel.git
-	echo
-#else
-#	cd openframe-linux ; git pull > /dev/null ; cd ..
-fi
-if [ ! -d openframe-linux ]; then
-	git clone https://github.com/andydvsn/openframe-linux.git
-	echo
-#else
-#	cd openframe-linux ; git pull > /dev/null ; cd ..
-fi
 
 if [[ "$KBUILDIT" == 0 ]]; then
 
@@ -104,8 +142,8 @@ else
 	echo " done."
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Applying OpenFrame kernel patches..."
-	for p in `ls openframe-kernel/patches/$KLATESTMAJVER.$KLATESTMIDVER`; do
-		patch -f -p1 -d "$KOURBUILD" < "openframe-kernel/patches/$KLATESTMAJVER.$KLATESTMIDVER/$p"
+	for p in `ls $GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER`; do
+		patch -f -p1 -d "$KOURBUILD" < "$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER/$p"
 	done
 	echo
 
@@ -119,8 +157,8 @@ else
 
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying extraversion to makefile..."
 	KMAKEFILE=`cat "$KOURBUILD/Makefile"`
-	if [[ ! "$KMAKEFILE" =~ "EXTRAVERSION = $OURVER" ]]; then
-		sed -i "s/EXTRAVERSION =/EXTRAVERSION = $OURVER/g" "$KOURBUILD/Makefile"
+	if [[ ! "$KMAKEFILE" =~ "EXTRAVERSION = $OURKERNVER" ]]; then
+		sed -i "s/EXTRAVERSION =/EXTRAVERSION = $OURKERNVER/g" "$KOURBUILD/Makefile"
 	fi
 	echo " done."
 
@@ -133,8 +171,8 @@ else
 #	fi
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Updating config file with new defaults..."
-	KCONFIGFILE=`ls openframe-kernel/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
-	cp "openframe-kernel/configs/$KCONFIGFILE" "$KOURBUILD/.config"
+	KCONFIGFILE=`ls $GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
+	cp "$GITREPOKER/configs/$KCONFIGFILE" "$KOURBUILD/.config"
 	cd "$KOURBUILD"
 	make olddefconfig
 
@@ -153,8 +191,14 @@ else
 	fi
 
 	echo
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel build succeeded!"
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel $KOURNAME build succeeded!"
 	echo
+
+	if [ -d $KDLPATH ]; then
+		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Removing outdated $KOURNAME kernel..."
+		rm -rf $KDLPATH
+		echo " done."
+	fi
 
 	mkdir -p $KDLPATH
 	cd ..
@@ -165,7 +209,7 @@ else
 	cp "$KOURBUILD/.config" "$KDLPATH/$KOURNAME.config"
 	echo " done."
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Copying kernel $KOURNAME patches..."
-	cp -R "openframe-kernel/patches/$KLATESTMAJVER.$KLATESTMIDVER" "$KDLPATH/patches"
+	cp -R "$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER" "$KDLPATH/patches"
 	echo " done."
 	echo
 	cleanup
@@ -247,7 +291,7 @@ else
 
 	rm -rf ./*.img*
 
-	openframe-linux/of-imgcreate.sh "$(echo ${ICODENAME,,} | head -c 3)" ext2 1 uni 32 0 "${IDISTNAME,,} ${ICODENAME,,}" "openframe-linux/overlay-${IDISTNAME,,}-${ICODENAME,,}" "$KDLPATH" "$IDOWNLURL"
+	$THISSCRIPTPATH/of-imgcreate.sh "$(echo ${ICODENAME,,} | head -c 3)" ext2 1 uni 32 0 "${IDISTNAME,,} ${ICODENAME,,}" "$THISSCRIPTPATH/../$GITREPOLIN/overlay-${IDISTNAME,,}-${ICODENAME,,}" "$KDLPATH" "$IDOWNLURL"
 
 	# This checks through the exit codes so far and kills us if any have been greater than zero.
 	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
@@ -262,6 +306,13 @@ else
 	gzip $IBUILTIT
 	md5sum $IBUILTIT.gz > $IBUILTIT.gz.md5
 	echo " done."
+
+	if [ -d $IDLPATH ]; then
+		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Removing outdated ${IDISTNAME^} ${ICODENAME^} $KOURNAME image..."
+		rm -rf $IDLPATH
+		echo " done."
+	fi
+
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Moving to webserver..."
 	mkdir -p $IDLPATH
 	mv ./*.img* $IDLPATH
