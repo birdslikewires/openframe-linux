@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.18 (14th April 2020)
+## of-builder.sh v1.19 (14th April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -42,6 +42,11 @@ else
 	KPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" pull)
 	if [[ "$KPULL" == "Already up to date." ]]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' is up to date."
+	elif [[ "$KPULL" =~ "error: " ]] || [[ "$KPULL" =~ "fatal: " ]]; then
+		echo
+		echo "$KPULL"
+		echo
+		exit 1
 	else
 		GITKERNELUPDATED=1
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' requires update..."
@@ -60,6 +65,11 @@ else
 	LPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull)
 	if [[ "$LPULL" == "Already up to date." ]]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOLIN' is up to date."
+	elif [[ "$LPULL" =~ "error: " ]] || [[ "$LPULL" =~ "fatal: " ]]; then
+		echo
+		echo "$LPULL"
+		echo
+		exit 1
 	else
 		GITLINUXOUPDATED=1
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOLIN' requires update..."
