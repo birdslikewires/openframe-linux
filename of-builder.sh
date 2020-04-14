@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.17 (14th April 2020)
+## of-builder.sh v1.18 (14th April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -103,12 +103,6 @@ if [[ "$KBUILDIT" == 0 ]]; then
 
 else
 
-	if [ -d $KDLPATH ]; then
-		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Removing outdated $KOURNAME kernel..."
-		rm -rf $KDLPATH
-		echo " done."
-	fi
-
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Building $KOURNAME kernel..."
 	echo
 
@@ -187,8 +181,14 @@ else
 	fi
 
 	echo
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel build succeeded!"
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel $KOURNAME build succeeded!"
 	echo
+
+	if [ -d $KDLPATH ]; then
+		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Removing outdated $KOURNAME kernel..."
+		rm -rf $KDLPATH
+		echo " done."
+	fi
 
 	mkdir -p $KDLPATH
 	cd ..
@@ -276,12 +276,6 @@ if [[ "$IBUILDIT" == 0 ]]; then
 
 else
 
-	if [ -d $IDLPATH ]; then
-		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Removing outdated ${IDISTNAME^} ${ICODENAME^} $KOURNAME image..."
-		rm -rf $IDLPATH
-		echo " done."
-	fi
-
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Building ${IDISTNAME^} ${ICODENAME^} $KOURNAME image..."
 	echo
 
@@ -302,6 +296,13 @@ else
 	gzip $IBUILTIT
 	md5sum $IBUILTIT.gz > $IBUILTIT.gz.md5
 	echo " done."
+
+	if [ -d $IDLPATH ]; then
+		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Removing outdated ${IDISTNAME^} ${ICODENAME^} $KOURNAME image..."
+		rm -rf $IDLPATH
+		echo " done."
+	fi
+
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Moving to webserver..."
 	mkdir -p $IDLPATH
 	mv ./*.img* $IDLPATH
