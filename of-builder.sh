@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.15 (14th April 2020)
+## of-builder.sh v1.16 (14th April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -38,6 +38,7 @@ if [[ ! -d "$THISSCRIPTPATH/../$GITREPOKER" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You're going to need $GITREPOURL/$GITREPOKER as well. Cloning..."
 	git clone "$GITREPOURL/$GITREPOKER" "$THISSCRIPTPATH/../$GITREPOKER"
 else
+	KSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" stash)
 	KPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" pull)
 	if [[ "$KPULL" == "Already up to date." ]]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' is up to date."
@@ -55,7 +56,8 @@ if [[ ! -d "$THISSCRIPTPATH/../$GITREPOLIN" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You seem to be running me outside of my repo. I'm not much use without the rest of $GITREPOURL/$GITREPOLIN."
 	exit 1
 else
-	LPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" pull)
+	LSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" stash)
+	LPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull)
 	if [[ "$LPULL" == "Already up to date." ]]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOLIN' is up to date."
 	else
