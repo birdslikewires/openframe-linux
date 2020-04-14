@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.16 (14th April 2020)
+## of-builder.sh v1.17 (14th April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -56,7 +56,7 @@ if [[ ! -d "$THISSCRIPTPATH/../$GITREPOLIN" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You seem to be running me outside of my repo. I'm not much use without the rest of $GITREPOURL/$GITREPOLIN."
 	exit 1
 else
-	LSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" stash)
+	LSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash)
 	LPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull)
 	if [[ "$LPULL" == "Already up to date." ]]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOLIN' is up to date."
@@ -276,9 +276,9 @@ if [[ "$IBUILDIT" == 0 ]]; then
 
 else
 
-	if [ -d $$IDLPATH ]; then
+	if [ -d $IDLPATH ]; then
 		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Removing outdated ${IDISTNAME^} ${ICODENAME^} $KOURNAME image..."
-		rm -rf $$IDLPATH
+		rm -rf $IDLPATH
 		echo " done."
 	fi
 
