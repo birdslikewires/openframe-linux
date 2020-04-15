@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 
-# of-update v1.08 (12th April 2020)
+# of-update v1.09 (15th April 2020)
 #  Automated updates without reimaging.
 
-SERVER="https://openbeak.net"
-SERVICE="/update/openframe.php"
+if [ $# -gt 1 ]; then
+	echo "Usage: $0 [ force | systemd ]"
+	exit 1
+fi
+
+SERVER="openbeak.net"
+SERVICE="/update/of-scripts.php"
 
 # We can't do anything useful until the system has decided upon its UUID. This relies upon of-identifier.
 while [ ! -f /tmp/openframe.uid ]; do sleep 1; done
@@ -12,35 +17,66 @@ sync
 
 while true; do
 
-	/usr/bin/timeout 1 /bin/ping -c 1 openbeak.net &>/dev/null
+	# Check our connectivity to a global DNS service.
+	/usr/bin/timeout 1 /bin/ping -c 1 1.1.1.1 &>/dev/null
 	if [[ $? -eq 0 ]]; then
 
+		# Build our user agent and request.
 		UPANDLOAD="$(awk -F. {'print $1'} /proc/uptime)"/"$(awk '{$NF=""; print $0}' /proc/loadavg | awk '{$1=$1};1' | sed -e 's/\//-/g' -e 's/ /\//g')"
 		USER_AGENT="$(cat /tmp/openframe.uid)"/"$(cat /tmp/openframe.net)"/"$(cat /tmp/openframe.nfo)"/"$(cat /tmp/openframe.ver)"/"$UPANDLOAD"
-		OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
-		SERVICE_RESPONSE=$(/usr/bin/curl -sA "$USER_AGENT" "$SERVER$SERVICE?ver=$OFSCRIPTS_VER" )
+		[[ "${1}" == "force" ]] && OFSCRIPTS_VER="000" || OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
+		SERVICE_RESPONSE=$(/usr/bin/curl -sSA "$USER_AGENT" "https://$SERVER$SERVICE?ver=$OFSCRIPTS_VER" 2>&1)
 
 		if [[ "$SERVICE_RESPONSE" =~ "https://" ]]; then
 
-			echo "Updating..."
-
-			/usr/bin/timeout 10 /usr/bin/wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$SERVICE_RESPONSE"
-
+			# Work out the path to which files will be downloaded.
 			TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
 			TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
 
-			rm -rf /usr/local/sbin/of-*
-			cp /tmp/"$TMP_PATH"of-* /usr/local/sbin
-			chown root:root /usr/local/sbin/of-*
-			chmod 755 /usr/local/sbin/of-*
-			chmod 644 /usr/local/sbin/of-*.ver
-			rm -rf /tmp/"$TMP_HOST"
+			# Get new version number.
+			OFSCRIPTS_VERNEW=$(/usr/bin/curl -s $SERVICE_RESPONSE/of-scripts.ver)
 
-			systemctl restart of-update
+			echo "Updating of-scripts v${OFSCRIPTS_VER:0:1}.${OFSCRIPTS_VER:1} to v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1} from $TMP_HOST..."
+
+			# If we've received a secure URL in response, download any file prefixed by 'of-' into /tmp with full path from server.
+			/usr/bin/timeout 10 /usr/bin/wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$SERVICE_RESPONSE"
+
+			# Work out the path to which files have been downloaded.
+			TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
+			TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
+
+			if [[ $(ls /tmp/"$TMP_PATH"/of-* | wc -l) -gt 0 ]]; then
+
+				rm -rf /usr/local/sbin/of-*
+				cp /tmp/"$TMP_PATH"of-* /usr/local/sbin
+				chown root:root /usr/local/sbin/of-*
+				chmod 755 /usr/local/sbin/of-*
+				chmod 644 /usr/local/sbin/of-*.ver
+				rm -rf /tmp/"$TMP_HOST"
+
+				# If any of the scripts are configured as system services, restart those services.
+				for s in $(ls -1 /usr/local/sbin/of-*); do
+					OFSCRIPT=$(basename $s)
+					[ -f /lib/systemd/system/$OFSCRIPT.service ] && systemctl restart $OFSCRIPT
+				done
+
+				echo "Update to of-scripts v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1} complete."
+
+			else
+
+				echo "Cannot find files expected in /tmp/"$TMP_PATH""
+				echo "Update aborted."
+
+			fi
 
 		elif [[ "$SERVICE_RESPONSE" =~ "http://" ]]; then
 
-			echo "Returned an insecure HTTP address. Not interested."
+			echo "Update service returned an insecure HTTP address. Not interested."
+
+		elif [[ "$SERVICE_RESPONSE" =~ "404 Not Found" ]]; then
+
+			echo "Could not find $SERVICE on $SERVER."
+			echo "Update aborted."
 
 		else
 
@@ -48,12 +84,25 @@ while true; do
 
 		fi
 
-		# Check again tomorrow.
-		[[ $# -gt 0 ]] && /bin/sleep 86400 || exit 0
+		# Only wait in loop if we're running as a system service. Successful runs sleep for 24 hours before checking again.
+		if [[ "${1}" == "systemd" ]]; then
+			echo "Sleeping for 24 hours."
+			/bin/sleep 86400
+		else
+			exit 0
+		fi
 
 	else
 
-		[[ $# -gt 0 ]] && /bin/sleep 600 || exit 0
+		# Only wait in loop if we're running as a system service. Unsuccessful runs sleep for 10 minutes before checking again.
+		[[ "${1}" == "systemd" ]] && echo "Retrying in 10 minutes." ; /bin/sleep 600 || exit 0
+
+		if [[ "${1}" == "systemd" ]]; then
+			echo "Retrying in 10 minutes."
+			/bin/sleep 600
+		else
+			exit 0
+		fi
 
 	fi
 
