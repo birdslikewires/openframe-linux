@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.20 (15th April 2020)
+## of-builder.sh v1.21 (16th April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -144,8 +144,8 @@ else
 	echo " done."
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Applying OpenFrame kernel patches..."
-	for p in `ls $GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER`; do
-		patch -f -p1 -d "$KOURBUILD" < "$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER/$p"
+	for p in `ls $THISSCRIPTPATH/../$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER`; do
+		patch -f -p1 -d "$KOURBUILD" < "$THISSCRIPTPATH/../$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER/$p"
 	done
 	echo
 
@@ -174,7 +174,7 @@ else
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Updating config file with new defaults..."
 	KCONFIGFILE=`ls $GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
-	cp "$GITREPOKER/configs/$KCONFIGFILE" "$KOURBUILD/.config"
+	cp "$THISSCRIPTPATH/../$GITREPOKER/configs/$KCONFIGFILE" "$KOURBUILD/.config"
 	cd "$KOURBUILD"
 	make olddefconfig
 
@@ -211,7 +211,7 @@ else
 	cp "$KOURBUILD/.config" "$KDLPATH/$KOURNAME.config"
 	echo " done."
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Copying kernel $KOURNAME patches..."
-	cp -R "$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER" "$KDLPATH/patches"
+	cp -R "$THISSCRIPTPATH/../$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER" "$KDLPATH/patches"
 	echo " done."
 	echo
 	cleanup
