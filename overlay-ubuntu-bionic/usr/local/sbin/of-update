@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-# of-update v1.09 (15th April 2020)
+# of-update v1.10 (15th April 2020)
 #  Automated updates without reimaging.
 
 if [ $# -gt 1 ]; then
-	echo "Usage: $0 [ force | systemd ]"
+	echo "Usage: $0 [ force | systemd | test ]"
 	exit 1
 fi
 
@@ -27,7 +27,7 @@ while true; do
 		[[ "${1}" == "force" ]] && OFSCRIPTS_VER="000" || OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
 		SERVICE_RESPONSE=$(/usr/bin/curl -sSA "$USER_AGENT" "https://$SERVER$SERVICE?ver=$OFSCRIPTS_VER" 2>&1)
 
-		if [[ "$SERVICE_RESPONSE" =~ "https://" ]]; then
+		if [[ "$SERVICE_RESPONSE" =~ "https://" ]] && [[ "${1}" != "test" ]]; then
 
 			# Work out the path to which files will be downloaded.
 			TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
