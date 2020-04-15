@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.19 (14th April 2020)
+## of-builder.sh v1.20 (15th April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -24,6 +24,8 @@ STARTTIME=`date +'%Y-%m-%d-%H%M'`
 KBRANCH="$1"
 KARCHIVES=`curl --silent https://www.kernel.org/index.html`
 KDOWNLOAD=`echo "$KARCHIVES" | grep -m 1 "linux-$KBRANCH" | grep ".xz" | awk -F\" {'print $2'}`
+GITKERNELOWNER=$(stat -c '%U' $THISSCRIPTPATH/../$GITREPOKER)
+GITLINUXOOWNER=$(stat -c '%U' $THISSCRIPTPATH/../$GITREPOLIN)
 GITKERNELUPDATED=0
 GITLINUXOUPDATED=0
 
@@ -38,8 +40,8 @@ if [[ ! -d "$THISSCRIPTPATH/../$GITREPOKER" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You're going to need $GITREPOURL/$GITREPOKER as well. Cloning..."
 	git clone "$GITREPOURL/$GITREPOKER" "$THISSCRIPTPATH/../$GITREPOKER"
 else
-	KSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" stash)
-	KPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" pull)
+	KSTSH=$(su -c git -C "$THISSCRIPTPATH/../$GITREPOKER" stash $GITKERNELOWNER)
+	KPULL=$(su -c git -C "$THISSCRIPTPATH/../$GITREPOKER" pull $GITKERNELOWNER)
 	if [[ "$KPULL" == "Already up to date." ]]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' is up to date."
 	elif [[ "$KPULL" =~ "error: " ]] || [[ "$KPULL" =~ "fatal: " ]]; then
@@ -61,8 +63,8 @@ if [[ ! -d "$THISSCRIPTPATH/../$GITREPOLIN" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You seem to be running me outside of my repo. I'm not much use without the rest of $GITREPOURL/$GITREPOLIN."
 	exit 1
 else
-	LSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash)
-	LPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull)
+	LSTSH=$(su -c git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash $GITLINUXOOWNER)
+	LPULL=$(su -c git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull $GITLINUXOOWNER)
 	if [[ "$LPULL" == "Already up to date." ]]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOLIN' is up to date."
 	elif [[ "$LPULL" =~ "error: " ]] || [[ "$LPULL" =~ "fatal: " ]]; then
