@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-update v1.10 (15th April 2020)
+# of-update v1.11 (16th April 2020)
 #  Automated updates without reimaging.
 
 if [ $# -gt 1 ]; then
@@ -18,7 +18,7 @@ sync
 while true; do
 
 	# Check our connectivity to a global DNS service.
-	/usr/bin/timeout 1 /bin/ping -c 1 1.1.1.1 &>/dev/null
+	/usr/bin/timeout 1 /bin/ping -c 1 1.1.1.1 2>&1 >/dev/null
 	if [[ $? -eq 0 ]]; then
 
 		# Build our user agent and request.
