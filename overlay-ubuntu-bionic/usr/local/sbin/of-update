@@ -4,7 +4,7 @@
 #  Automated updates without reimaging.
 
 SERVER="https://openbeak.net"
-SERVICE="/update/check.php"
+SERVICE="/update/openframe.php"
 
 # We can't do anything useful until the system has decided upon its UUID. This relies upon of-identifier.
 while [ ! -f /tmp/openframe.uid ]; do sleep 1; done
