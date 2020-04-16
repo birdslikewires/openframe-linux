@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-update v1.13 (16th April 2020)
+# of-update v1.15 (16th April 2020)
 #  Automated updates without reimaging.
 
 if [ $# -gt 1 ]; then
@@ -25,9 +25,13 @@ while true; do
 		UPANDLOAD="$(awk -F. {'print $1'} /proc/uptime)"/"$(awk '{$NF=""; print $0}' /proc/loadavg | awk '{$1=$1};1' | sed -e 's/\//-/g' -e 's/ /\//g')"
 		USER_AGENT="$(cat /tmp/openframe.uid)"/"$(cat /tmp/openframe.net)"/"$(cat /tmp/openframe.nfo)"/"$(cat /tmp/openframe.ver)"/"$UPANDLOAD"
 		[[ "${1}" == "force" ]] && OFSCRIPTS_VER="000" || OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
-		SERVICE_RESPONSE=$(/usr/bin/curl -sSA "$USER_AGENT" "https://$SERVER$SERVICE?ver=$OFSCRIPTS_VER" 2>&1)
 
-		if [[ "$SERVICE_RESPONSE" =~ "https://" ]] && [[ "${1}" != "test" ]]; then
+		# Before we send anything, test the validity of the URL with a plain curl request.
+		TEST_RESPONSE=$(/usr/bin/curl -fsS https://$SERVER$SERVICE &>/dev/null)
+		[[ $? -eq 0 ]] && SERVICE_RESPONSE=$(/usr/bin/curl -fsSA "$USER_AGENT" "https://$SERVER$SERVICE?ver=$OFSCRIPTS_VER" 2>&1) || SERVICE_RESPONSE="404"
+
+		# If the test was passed and the update server sent a valid HTTPS URL in response, we go for it.
+		if [[ "${SERVICE_RESPONSE:0:8}" == "https://" ]] && [[ "${1}" != "test" ]]; then
 
 			# Work out the path to which files will be downloaded.
 			TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
@@ -35,47 +39,60 @@ while true; do
 
 			# Get new version number.
 			OFSCRIPTS_VERNEW=$(/usr/bin/curl -s $SERVICE_RESPONSE/of-scripts.ver)
+			OFSCRIPTS_VERNEW=${OFSCRIPTS_VERNEW:0:3}
 
-			echo "Updating of-scripts v${OFSCRIPTS_VER:0:1}.${OFSCRIPTS_VER:1} to v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1} from $TMP_HOST..."
+			# Check that those three digits make an integer.
+			if [[ $OFSCRIPTS_VERNEW =~ ^-?[0-9]+$ ]]; then
 
-			# If we've received a secure URL in response, download any file prefixed by 'of-' into /tmp with full path from server.
-			/usr/bin/timeout 10 /usr/bin/wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$SERVICE_RESPONSE"
+				echo "Updating of-scripts v${OFSCRIPTS_VER:0:1}.${OFSCRIPTS_VER:1} to v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1} from $TMP_HOST..."
 
-			# Work out the path to which files have been downloaded.
-			TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
-			TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
+				# If we've received a secure URL in response, download any file prefixed by 'of-' into /tmp with full path from server.
+				/usr/bin/timeout 10 /usr/bin/wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$SERVICE_RESPONSE"
 
-			if [[ $(ls /tmp/"$TMP_PATH"/of-* | wc -l) -gt 0 ]]; then
+				# Work out the path to which files have been downloaded.
+				TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
+				TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
 
-				rm -rf /usr/local/sbin/of-*
-				cp /tmp/"$TMP_PATH"of-* /usr/local/sbin
-				chown root:root /usr/local/sbin/of-*
-				chmod 755 /usr/local/sbin/of-*
-				chmod 644 /usr/local/sbin/of-*.ver
-				rm -rf /tmp/"$TMP_HOST"
+				if [[ $(ls /tmp/"$TMP_PATH"/of-* | wc -l) -gt 0 ]]; then
 
-				# If any of the scripts are configured as system services, restart those services.
-				for s in $(ls -1 /usr/local/sbin/of-*); do
-					OFSCRIPT=$(basename $s)
-					[ -f /lib/systemd/system/$OFSCRIPT.service ] && systemctl restart $OFSCRIPT
-				done
+					rm -rf /usr/local/sbin/of-*
+					cp /tmp/"$TMP_PATH"of-* /usr/local/sbin
+					chown root:root /usr/local/sbin/of-*
+					chmod 755 /usr/local/sbin/of-*
+					chmod 644 /usr/local/sbin/of-*.ver
+					rm -rf /tmp/"$TMP_HOST"
 
-				echo "Update to of-scripts v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1} complete."
+					# If any of the scripts are configured as system services, restart those services.
+					for s in $(ls -1 /usr/local/sbin/of-*); do
+						OFSCRIPT=$(basename $s)
+						[ -f /lib/systemd/system/$OFSCRIPT.service ] && systemctl restart $OFSCRIPT
+					done
+
+					echo "Update to of-scripts v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1} complete."
+
+				else
+
+					echo "Cannot find files expected in /tmp/$TMP_PATH"
+					echo "Update aborted."
+
+				fi
 
 			else
 
-				echo "Cannot find files expected in /tmp/"$TMP_PATH""
+				echo "Weird version (v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1}) reported."
 				echo "Update aborted."
 
 			fi
 
-		elif [[ "$SERVICE_RESPONSE" =~ "http://" ]]; then
-
-			echo "Update service returned an insecure HTTP address. Not interested."
-
-		elif [[ "$SERVICE_RESPONSE" =~ "404 Not Found" ]]; then
+		elif [[ "$SERVICE_RESPONSE" =~ "404" ]] || echo "$SERVICE_RESPONSE" | grep -iqF 'not found' ; then
 
 			echo "Could not find $SERVICE on $SERVER."
+			echo "Update aborted."
+
+		elif [[ "$SERVICE_RESPONSE" =~ "http://" ]]; then
+
+			echo "Response from contained an insecure HTTP address."
+			echo "$SERVICE_RESPONSE"
 			echo "Update aborted."
 
 		else
