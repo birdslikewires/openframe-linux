@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-update v1.15 (16th April 2020)
+# of-update v1.16 (17th April 2020)
 #  Automated updates without reimaging.
 
 if [ $# -gt 1 ]; then
@@ -27,8 +27,8 @@ while true; do
 		[[ "${1}" == "force" ]] && OFSCRIPTS_VER="000" || OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
 
 		# Before we send anything, test the validity of the URL with a plain curl request.
-		TEST_RESPONSE=$(/usr/bin/curl -fsS https://$SERVER$SERVICE &>/dev/null)
-		[[ $? -eq 0 ]] && SERVICE_RESPONSE=$(/usr/bin/curl -fsSA "$USER_AGENT" "https://$SERVER$SERVICE?ver=$OFSCRIPTS_VER" 2>&1) || SERVICE_RESPONSE="404"
+		TEST_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://$SERVER$SERVICE)
+		[[ "$TEST_RESPONSE" == "200" ]] && SERVICE_RESPONSE=$(/usr/bin/curl -fsSA "$USER_AGENT" "https://$SERVER$SERVICE?ver=$OFSCRIPTS_VER" 2>&1) || SERVICE_RESPONSE="$TEST_RESPONSE"
 
 		# If the test was passed and the update server sent a valid HTTPS URL in response, we go for it.
 		if [[ "${SERVICE_RESPONSE:0:8}" == "https://" ]] && [[ "${1}" != "test" ]]; then
@@ -86,13 +86,19 @@ while true; do
 
 		elif [[ "$SERVICE_RESPONSE" =~ "404" ]] || echo "$SERVICE_RESPONSE" | grep -iqF 'not found' ; then
 
-			echo "Could not find $SERVICE on $SERVER."
+			echo "Could not find $SERVICE on $SERVER ($SERVICE_RESPONSE)."
+			echo "Update aborted."
+
+		elif [[ "$SERVICE_RESPONSE" == "500" ]]; then
+
+			echo "Server error by $SERVER ($SERVICE_RESPONSE)."
 			echo "Update aborted."
 
 		elif [[ "$SERVICE_RESPONSE" =~ "http://" ]]; then
 
+			echo "Received: $SERVICE_RESPONSE"
+			echo
 			echo "Response from contained an insecure HTTP address."
-			echo "$SERVICE_RESPONSE"
 			echo "Update aborted."
 
 		else
