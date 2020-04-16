@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-update v1.11 (16th April 2020)
+# of-update v1.12 (16th April 2020)
 #  Automated updates without reimaging.
 
 if [ $# -gt 1 ]; then
@@ -94,8 +94,8 @@ while true; do
 
 	else
 
-		# Only wait in loop if we're running as a system service. Unsuccessful runs sleep for 10 minutes before checking again.
-		[[ "${1}" == "systemd" ]] && echo "Retrying in 10 minutes." ; /bin/sleep 600 || exit 0
+		# Only wait in loop if we're running as a system service. Unsuccessful runs sleep for 1 minute before checking again.
+		[[ "${1}" == "systemd" ]] && echo "Retrying in 10 minutes." ; /bin/sleep 60 || exit 0
 
 		if [[ "${1}" == "systemd" ]]; then
 			echo "Retrying in 10 minutes."
