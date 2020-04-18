@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-update v1.16 (17th April 2020)
+# of-update v1.17 (19th April 2020)
 #  Automated updates without reimaging.
 
 if [ $# -gt 1 ]; then
@@ -11,103 +11,150 @@ fi
 SERVER="openbeak.net"
 SERVICE="/update/of-scripts.php"
 
-# We can't do anything useful until the system has decided upon its UUID. This relies upon of-identifier.
-while [ ! -f /tmp/openframe.uid ]; do sleep 1; done
-sync
+updateCheck() {
 
-while true; do
+	# Build our user agent and request.
+	UPANDLOAD="$(awk -F. {'print $1'} /proc/uptime)"/"$(awk '{$NF=""; print $0}' /proc/loadavg | awk '{$1=$1};1' | sed -e 's/\//-/g' -e 's/ /\//g')"
+	USER_AGENT="$(cat /tmp/openframe.uid)"/"$(cat /tmp/openframe.net)"/"$(cat /tmp/openframe.nfo)"/"$(cat /tmp/openframe.ver)"/"$UPANDLOAD"
+	[[ "${1}" == "force" ]] && OFSCRIPTS_VER="000" || OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
 
-	# Check our connectivity to a global DNS service.
-	/usr/bin/timeout 1 /bin/ping -c 1 1.1.1.1 2>&1 >/dev/null
-	if [[ $? -eq 0 ]]; then
+	# Before we send anything, test the validity of the URL with a plain curl request.
+	TEST_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://$SERVER$SERVICE)
+	[[ "$TEST_RESPONSE" == "200" ]] && SERVICE_RESPONSE=$(/usr/bin/curl -fsSA "$USER_AGENT" "https://$SERVER$SERVICE?ver=$OFSCRIPTS_VER" 2>&1) || SERVICE_RESPONSE="$TEST_RESPONSE"
 
-		# Build our user agent and request.
-		UPANDLOAD="$(awk -F. {'print $1'} /proc/uptime)"/"$(awk '{$NF=""; print $0}' /proc/loadavg | awk '{$1=$1};1' | sed -e 's/\//-/g' -e 's/ /\//g')"
-		USER_AGENT="$(cat /tmp/openframe.uid)"/"$(cat /tmp/openframe.net)"/"$(cat /tmp/openframe.nfo)"/"$(cat /tmp/openframe.ver)"/"$UPANDLOAD"
-		[[ "${1}" == "force" ]] && OFSCRIPTS_VER="000" || OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
+	# If the test was passed and the update server sent a valid HTTPS URL in response, we go for it.
+	if [[ "${SERVICE_RESPONSE:0:8}" == "https://" ]] && [[ "${1}" != "test" ]]; then
 
-		# Before we send anything, test the validity of the URL with a plain curl request.
-		TEST_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://$SERVER$SERVICE)
-		[[ "$TEST_RESPONSE" == "200" ]] && SERVICE_RESPONSE=$(/usr/bin/curl -fsSA "$USER_AGENT" "https://$SERVER$SERVICE?ver=$OFSCRIPTS_VER" 2>&1) || SERVICE_RESPONSE="$TEST_RESPONSE"
+		# Work out the path to which files will be downloaded.
+		TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
+		TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
 
-		# If the test was passed and the update server sent a valid HTTPS URL in response, we go for it.
-		if [[ "${SERVICE_RESPONSE:0:8}" == "https://" ]] && [[ "${1}" != "test" ]]; then
+		# Get new version number.
+		OFSCRIPTS_VERNEW=$(/usr/bin/curl -s $SERVICE_RESPONSE/of-scripts.ver)
+		OFSCRIPTS_VERNEW=${OFSCRIPTS_VERNEW:0:3}
 
-			# Work out the path to which files will be downloaded.
+		# Check that those three digits make an integer.
+		if [[ $OFSCRIPTS_VERNEW =~ ^-?[0-9]+$ ]]; then
+
+			echo "Updating of-scripts v${OFSCRIPTS_VER:0:1}.${OFSCRIPTS_VER:1} to v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1} from $TMP_HOST..."
+
+			# If we've received a secure URL in response, download any file prefixed by 'of-' into /tmp with full path from server.
+			/usr/bin/timeout 10 /usr/bin/wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$SERVICE_RESPONSE"
+
+			# Work out the path to which files have been downloaded.
 			TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
 			TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
 
-			# Get new version number.
-			OFSCRIPTS_VERNEW=$(/usr/bin/curl -s $SERVICE_RESPONSE/of-scripts.ver)
-			OFSCRIPTS_VERNEW=${OFSCRIPTS_VERNEW:0:3}
+			if [[ $(ls /tmp/"$TMP_PATH"/of-* | wc -l) -gt 0 ]]; then
 
-			# Check that those three digits make an integer.
-			if [[ $OFSCRIPTS_VERNEW =~ ^-?[0-9]+$ ]]; then
+				rm -rf /usr/local/sbin/of-*
+				cp /tmp/"$TMP_PATH"of-* /usr/local/sbin
+				chown root:root /usr/local/sbin/of-*
+				chmod 755 /usr/local/sbin/of-*
+				chmod 644 /usr/local/sbin/of-*.ver
+				rm -rf /tmp/"$TMP_HOST"
 
-				echo "Updating of-scripts v${OFSCRIPTS_VER:0:1}.${OFSCRIPTS_VER:1} to v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1} from $TMP_HOST..."
+				# If any of the scripts are configured as system services, restart those services.
+				for s in $(ls -1 /usr/local/sbin/of-*); do
+					OFSCRIPT=$(basename $s)
+					[ -f /lib/systemd/system/$OFSCRIPT.service ] && systemctl restart $OFSCRIPT
+				done
 
-				# If we've received a secure URL in response, download any file prefixed by 'of-' into /tmp with full path from server.
-				/usr/bin/timeout 10 /usr/bin/wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$SERVICE_RESPONSE"
-
-				# Work out the path to which files have been downloaded.
-				TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
-				TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
-
-				if [[ $(ls /tmp/"$TMP_PATH"/of-* | wc -l) -gt 0 ]]; then
-
-					rm -rf /usr/local/sbin/of-*
-					cp /tmp/"$TMP_PATH"of-* /usr/local/sbin
-					chown root:root /usr/local/sbin/of-*
-					chmod 755 /usr/local/sbin/of-*
-					chmod 644 /usr/local/sbin/of-*.ver
-					rm -rf /tmp/"$TMP_HOST"
-
-					# If any of the scripts are configured as system services, restart those services.
-					for s in $(ls -1 /usr/local/sbin/of-*); do
-						OFSCRIPT=$(basename $s)
-						[ -f /lib/systemd/system/$OFSCRIPT.service ] && systemctl restart $OFSCRIPT
-					done
-
-					echo "Update to of-scripts v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1} complete."
-
-				else
-
-					echo "Cannot find files expected in /tmp/$TMP_PATH"
-					echo "Update aborted."
-
-				fi
+				echo "Update to of-scripts v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1} complete."
+				return 0
 
 			else
 
-				echo "Weird version (v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1}) reported."
+				echo "Cannot find files expected in /tmp/$TMP_PATH"
 				echo "Update aborted."
 
 			fi
 
-		elif [[ "$SERVICE_RESPONSE" =~ "404" ]] || echo "$SERVICE_RESPONSE" | grep -iqF 'not found' ; then
-
-			echo "Could not find $SERVICE on $SERVER ($SERVICE_RESPONSE)."
-			echo "Update aborted."
-
-		elif [[ "$SERVICE_RESPONSE" == "500" ]]; then
-
-			echo "Server error by $SERVER ($SERVICE_RESPONSE)."
-			echo "Update aborted."
-
-		elif [[ "$SERVICE_RESPONSE" =~ "http://" ]]; then
-
-			echo "Received: $SERVICE_RESPONSE"
-			echo
-			echo "Response from contained an insecure HTTP address."
-			echo "Update aborted."
-
 		else
 
-			echo "$SERVICE_RESPONSE"
+			echo "Weird version (v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1}) reported."
+			echo "Update aborted."
 
 		fi
 
-		# Only wait in loop if we're running as a system service. Successful runs sleep for 24 hours before checking again.
+	elif [[ "$SERVICE_RESPONSE" =~ "404" ]] || echo "$SERVICE_RESPONSE" | grep -iqF 'not found' ; then
+
+		echo "Could not find $SERVICE on $SERVER ($SERVICE_RESPONSE)."
+		echo "Update aborted."
+
+	elif [[ "$SERVICE_RESPONSE" == "500" ]]; then
+
+		echo "Server error by $SERVER ($SERVICE_RESPONSE)."
+		echo "Update aborted."
+
+	elif [[ "$SERVICE_RESPONSE" =~ "http://" ]]; then
+
+		echo "Received: $SERVICE_RESPONSE"
+		echo
+		echo "Response contained an insecure HTTP address."
+		echo "Update aborted."
+
+	elif [[ "$SERVICE_RESPONSE" == "NV" ]]; then
+
+		echo "No version number was received by the server."
+		echo "Update aborted."
+
+	else
+
+		if [[ "$SERVICE_RESPONSE" == "OK" ]]; then
+
+			echo "Installed of-scripts v${OFSCRIPTS_VER:0:1}.${OFSCRIPTS_VER:1} are the latest available."
+			return 0
+
+		else
+
+			echo "Received: $SERVICE_RESPONSE"
+			echo
+			echo "Not a clue what happened here. This needs investigation!"
+			echo "Update aborted."
+			return 2
+
+		fi
+
+	fi
+
+	return 1
+
+}
+
+
+# We can't do anything useful until the system has decided upon its UUID. This relies upon of-identifier.
+while [ ! -f /tmp/openframe.uid ]; do
+	sleep 1
+done
+
+sync
+
+# Once we have our UUID, enter the main loop.
+while true; do
+
+	PINGTRIES=1
+	while ! /bin/ping -c 1 1.1.1.1 2>&1 >/dev/null; do
+
+		# Only wait in loop if we're running as a system service.
+		if [[ "${1}" == "systemd" ]]; then
+			echo "Internet connectivity appears to be down. Retrying in $PINGTRIES seconds..."
+			/bin/sleep $PINGTRIES
+			[[ $PINGTRIES -lt 3600 ]] && ((PINGTRIES++))
+		else
+			echo "Internet connectivity appears to be down."
+			exit 0
+		fi
+
+	done
+
+	# If we're here, we managed to get a ping response.
+	updateCheck ${1}
+	EXITSTATUS="$?"
+
+	if [[ "$EXITSTATUS" -eq 0 ]]; then
+
+		# Everything went fine.
 		if [[ "${1}" == "systemd" ]]; then
 			echo "Sleeping for 24 hours."
 			/bin/sleep 86400
@@ -115,16 +162,25 @@ while true; do
 			exit 0
 		fi
 
-	else
+	elif [[ "$EXITSTATUS" -eq 1 ]]; then
 
-		# Only wait in loop if we're running as a system service. Unsuccessful runs sleep for 1 minute before checking again.
+		# An error we know about happened.
 		if [[ "${1}" == "systemd" ]]; then
-			echo "Retrying in 1 minute."
-			/bin/sleep 60
+			echo "Retrying in 1 hour."
+			/bin/sleep 3600
 		else
 			exit 0
 		fi
 
+	elif [[ "$EXITSTATUS" -eq 2 ]]; then
+
+		# An error we don't understand happened.
+		if [[ "${1}" == "systemd" ]]; then
+			echo "Retrying in 6 hours."
+			/bin/sleep 21600
+		else
+			exit 0
+		fi
 	fi
 
 done
