@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-update v1.17 (19th April 2020)
+# of-update v1.18 (19th April 2020)
 #  Automated updates without reimaging.
 
 if [ $# -gt 1 ]; then
@@ -77,6 +77,11 @@ updateCheck() {
 
 		fi
 
+	elif [[ "$SERVICE_RESPONSE" =~ "000" ]]; then
+
+		echo "System not ready, clock has probably not yet synchronised."
+		return 1
+
 	elif [[ "$SERVICE_RESPONSE" =~ "404" ]] || echo "$SERVICE_RESPONSE" | grep -iqF 'not found' ; then
 
 		echo "Could not find $SERVICE on $SERVER ($SERVICE_RESPONSE)."
@@ -112,13 +117,13 @@ updateCheck() {
 			echo
 			echo "Not a clue what happened here. This needs investigation!"
 			echo "Update aborted."
-			return 2
+			return 3
 
 		fi
 
 	fi
 
-	return 1
+	return 2
 
 }
 
@@ -152,35 +157,29 @@ while true; do
 	updateCheck ${1}
 	EXITSTATUS="$?"
 
-	if [[ "$EXITSTATUS" -eq 0 ]]; then
+	if [[ "${1}" == "systemd" ]]; then
 
-		# Everything went fine.
-		if [[ "${1}" == "systemd" ]]; then
+		if [[ "$EXITSTATUS" -eq 0 ]]; then
 			echo "Sleeping for 24 hours."
 			/bin/sleep 86400
-		else
-			exit 0
-		fi
 
-	elif [[ "$EXITSTATUS" -eq 1 ]]; then
+		elif [[ "$EXITSTATUS" -eq 1 ]]; then
+			echo "Retrying in 10 seconds."
+			/bin/sleep 10
 
-		# An error we know about happened.
-		if [[ "${1}" == "systemd" ]]; then
+		elif [[ "$EXITSTATUS" -eq 2 ]]; then
 			echo "Retrying in 1 hour."
 			/bin/sleep 3600
-		else
-			exit 0
-		fi
 
-	elif [[ "$EXITSTATUS" -eq 2 ]]; then
-
-		# An error we don't understand happened.
-		if [[ "${1}" == "systemd" ]]; then
+		elif [[ "$EXITSTATUS" -eq 3 ]]; then
 			echo "Retrying in 6 hours."
 			/bin/sleep 21600
-		else
-			exit 0
 		fi
+
+	else
+
+		exit 0
+
 	fi
 
 done
