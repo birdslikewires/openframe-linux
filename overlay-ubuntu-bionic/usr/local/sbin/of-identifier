@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.22 (16th April 2020)
+## of-identifier v2.23 (19th April 2020)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 source /etc/lsb-release
@@ -36,7 +36,7 @@ removestac9202pinpatch() {
 }
 
 outputsysteminformation() {
-	DESC=$(echo ${DISTRIB_DESCRIPTION,,} | sed 's/\ /\//g')
+	DESC=$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')
 	MMRY=$(free -b | grep 'Mem:' | tr -s ' ' | cut -c6- | sed 's/ /\//g')
 	DRVE=$(df -B 1 | grep '/$' | sed 's/\/dev\///g' | tr -s ' ' | rev | cut -c3- | rev | sed 's/ /\//g')
 	ICPU=$(grep -Em1 "^model name.*Intel" /proc/cpuinfo | awk -F\  '{print $7}')

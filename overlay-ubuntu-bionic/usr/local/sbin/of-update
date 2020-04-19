@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-update v1.18 (19th April 2020)
+# of-update v1.19 (19th April 2020)
 #  Automated updates without reimaging.
 
 if [ $# -gt 1 ]; then
@@ -143,11 +143,11 @@ while true; do
 
 		# Only wait in loop if we're running as a system service.
 		if [[ "${1}" == "systemd" ]]; then
-			echo "Internet connectivity appears to be down. Retrying in $PINGTRIES seconds..."
+			echo "Internet connectivity down. Retrying in $PINGTRIES seconds..."
 			/bin/sleep $PINGTRIES
 			[[ $PINGTRIES -lt 3600 ]] && ((PINGTRIES++))
 		else
-			echo "Internet connectivity appears to be down."
+			echo "Internet connectivity down."
 			exit 0
 		fi
 
