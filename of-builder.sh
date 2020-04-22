@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.21 (16th April 2020)
+## of-builder.sh v1.22 (22nd April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -11,7 +11,7 @@ fi
 ## Configurable Bits
 
 OURKERNVER="op"
-PATHTODOWNLOADAREA="/home/andy/Public/download_blw/openframe"
+PATHTODOWNLOADAREA="/home/andy/Public/download_blw"
 GITREPOURL="https://github.com/birdslikewires"
 GITREPOKER="openframe-kernel"
 GITREPOLIN="openframe-linux"
@@ -87,21 +87,21 @@ KLATESTMIDVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $2'}
 KLATESTMINVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $3'}`
 KOURNAME="$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER$OURKERNVER"
 KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
-KDLPATH="$PATHTODOWNLOADAREA/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
+KDLPATH="$PATHTODOWNLOADAREA/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $KDLPATH ] && [ $GITKERNELUPDATED -eq 0 ] && KBUILDIT=0 || KBUILDIT=1
 
 IDISTNAME="$2"
 ICODENAME="$3"
 IDOWNLURL="$4"
-IDLPATH="$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/${ICODENAME,,}/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
+IDLPATH="$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $IDLPATH ] && [ $GITLINUXOUPDATED -eq 0 ] && IBUILDIT=0 || IBUILDIT=1
 
 ## Work To Do!
 
 cleanup() {
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Cleaning up..."
-	chown -R www-data:www-data $PATHTODOWNLOADAREA/images $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/logs
-	chmod -R 774 $PATHTODOWNLOADAREA/images $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/logs
+	chown -R www-data:www-data $PATHTODOWNLOADAREA/openframe/images $PATHTODOWNLOADAREA/openframe/kernel $PATHTODOWNLOADAREA/logs
+	chmod -R 664 $PATHTODOWNLOADAREA/openframe/images $PATHTODOWNLOADAREA/openframe/kernel $PATHTODOWNLOADAREA/logs
 	rm -rf ./$KOURBUILD*
 	rm -rf ./*.deb
 	rm -rf ./*.img*
@@ -318,9 +318,9 @@ else
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Moving to webserver..."
 	mkdir -p $IDLPATH
 	mv ./*.img* $IDLPATH
-	[ -L "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
-	[ -L "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
-	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	[ -L "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	[ -L "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
 	echo " done."
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image build completed."
