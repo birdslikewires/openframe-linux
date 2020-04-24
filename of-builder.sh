@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.22 (22nd April 2020)
+## of-builder.sh v1.23 (24th April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -101,7 +101,7 @@ IDLPATH="$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/$KLA
 cleanup() {
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Cleaning up..."
 	chown -R www-data:www-data $PATHTODOWNLOADAREA/openframe/images $PATHTODOWNLOADAREA/openframe/kernel $PATHTODOWNLOADAREA/logs
-	chmod -R 664 $PATHTODOWNLOADAREA/openframe/images $PATHTODOWNLOADAREA/openframe/kernel $PATHTODOWNLOADAREA/logs
+	chmod -R 774 $PATHTODOWNLOADAREA/openframe/images $PATHTODOWNLOADAREA/openframe/kernel $PATHTODOWNLOADAREA/logs
 	rm -rf ./$KOURBUILD*
 	rm -rf ./*.deb
 	rm -rf ./*.img*
