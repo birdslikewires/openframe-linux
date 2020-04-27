@@ -56,6 +56,14 @@ build() {
 
 }
 
+squeezeplay() {
+
+	#useradd -s /bin/false -r squeezeplay
+
+	exit 0
+
+}
+
 xorg() {
 
 	rm /etc/X11/app-defaults/XTerm &>/dev/null
