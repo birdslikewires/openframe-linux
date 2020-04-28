@@ -1,18 +1,19 @@
 #!/bin/bash
 
-# 00-of-prep-bionic v1.01 (10th April 2020)
+# 00-of-prep-bionic v1.02 (28th April 2020)
 #  Set up the basics.
 
 #set -x
 
 DLSERVER="https://birdslikewires.net/download"
 
-OPENFRAMEUSER="root"
+OPENFRAMEUSER="of"
+
 
 ### Packages
 
 echo
-echo "-- Packages"
+echo "=== Packages ========================================"
 echo
 sleep 2
 
@@ -34,10 +35,11 @@ echo
 apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
 echo
 
+
 ### Tweaks and Permissions
 
 echo
-echo "-- Tweaks and Permissions"
+echo "=== Tweaks and Permissions =========================="
 echo
 sleep 2
 
@@ -127,9 +129,10 @@ echo
 # chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
 # echo
 
+
 ### Kernel Installation
 
-echo "-- Kernel Installation"
+echo "=== Kernel Installation ============================="
 echo
 sleep 2
 
@@ -173,9 +176,10 @@ if [ `grep -c initrd /boot/grub.cfg` -gt 0 ]; then
 	echo " done!"
 fi
 
+
 ### Wind Down
 
-echo "-- Wind Down"
+echo "=== Wind Down ======================================="
 echo
 sleep 2
 
