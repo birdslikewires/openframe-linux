@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
 
-# of-install v1.02 (19th March 2020)
+# of-install v1.03 (28th April 2020)
 #  Simple installers for software on OpenFrames.
-
-### Configuration #####
-KERNELURL="https://birdslikewires.net/download/openframe/kernel"
-#######################
 
 if [[ "$USER" != "root" ]]; then
   echo "You need to run this with superuser privileges."
@@ -28,7 +24,11 @@ KERNMINVER=$(uname -r | awk -F. '{print $3}')
 
 build() {
 
-	KERNELFETCHURL=""$KERNELURL"/"$KERNMAJVER"."$KERNMIDVER"/$(uname -r)/"
+	### Configuration #####
+	KERNELSERVER="https://birdslikewires.net/download/openframe/kernel"
+	#######################
+
+	KERNELFETCHURL=""$KERNELSERVER"/"$KERNMAJVER"."$KERNMIDVER"/$(uname -r)/"
 	echo $KERNELFETCHURL
 
 	echo -n "Downloading $(uname -r) kernel packages..."
@@ -58,7 +58,45 @@ build() {
 
 squeezeplay() {
 
-	#useradd -s /bin/false -r squeezeplay
+	### Configuration #####
+	SQPSERVER="https://birdslikewires.net/download/openframe/squeezeplay/v7.8"
+	#######################
+
+	LATESTSQP=$(curl -s $SQPSERVER/ | grep '<a' | grep '.tgz' | grep -v '.tgz.md5' | awk -F'.tgz\">' {'print $2'} | awk -F'</' {'print $1'} | tail -1)
+
+	[ -d /opt/squeezeplay ] && rm -rf /opt/squeezeplay
+
+	wget -P /tmp $SQPSERVER/$LATESTSQP
+	wget -P /tmp $SQPSERVER/$LATESTSQP.md5
+
+	TGZHASH=$(cat /tmp/$LATESTSQP.md5 | awk -F' ' {'print $1'})
+	OURHASH=$(md5sum /tmp/$LATESTSQP | awk -F' ' {'print $1'})
+
+	echo $TGZHASH
+	echo $OURHASH
+	echo
+
+	if [[ ! "$OURHASH" == "$TGZHASH" ]]; then
+
+		echo "Checksum mismatch. Bailing!"
+		rm /tmp/squeezeplay-*.tgz*
+		exit 1
+
+	else
+
+		echo "Checksums match, continuing..."
+		id -u squeezeplay &>/dev/null || adduser --system --group squeezeplay
+		adduser squeezeplay audio &>/dev/null
+		adduser squeezeplay video &>/dev/null
+		mkdir /opt/squeezeplay
+		chown squeezeplay:squeezeplay /opt/squeezeplay
+		sudo -u squeezeplay tar -C /opt/squeezeplay -zxf /tmp/$LATESTSQP
+		rm /tmp/squeezeplay-*.tgz*
+		sync
+		echo
+		echo "SqueezePlay installation complete."
+
+	fi
 
 	exit 0
 
@@ -98,8 +136,8 @@ xorg() {
 
 echo "Installing $@..."
 echo
-/usr/bin/apt update
-[[ "$@" =~ "build" ]] && build
-[[ "$@" =~ "xorg" ]] && xorg
+[[ "$@" =~ "build" ]] && /usr/bin/apt update && build
+[[ "$@" =~ "squeezeplay" ]] && squeezeplay
+[[ "$@" =~ "xorg" ]] && /usr/bin/apt update && xorg
 
 exit 0
