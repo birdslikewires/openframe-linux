@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.23 (19th April 2020)
+## of-identifier v2.24 (28th April 2020)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 source /etc/lsb-release
@@ -152,8 +152,9 @@ outputsysteminformation
 
 if [ -f /root/expanding ]; then
 	echo "Expanding root filesystem..."
+	cp /root/expanding /tmp/expanding
 	/sbin/resize2fs `cat /root/expanding`
-	rm /root/expanding
+	rm /root/expanding /tmp/expanding
 fi
 
 exit 0

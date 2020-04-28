@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+# of-settings v1.00 (28th April 2020)
+#  Bundles a bunch of short settings tweaks in one place.
+
+if [ $# -lt 1 ] || [[ "$1" == "-h" ]]; then
+	echo "Usage: $0 <option> [options]"
+	echo
+	echo "  autologin <user>               :  Toggles automatic login on tty1 via getty."
+	echo "  expand                         :  Expands the root partition to fill the drive.."
+	echo "  sudonopasswd <enable|disable>  :  Permit any user to execute sudo commands with no additional authentication."
+	echo
+	exit 1
+fi
+
+if [ "$USER" != "root" ]; then
+  echo "You need to run this with superuser privileges. Try 'sudo $0'."
+  exit 1
+fi
+
+THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
+
+countdown() {
+	MSG="$1"
+	SEC=$2
+	tput civis
+	while [ $SEC -gt 0 ]; do
+		echo -ne "$MSG in $SEC\033[0K\r"
+		sleep 1
+		: $((SEC--))
+	done
+	echo -e "$MSG now..."
+	tput cnorm
+}
+
+
+# Toggles automatic login on tty1 via getty.
+if [[ "${1}" == "autologin" ]]; then
+
+	AUTOLOGINUSER="${2}"
+
+	[ ! -d /etc/systemd/system/getty@tty1.service.d ] && mkdir -p /etc/systemd/system/getty@tty1.service.d
+
+	if [ ! -f /etc/systemd/system/getty@tty1.service.d/autologin.conf ]; then
+
+		echo -n "Enabling auto-login for user '$AUTOLOGINUSER'..."
+		echo -e "[Service]\nExecStart=\nExecStart=-/sbin/agetty -a $AUTOLOGINUSER --noclear %I \$TERM\n" > /etc/systemd/system/getty@tty1.service.d/autologin.conf
+
+	else
+	
+		echo -n "Disabling auto-login..."
+		rm /etc/systemd/system/getty@tty1.service.d/autologin.conf
+
+	fi
+
+	echo " done."
+	exit 0
+
+fi
+
+
+# Expands the root partition to fill the drive.
+if [[ "${1}" == "expand" ]]; then
+
+	$THISSCRIPTPATH/of-expand
+
+fi
+
+
+# Punches a big hole in your security for convenience!
+if [[ "${1}" == "sudonopasswd" ]]; then
+
+	SNPMSG="SECURITY RISK! Allow any user to execute commands with root privileges with no additional authentication."
+	SNPCMD="%admin ALL=(ALL) NOPASSWD: ALL"
+
+	if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
+
+		echo "This is a terrible idea for security. Please disable at the earliest opportunity."
+
+		echo -n "Enabling '${1}'..."
+
+		if [[ $(grep -c "$SNPCMD" /etc/sudoers) -gt 0 ]]; then
+			echo " already enabled."
+			exit 1
+		fi
+
+		echo  >> /etc/sudoers
+		echo $SNPMSG >> /etc/sudoers
+		echo $SNPCMD >> /etc/sudoers
+
+	else
+
+		echo -n "Disabling '${1}'..."
+		sed -i "/$SNPMSG/d" /etc/sudoers
+		sed -i "/$SNPCMD/d" /etc/sudoers
+		sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' /etc/sudoers
+
+	fi
+
+	echo " done."
+	exit 0
+
+fi
+
+exit 0
