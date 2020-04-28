@@ -1,0 +1,4 @@
+[Configuration]
+Identity=unix-group:users
+Action=org.freedesktop.timedate1.set-timezone
+ResultAny=yes

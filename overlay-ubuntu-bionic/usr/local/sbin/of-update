@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 
-# of-update v1.19 (19th April 2020)
+# of-update v1.20 (28th April 2020)
 #  Automated updates without reimaging.
 
 if [ $# -gt 1 ]; then
 	echo "Usage: $0 [ force | systemd | test ]"
 	exit 1
+fi
+
+if [ "$USER" != "root" ]; then
+  echo "You need to run this with superuser privileges. Try 'sudo $0'."
+  exit 1
 fi
 
 SERVER="openbeak.net"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-install v1.03 (28th April 2020)
+# of-install v1.04 (29th April 2020)
 #  Simple installers for software on OpenFrames.
 
 if [[ "$USER" != "root" ]]; then
@@ -87,6 +87,7 @@ squeezeplay() {
 		echo "Checksums match, continuing..."
 		id -u squeezeplay &>/dev/null || adduser --system --group squeezeplay
 		adduser squeezeplay audio &>/dev/null
+		adduser squeezeplay users &>/dev/null
 		adduser squeezeplay video &>/dev/null
 		mkdir /opt/squeezeplay
 		chown squeezeplay:squeezeplay /opt/squeezeplay
