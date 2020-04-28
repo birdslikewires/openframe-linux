@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 
-# of-settings v1.00 (28th April 2020)
+# of-settings v1.01 (28th April 2020)
 #  Bundles a bunch of short settings tweaks in one place.
 
 if [ $# -lt 1 ] || [[ "$1" == "-h" ]]; then
 	echo "Usage: $0 <option> [options]"
 	echo
-	echo "  autologin <user>               :  Toggles automatic login on tty1 via getty."
-	echo "  expand                         :  Expands the root partition to fill the drive.."
-	echo "  sudonopasswd <enable|disable>  :  Permit any user to execute sudo commands with no additional authentication."
+	echo "  autologin <user>                :  Toggles automatic login on tty1 via getty."
+	echo "  expand                          :  Expands the root partition to fill the drive."
+	echo "  permitrootssh <enable|disable>  :  Allows password-based authentication for root over SSH."
+	echo "  sudonopasswd <enable|disable>   :  Permit any user to execute sudo commands with no additional authentication."
 	echo
 	exit 1
 fi
@@ -47,7 +48,7 @@ if [[ "${1}" == "autologin" ]]; then
 		echo -e "[Service]\nExecStart=\nExecStart=-/sbin/agetty -a $AUTOLOGINUSER --noclear %I \$TERM\n" > /etc/systemd/system/getty@tty1.service.d/autologin.conf
 
 	else
-	
+
 		echo -n "Disabling auto-login..."
 		rm /etc/systemd/system/getty@tty1.service.d/autologin.conf
 
@@ -67,11 +68,49 @@ if [[ "${1}" == "expand" ]]; then
 fi
 
 
+# Allows password-based authentication for root over SSH.
+if [[ "${1}" == "permitrootssh" ]]; then
+
+	PRSMSG="# Allows password-based authentication for root over SSH."
+	PRSSET="PermitRootLogin yes"
+	PRSCFG="/etc/ssh/sshd_config"
+
+	if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
+
+		echo -n "Enabling '${1}'..."
+
+		if [[ $(grep -c "$PRSSET" "$PRSCFG") -gt 0 ]]; then
+			echo " already enabled."
+			exit 1
+		fi
+
+		echo >> $PRSCFG
+		echo $PRSMSG >> $PRSCFG
+		echo $PRSSET >> $PRSCFG
+
+	else
+
+		echo -n "Disabling '${1}'..."
+		sed -i "/$PRSMSG/d" $PRSCFG
+		sed -i "/$PRSSET/d" $PRSCFG
+		sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' $PRSCFG
+
+	fi
+
+	systemctl restart sshd.service
+
+	echo " done."
+	exit 0
+
+fi
+
+
 # Punches a big hole in your security for convenience!
 if [[ "${1}" == "sudonopasswd" ]]; then
 
-	SNPMSG="SECURITY RISK! Allow any user to execute commands with root privileges with no additional authentication."
-	SNPCMD="%admin ALL=(ALL) NOPASSWD: ALL"
+	SNPMSG="# SECURITY RISK! Allow any user to execute commands with root privileges with no additional authentication."
+	SNPSET="%admin ALL=(ALL) NOPASSWD: ALL"
+	SNPCFG="/etc/sudoers"
 
 	if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
 
@@ -79,21 +118,21 @@ if [[ "${1}" == "sudonopasswd" ]]; then
 
 		echo -n "Enabling '${1}'..."
 
-		if [[ $(grep -c "$SNPCMD" /etc/sudoers) -gt 0 ]]; then
+		if [[ $(grep -c "$SNPSET" "$SNPCFG") -gt 0 ]]; then
 			echo " already enabled."
 			exit 1
 		fi
 
-		echo  >> /etc/sudoers
-		echo $SNPMSG >> /etc/sudoers
-		echo $SNPCMD >> /etc/sudoers
+		echo >> $SNPCFG
+		echo $SNPMSG >> $SNPCFG
+		echo $SNPSET >> $SNPCFG
 
 	else
 
 		echo -n "Disabling '${1}'..."
-		sed -i "/$SNPMSG/d" /etc/sudoers
-		sed -i "/$SNPCMD/d" /etc/sudoers
-		sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' /etc/sudoers
+		sed -i "/$SNPMSG/d" $SNPCFG
+		sed -i "/$SNPSET/d" $SNPCFG
+		sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' $SNPCFG
 
 	fi
 

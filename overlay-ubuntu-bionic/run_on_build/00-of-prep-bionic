@@ -33,7 +33,6 @@ echo
 apt-get autoremove -y
 echo
 apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
-echo
 
 
 ### Tweaks and Permissions
@@ -119,7 +118,7 @@ echo
 
 echo "Enable password authentication for root user over SSH..."
 [[ "$OPENFRAMEUSER" == "root" ]] && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
-echo
+
 
 # echo "Configure usbmount..."
 # cp /temp/usbmount/usbmount.conf /etc/usbmount/usbmount.conf
@@ -132,6 +131,7 @@ echo
 
 ### Kernel Installation
 
+echo
 echo "=== Kernel Installation ============================="
 echo
 sleep 2
@@ -179,6 +179,7 @@ fi
 
 ### Wind Down
 
+echo
 echo "=== Wind Down ======================================="
 echo
 sleep 2
