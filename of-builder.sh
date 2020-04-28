@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## of-builder.sh v1.23 (24th April 2020)
+## of-builder.sh v1.24 (29th April 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -173,7 +173,7 @@ else
 #	fi
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Updating config file with new defaults..."
-	KCONFIGFILE=`ls $GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
+	KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
 	cp "$THISSCRIPTPATH/../$GITREPOKER/configs/$KCONFIGFILE" "$KOURBUILD/.config"
 	cd "$KOURBUILD"
 	make olddefconfig
