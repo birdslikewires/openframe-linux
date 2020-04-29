@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-timezone v1.03 (29th April 2020) by Andrew Davison
+# of-timezone v1.04 (29th April 2020) by Andrew Davison
 #  Checks or sets the timezone, returning the timezone once complete, with automatic update option.
 
 
@@ -29,11 +29,11 @@ elif [[ "$1" == "update" ]]; then
 	[ -f /etc/lsb-release ] && source /etc/lsb-release
 
 	if [ -e /tmp/openframe.uid ] && [ -e /tmp/openframe.net ]; then
-		SYS_TYP=$(cat /tmp/openframe.uid)/$(cat /tmp/openframe.net)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/$(uname -r)/squeezeplay-$(cat $THISSCRIPTPATH/../share/squeezeplay.version)-$(cat $THISSCRIPTPATH/../share/squeezeplay.revision)
+		SYS_TYP="$(cat /tmp/openframe.uid)/$(cat /tmp/openframe.net)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/of-timezone"
 	elif [ -f /etc/lsb-release ]; then
-		SYS_TYP="///$(hostname)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/$(uname -r)/squeezeplay-$(cat $THISSCRIPTPATH/../share/squeezeplay.version)-$(cat $THISSCRIPTPATH/../share/squeezeplay.revision)"
+		SYS_TYP="///$(hostname)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/$(uname -r)/of-timezone"
 	else
-		SYS_TYP="///$(hostname)////$(uname -r)/squeezeplay-$(cat $THISSCRIPTPATH/../share/squeezeplay.version)-$(cat $THISSCRIPTPATH/../share/squeezeplay.revision)"
+		SYS_TYP="///$(hostname)////$(uname -r)/of-timezone"
 	fi
 
 	TIMEZONE=$(curl -sA "$SYS_TYP" -m 2 "https://$SERVER/$SERVICE")
