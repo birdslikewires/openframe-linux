@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-update v1.20 (28th April 2020)
+# of-update v1.21 (29th April 2020)
 #  Automated updates without reimaging.
 
 if [ $# -gt 1 ]; then
@@ -16,12 +16,17 @@ fi
 SERVER="openbeak.net"
 SERVICE="/update/of-scripts.php"
 
+THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
+
 updateCheck() {
 
 	# Build our user agent and request.
 	UPANDLOAD="$(awk -F. {'print $1'} /proc/uptime)"/"$(awk '{$NF=""; print $0}' /proc/loadavg | awk '{$1=$1};1' | sed -e 's/\//-/g' -e 's/ /\//g')"
 	USER_AGENT="$(cat /tmp/openframe.uid)"/"$(cat /tmp/openframe.net)"/"$(cat /tmp/openframe.nfo)"/"$(cat /tmp/openframe.ver)"/"$UPANDLOAD"
 	[[ "${1}" == "force" ]] && OFSCRIPTS_VER="000" || OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
+
+	# During the first running session, try to set our timezone.
+	[ -f /tmp/firstboot ] && /usr/bin/timeout 10 $THISSCRIPTPATH/of-timezone update &>/dev/null
 
 	# Before we send anything, test the validity of the URL with a plain curl request.
 	TEST_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://$SERVER$SERVICE)
@@ -133,14 +138,14 @@ updateCheck() {
 }
 
 
-# We can't do anything useful until the system has decided upon its UUID. This relies upon of-identifier.
-while [ ! -f /tmp/openframe.uid ]; do
+# We can't do anything useful until the system is properly up. This relies upon of-identifier and of-netplan.
+while [ ! -f /tmp/openframe.uid ] || [ ! -f /tmp/openframe.net ] || [ ! -f /tmp/openframe.nfo ] || [ ! -f /tmp/openframe.ver ]; do
 	sleep 1
 done
 
 sync
 
-# Once we have our UUID, enter the main loop.
+# Once we have our details, enter the main loop.
 while true; do
 
 	PINGTRIES=1

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.24 (28th April 2020)
+## of-identifier v2.25 (28th April 2020)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 source /etc/lsb-release
@@ -143,7 +143,8 @@ if [ -f /etc/firstboot ]; then
 	# Set a sensible default audio level.
 	/usr/bin/amixer -c 0 sset "Master" 50% unmute >/dev/null 2>&1
 
-	rm /etc/firstboot
+	# Leave a temporary note for non-critical scripts that this was our first boot.
+	mv /etc/firstboot /tmp/firstboot
 
 fi
 
