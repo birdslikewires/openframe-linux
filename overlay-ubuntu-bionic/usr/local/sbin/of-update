@@ -26,7 +26,7 @@ updateCheck() {
 	[[ "${1}" == "force" ]] && OFSCRIPTS_VER="000" || OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
 
 	# During the first running session, try to set our timezone.
-	[ -f /tmp/firstboot ] && /usr/bin/timeout 10 $THISSCRIPTPATH/of-timezone update &>/dev/null
+	[ -f /tmp/firstboot ] && /usr/bin/timeout 10 $THISSCRIPTPATH/of-timezone update of-update &>/dev/null
 
 	# Before we send anything, test the validity of the URL with a plain curl request.
 	TEST_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://$SERVER$SERVICE)
