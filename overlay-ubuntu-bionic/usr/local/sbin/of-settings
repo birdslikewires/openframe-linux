@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-settings v1.03 (29th April 2020)
+# of-settings v1.04 (29th April 2020)
 #  Bundles a bunch of short settings tweaks in one place.
 
 usage() {
@@ -79,6 +79,7 @@ if [[ "${1}" == "autorunx" ]]; then
 
 			echo -n "Writing /home/$TARGETUSER/.xinitrc..."
 			echo -e "export DISPLAY=:0.0\nsetterm -blank 0 -powersave off -powerdown 0\nxset dpms 0 0 0 s off\n[ -x $TARGETCMD ] && $TARGETCMD || /usr/bin/xterm" > /home/$TARGETUSER/.xinitrc
+			chown $TARGETUSER:$TARGETUSER /home/$TARGETUSER/.xinitrc
 			echo " done."
 			exit 0
 
