@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-install v1.06 (29th April 2020)
+# of-install v1.07 (29th April 2020)
 #  Simple installers for software on OpenFrames.
 
 if [[ "$USER" != "root" ]]; then
@@ -152,8 +152,20 @@ xserver() {
 
 echo "Installing $@..."
 echo
-[[ "$@" =~ "build" ]] && /usr/bin/apt update && build
-[[ "$@" =~ "squeezeplay" ]] && /usr/bin/apt update && xserver && squeezeplay
-[[ "$@" =~ "xserver" ]] && /usr/bin/apt update && xserver
+
+if [[ "$@" =~ "build" ]]; then
+	/usr/bin/apt update
+	build
+fi
+
+if [[ "$@" =~ "squeezeplay" ]]; then
+	[ ! -x /usr/bin/startx ] && /usr/bin/apt update && xserver
+	squeezeplay
+fi
+
+if [[ "$@" =~ "xserver" ]]; then
+	/usr/bin/apt update
+	xserver
+fi
 
 exit 0
