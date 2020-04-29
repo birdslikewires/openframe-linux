@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-timezone v1.07 (29th April 2020) by Andrew Davison
+# of-timezone v1.08 (29th April 2020) by Andrew Davison
 #  Checks or sets the timezone, returning the timezone once complete, with automatic update option.
 
 
@@ -28,12 +28,14 @@ elif [[ "$1" == "update" ]]; then
 
 	[ -f /etc/lsb-release ] && source /etc/lsb-release
 
+	[[ "${2}" != "" ]] && PLATFORM="${2}" || PLATFORM="of-timezone"
+
 	if [ -e /tmp/openframe.uid ] && [ -e /tmp/openframe.net ]; then
-		SYS_TYP="$(cat /tmp/openframe.uid)/$(cat /tmp/openframe.net)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/$(uname -r)/of-timezone"
+		SYS_TYP="$(cat /tmp/openframe.uid)/$(cat /tmp/openframe.net)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/$(uname -r)/$PLATFORM"
 	elif [ -f /etc/lsb-release ]; then
-		SYS_TYP="///$(hostname)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/$(uname -r)/of-timezone"
+		SYS_TYP="///$(hostname)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/$(uname -r)/$PLATFORM"
 	else
-		SYS_TYP="///$(hostname)////$(uname -r)/of-timezone"
+		SYS_TYP="///$(hostname)////$(uname -r)/$PLATFORM"
 	fi
 
 	TIMEZONE=$(timeout 10 curl -sA "$SYS_TYP" -m 2 "https://$SERVER/$SERVICE")
@@ -55,7 +57,7 @@ elif [[ "$1" == "update" ]]; then
 
 else
 
-	echo "Usage: $0 <check> | <set> <timezone> | <update>"
+	echo "Usage: $0 <check> | <set> <timezone> | <update> [platform]"
 
 fi
 
