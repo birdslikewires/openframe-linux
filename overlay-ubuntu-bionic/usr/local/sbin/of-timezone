@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-timezone v1.06 (29th April 2020) by Andrew Davison
+# of-timezone v1.07 (29th April 2020) by Andrew Davison
 #  Checks or sets the timezone, returning the timezone once complete, with automatic update option.
 
 
@@ -36,7 +36,7 @@ elif [[ "$1" == "update" ]]; then
 		SYS_TYP="///$(hostname)////$(uname -r)/of-timezone"
 	fi
 
-	TIMEZONE=$(curl -sA "$SYS_TYP" -m 2 "https://$SERVER/$SERVICE")
+	TIMEZONE=$(timeout 10 curl -sA "$SYS_TYP" -m 2 "https://$SERVER/$SERVICE")
 	TIMEZONEVALID=$(echo $TIMEZONE | grep -c '/')
 
 	if [[ "$TIMEZONE" != "" ]] && [[ "${#TIMEZONE}" -ge 6 ]] && [[ "${#TIMEZONE}" -le 32 ]] && [[ "$TIMEZONEVALID" -le 2 ]]; then
