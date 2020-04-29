@@ -1,2 +1,0 @@
-# Allow members of group sudo to execute these commands with no password
-%sudo   ALL=(ALL) NOPASSWD: /sbin/poweroff, /sbin/reboot, /usr/bin/timedatectl
