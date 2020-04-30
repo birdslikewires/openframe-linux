@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 00-of-prep-bionic v1.04 (29th April 2020)
+# 00-of-prep-bionic v1.05 (29th April 2020)
 #  Set up the basics.
 
 #set -x
@@ -71,6 +71,10 @@ else
 	HOMEPATH="/root"
 
 fi
+
+echo "Setting plymouth boot screen defaults..."
+update-alternatives --remove-all default.plymouth 2>/dev/null
+update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/details/details.plymouth 100
 
 echo "Setting terminal preferences..."
 # Colour terminal for all!
