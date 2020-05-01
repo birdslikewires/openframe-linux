@@ -74,7 +74,7 @@ fi
 
 echo "Setting plymouth boot screen defaults..."
 update-alternatives --remove-all default.plymouth 2>/dev/null
-update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/details/details.plymouth 100
+update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/tribar/tribar.plymouth 100
 
 echo "Setting terminal preferences..."
 # Colour terminal for all!
