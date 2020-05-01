@@ -127,13 +127,13 @@ echo "Enable password authentication for root user over SSH..."
 [[ "$OPENFRAMEUSER" == "root" ]] && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
 
 
-# echo "Configure usbmount..."
-# cp /temp/usbmount/usbmount.conf /etc/usbmount/usbmount.conf
-# cp /temp/usbmount/mount.d/* /etc/usbmount/mount.d/
-# cp /temp/usbmount/umount.d/* /etc/usbmount/umount.d/
-# chown root:root /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
-# chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
-# echo
+echo "Configure usbmount..."
+cp /temp/usbmount/usbmount.conf /etc/usbmount/usbmount.conf
+cp /temp/usbmount/mount.d/* /etc/usbmount/mount.d/
+cp /temp/usbmount/umount.d/* /etc/usbmount/umount.d/
+chown root:root /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
+chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
+echo
 
 
 ### Kernel Installation
@@ -176,6 +176,7 @@ echo
 
 if [ `grep -c initrd /boot/grub.cfg` -gt 0 ]; then
 	echo -n "Making initrd..."
+	# We were experimenting with faster initramfs booting, but we need udev, so it was a little pointless.
 	#sed -i 's/MODULES\=most/MODULES\=dep/g' /etc/initramfs-tools/initramfs.conf
 	#sed -i 's/COMPRESS\=gzip/COMPRESS\=xz/g' /etc/initramfs-tools/initramfs.conf
 	mkinitramfs -o /boot/initrd.img-$KERNVER $KERNVER

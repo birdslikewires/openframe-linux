@@ -1,6 +1,6 @@
 #!/bin/sh
 # This script unmounts the OpenFrame boot partition if it appears.
-# Copyright (C) 2014 Andy Davison
+# Copyright (C) 2014 Andrew Davison
 #
 # This file is free software; the copyright holder gives unlimited
 # permission to copy and/or distribute it, with or without
