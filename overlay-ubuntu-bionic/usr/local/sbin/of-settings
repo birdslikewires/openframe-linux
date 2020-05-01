@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-settings v1.04 (29th April 2020)
+# of-settings v1.05 (1st May 2020)
 #  Bundles a bunch of short settings tweaks in one place.
 
 usage() {
@@ -10,6 +10,7 @@ usage() {
 	echo "  autorunx <user> <cmd>          :  Command to run as part of X.Org Server startup using .xinitrc."
 	echo "  expand                         :  Expands the root partition to fill the drive."
 	echo "  rootssh <enable|disable>       :  Allows password-based authentication for root over SSH."
+	echo "  splash <name>                  :  Sets the splash screen theme and rebuilds initrd. No theme name disables."
 	echo "  sudonopasswd <enable|disable>  :  Permit any user to execute sudo commands with no additional authentication."
 	echo
 	exit 1
@@ -139,6 +140,64 @@ if [[ "${1}" == "rootssh" ]]; then
 	fi
 
 	systemctl restart sshd.service
+
+	echo " done."
+	exit 0
+
+fi
+
+
+# Allows password-based authentication for root over SSH.
+if [[ "${1}" == "splash" ]]; then
+
+	GRUBCFG=$(cat /boot/grub.cfg | grep vmlinuz)
+	PLYMOUTHTHEMESLOC="/usr/share/plymouth/themes"
+
+	if [[ "${2}" != "" ]]; then
+
+		# Check we've been given a valid theme name.
+		if [ ! -d "$PLYMOUTHTHEMESLOC"/"${2}" ]; then
+
+			echo "Theme '${2}' not found in $PLYMOUTHTHEMESLOC. Available themes are:"
+			echo
+
+			for d in /usr/share/plymouth/themes/*/; do
+				echo "$d" | awk -F'/' {'print $(NF-1)'}
+			done
+
+			exit 1
+
+		else
+
+			PLYMOUTHCURRENTTHEME=$(update-alternatives --get-selections | grep default.plymouth)
+
+			# Make sure we have the 'splash' option in GRUB config.
+			[[ "$GRUBCFG" =~ "splash" ]] || sed -i "s,$GRUBCFG,$GRUBCFG splash,g" /boot/grub.cfg
+
+			if [[ "$PLYMOUTHCURRENTTHEME" =~ "${2}.plymouth" ]]; then
+
+				echo "Theme '${2}' is already selected."
+				exit 1
+
+			else
+
+				echo -n "Configuring splash theme '${2}'..."
+				update-alternatives --remove-all default.plymouth 2>/dev/null
+				update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/"${2}"/"${2}".plymouth 100 &>/dev/null
+
+				echo -n " updating initramfs..."
+				update-initramfs -u &>/dev/null
+
+			fi
+
+		fi
+
+	else
+
+		echo -n "Disabling splash screens..."
+		[[ "$GRUBCFG" =~ "splash" ]] && sed -i "s, splash,,g" /boot/grub.cfg
+
+	fi
 
 	echo " done."
 	exit 0
