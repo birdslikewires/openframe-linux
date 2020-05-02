@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-install v1.08 (1st May 2020)
+# of-install v1.09 (2nd May 2020)
 #  Simple installers for software on OpenFrames.
 
 if [[ "$USER" != "root" ]]; then
@@ -80,6 +80,13 @@ squeezeplay() {
 	echo $TGZHASH
 	echo $OURHASH
 	echo
+
+	if [[ "$TGZHASH" == "" ]] || [[ "$OURHASH" == "" ]]; then
+
+		echo "No checksums! Looks like the download failed."
+		exit 1
+
+	fi
 
 	if [[ ! "$OURHASH" == "$TGZHASH" ]]; then
 
