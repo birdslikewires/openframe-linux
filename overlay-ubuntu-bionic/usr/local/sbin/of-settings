@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-settings v1.05 (1st May 2020)
+# of-settings v1.06 (1st May 2020)
 #  Bundles a bunch of short settings tweaks in one place.
 
 usage() {
@@ -9,6 +9,7 @@ usage() {
 	echo "  autologin <user>               :  Toggles automatic login on tty1 via getty."
 	echo "  autorunx <user> <cmd>          :  Command to run as part of X.Org Server startup using .xinitrc."
 	echo "  expand                         :  Expands the root partition to fill the drive."
+	echo "  grubquiet <enable|disable>     :  Silent GRUB prints nothing to the screen. Default is disabled."
 	echo "  rootssh <enable|disable>       :  Allows password-based authentication for root over SSH."
 	echo "  splash <name>                  :  Sets the splash screen theme and rebuilds initrd. No theme name disables."
 	echo "  sudonopasswd <enable|disable>  :  Permit any user to execute sudo commands with no additional authentication."
@@ -110,6 +111,27 @@ if [[ "${1}" == "expand" ]]; then
 fi
 
 
+# Expands the root partition to fill the drive.
+if [[ "${1}" == "grubquiet" ]]; then
+
+	if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
+
+		echo -n "Enabling '${1}'..."
+		echo -e "fs1:grubq\nfs0:grubq" > /boot/boot.nsh
+
+	else
+
+		echo -n "Disabling '${1}'..."
+		echo -e "fs1:grub\nfs0:grub" > /boot/boot.nsh
+
+	fi
+
+	echo " done."
+	exit 0
+
+fi
+
+
 # Allows password-based authentication for root over SSH.
 if [[ "${1}" == "rootssh" ]]; then
 
@@ -147,7 +169,7 @@ if [[ "${1}" == "rootssh" ]]; then
 fi
 
 
-# Allows password-based authentication for root over SSH.
+# Sets the splash screen theme and rebuilds initrd.
 if [[ "${1}" == "splash" ]]; then
 
 	GRUBCFG=$(cat /boot/grub.cfg | grep vmlinuz)
@@ -183,6 +205,7 @@ if [[ "${1}" == "splash" ]]; then
 
 				echo -n "Configuring splash theme '${2}'..."
 				update-alternatives --remove-all default.plymouth 2>/dev/null
+				update-alternatives --remove-all text.plymouth 2>/dev/null
 				update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/"${2}"/"${2}".plymouth 100 &>/dev/null
 
 				echo -n " updating initramfs..."

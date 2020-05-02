@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-install v1.07 (29th April 2020)
+# of-install v1.08 (1st May 2020)
 #  Simple installers for software on OpenFrames.
 
 if [[ "$USER" != "root" ]]; then
@@ -105,6 +105,14 @@ squeezeplay() {
 		# Configure the system to autologin and run SqueezePlay on startup.
 		of-settings autologin squeezeplay
 		of-settings autorunx squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
+
+		# Configure splash screens.
+		if [ -d /usr/share/plymouth/themes ]; then
+			mkdir /usr/share/plymouth/themes/squeezeplay
+			cp /opt/squeezeplay/share/plymouth/* /usr/share/plymouth/themes/squeezeplay
+			of-settings splash squeezeplay
+			of-settings grubquiet enable
+		fi
 
 		# Tidy up.
 		rm /tmp/squeezeplay-*.tgz*
