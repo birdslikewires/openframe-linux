@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # 99-of-clean-bionic v1.23 (3rd September 2018)
 #  Used to clean an OpenFrame.

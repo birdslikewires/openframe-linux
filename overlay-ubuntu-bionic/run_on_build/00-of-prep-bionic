@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# 00-of-prep-bionic v1.05 (29th April 2020)
+# 00-of-prep-bionic v1.06 (1st May 2020)
 #  Set up the basics.
 
 #set -x
@@ -89,7 +89,7 @@ sed -i 's/^ENABLED=.*/ENABLED=0/' /etc/default/motd-news
 
 # Plain old-fashioned deletions.
 echo "Removing unnecessary components..."
-rm -v /etc/update-motd.d/10-help-text
+rm -v /etc/update-motd.d/*
 echo
 
 # We use this for simple command line control of yaml files, eg. the netplan config file.

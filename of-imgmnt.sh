@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ofimgmnt.sh v1.05 (18th July 2019)
 #  For mounting an image file.

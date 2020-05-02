@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ## of-builder.sh v1.27 (1st May 2020)
 ##  Builds kernels, modules and images.
