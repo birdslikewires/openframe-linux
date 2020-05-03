@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# of-install v1.09 (2nd May 2020)
+# of-install v1.10 (2nd May 2020)
 #  Simple installers for software on OpenFrames.
 
 if [[ "$USER" != "root" ]]; then
@@ -109,9 +109,13 @@ squeezeplay() {
 		chown squeezeplay:audio /opt/squeezeplay
 		sudo -u squeezeplay tar -C /opt/squeezeplay -zxf /tmp/$LATESTSQP
 
-		# Configure the system to autologin and run SqueezePlay on startup.
-		of-settings autologin squeezeplay
+		# Configure the system to run SqueezePlay without requiring login.
+		of-settings autostartx squeezeplay
 		of-settings autorunx squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
+
+		# Configure the system to autologin and run SqueezePlay on startup.
+		#of-settings autologin squeezeplay
+		#of-settings autorunx squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
 
 		# Configure splash screens.
 		if [ -d /usr/share/plymouth/themes ]; then
@@ -136,8 +140,10 @@ squeezeplay() {
 xserver() {
 
 	rm /etc/X11/app-defaults/XTerm &>/dev/null
-	apt-get -y install xserver-xorg x11-utils xinit xterm
+	apt-get -y install xserver-xorg xserver-xorg-legacy x11-utils xinit xterm
 	echo
+
+	echo -e "allowed_users = anybody\nneeds_root_rights = yes" > /etc/X11/Xwrapper.config
 
 	if [[ "$@" == "mplayer" ]]; then
 		echo "Installing mplayer..."
@@ -165,22 +171,29 @@ xserver() {
 
 ### Triggers
 
-echo "Installing $@..."
+echo "Installing ${1}..."
 echo
 
-if [[ "$@" =~ "build" ]]; then
+if [[ "${1}" == "build" ]]; then
+
 	/usr/bin/apt update
 	build
-fi
 
-if [[ "$@" =~ "squeezeplay" ]]; then
+elif [[ "${1}" == "squeezeplay" ]]; then
+
 	[ ! -x /usr/bin/startx ] && /usr/bin/apt update && xserver
 	squeezeplay
-fi
 
-if [[ "$@" =~ "xserver" ]]; then
+elif [[ "${1}" == "xserver" ]]; then
+
 	/usr/bin/apt update
 	xserver
+
+else
+
+	echo "No installation script for '${1}'."
+	exit 1
+
 fi
 
 exit 0

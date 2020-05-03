@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 
-# of-settings v1.06 (1st May 2020)
+# of-settings v1.07 (3rd May 2020)
 #  Bundles a bunch of short settings tweaks in one place.
 
 usage() {
 	echo "Usage: $0 <option> [options]"
 	echo
 	echo "  autologin <user>               :  Toggles automatic login on tty1 via getty."
-	echo "  autorunx <user> <cmd>          :  Command to run as part of X.Org Server startup using .xinitrc."
+	echo "  autorunx <user> <cmd>          :  Command to run as part of Xserver startup using .xinitrc."
+	echo "  autostartx <user>              :  Creates systemd service to start Xserver as <user> at boot."
 	echo "  expand                         :  Expands the root partition to fill the drive."
 	echo "  grubquiet <enable|disable>     :  Silent GRUB prints nothing to the screen. Default is disabled."
 	echo "  rootssh <enable|disable>       :  Allows password-based authentication for root over SSH."
@@ -66,6 +67,8 @@ if [[ "${1}" == "autologin" ]]; then
 
 fi
 
+
+# Command to run as part of X.Org Server startup using .xinitrc.
 if [[ "${1}" == "autorunx" ]]; then
 
 	if [ "$#" -ne 3 ]; then
@@ -101,6 +104,46 @@ if [[ "${1}" == "autorunx" ]]; then
 
 fi
 
+
+# Creates systemd service to start Xserver as <user> at boot.
+if [[ "${1}" == "autostartx" ]]; then
+
+	# Need a username!
+	[ $# -ne 2 ] && usage
+
+	# Check whether the given user exists.
+	getent passwd ${2} &>/dev/null
+	USEREXISTS="$?"
+	
+	if [[ "$USEREXISTS" -ne 0 ]]; then
+		echo "Cannot find user '${2}'."
+		exit 1
+	fi
+
+	# Check whether X.Org Server is installed.
+	if [ ! -x /usr/bin/startx ]; then
+		echo "Xserver is not installed."
+		exit 1
+	fi
+
+	# Build the service file.
+	AUTOSTARTXSERVICE="[Unit]
+Description=Trigger startx before login prompts.
+Before=getty@tty1.service getty@tty2.service getty@tty3.service getty@tty4.service getty@tty5.service getty@tty6.service
+
+[Service]
+Type=oneshot
+User=${2}
+ExecStart=/usr/bin/startx -- :0
+
+[Install]
+WantedBy=multi-user.target"
+
+	# Install service is user and Xserver exist.
+	echo "$AUTOSTARTXSERVICE" > /lib/systemd/system/startx.service
+	systemctl enable startx.service
+
+fi
 
 
 # Expands the root partition to fill the drive.
