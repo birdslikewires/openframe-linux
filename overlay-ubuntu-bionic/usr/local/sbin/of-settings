@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 
-# of-settings v1.07 (3rd May 2020)
+# of-settings v1.08 (3rd May 2020)
 #  Bundles a bunch of short settings tweaks in one place.
 
 usage() {
 	echo "Usage: $0 <option> [options]"
 	echo
-	echo "  autologin <user>               :  Toggles automatic login on tty1 via getty."
+	echo "  autologin [user]               :  Toggles automatic login on tty1 via getty."
 	echo "  autorunx <user> <cmd>          :  Command to run as part of Xserver startup using .xinitrc."
 	echo "  autostartx <user>              :  Creates systemd service to start Xserver as <user> at boot."
 	echo "  expand                         :  Expands the root partition to fill the drive."
-	echo "  grubquiet <enable|disable>     :  Silent GRUB prints nothing to the screen. Default is disabled."
+	echo "  grubquiet <enable|disable>     :  Quiet GRUB prints nothing to the screen."
+	echo "  hostname <name>                :  Sets system hostname."
 	echo "  rootssh <enable|disable>       :  Allows password-based authentication for root over SSH."
 	echo "  splash <name>                  :  Sets the splash screen theme and rebuilds initrd. No theme name disables."
 	echo "  sudonopasswd <enable|disable>  :  Permit any user to execute sudo commands with no additional authentication."
@@ -50,7 +51,7 @@ if [[ "${1}" == "autologin" ]]; then
 
 	[ ! -d /etc/systemd/system/getty@tty1.service.d ] && mkdir -p /etc/systemd/system/getty@tty1.service.d
 
-	if [ ! -f /etc/systemd/system/getty@tty1.service.d/autologin.conf ]; then
+	if [[ "$AUTOLOGINUSER" != "" ]]; then
 
 		echo -n "Enabling auto-login for user '$AUTOLOGINUSER'..."
 		echo -e "[Service]\nExecStart=\nExecStart=-/sbin/agetty -a $AUTOLOGINUSER --noclear %I \$TERM\n" > /etc/systemd/system/getty@tty1.service.d/autologin.conf
@@ -154,7 +155,7 @@ if [[ "${1}" == "expand" ]]; then
 fi
 
 
-# Expands the root partition to fill the drive.
+# Silent GRUB prints nothing to the screen.
 if [[ "${1}" == "grubquiet" ]]; then
 
 	if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
@@ -169,6 +170,19 @@ if [[ "${1}" == "grubquiet" ]]; then
 
 	fi
 
+	echo " done."
+	exit 0
+
+fi
+
+
+# Sets the system hostname.
+if [[ "${1}" == "hostname" ]]; then
+
+	echo -n "Setting hostname to '${2}'..."
+	sed -i "s/127.0.1.1.*/127.0.1.1\t${2}/g" /etc/hosts
+	echo "${2}" > /etc/hostname
+	hostname "${2}"
 	echo " done."
 	exit 0
 

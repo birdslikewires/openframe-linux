@@ -1,2 +1,2 @@
-fs1:grub
-fs0:grub
+fs1:grubq
+fs0:grubq
