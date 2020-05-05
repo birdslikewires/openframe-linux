@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
 
-# of-settings v1.08 (3rd May 2020)
-#  Bundles a bunch of short settings tweaks in one place.
+# of-settings v1.09 (4th May 2020)
+#  Bundles a bunch of handy settings into one place.
 
 usage() {
 	echo "Usage: $0 <option> [options]"
 	echo
-	echo "  autologin [user]               :  Toggles automatic login on tty1 via getty."
-	echo "  autorunx <user> <cmd>          :  Command to run as part of Xserver startup using .xinitrc."
-	echo "  autostartx <user>              :  Creates systemd service to start Xserver as <user> at boot."
-	echo "  expand                         :  Expands the root partition to fill the drive."
-	echo "  grubquiet <enable|disable>     :  Quiet GRUB prints nothing to the screen."
-	echo "  hostname <name>                :  Sets system hostname."
-	echo "  rootssh <enable|disable>       :  Allows password-based authentication for root over SSH."
-	echo "  splash <name>                  :  Sets the splash screen theme and rebuilds initrd. No theme name disables."
-	echo "  sudonopasswd <enable|disable>  :  Permit any user to execute sudo commands with no additional authentication."
+	echo "  autologin [user]            :  Enables or disables automatic login on tty1 via getty."
+	echo "  autorunx <user> <cmd>       :  Command to run when Xserver is started as a given user (uses ~/.xinitrc)."
+	echo "  autostartx [user]           :  Enables or disables starting Xserver as given user at boot."
+	echo "  expand                      :  Expands the root partition to fill the drive."
+	echo "  grubquiet <enable|disable>  :  Quiet GRUB prints nothing to the screen."
+	echo "  hostname <name>             :  Sets system hostname."
+	echo "  rootssh <enable|disable>    :  Allows password-based authentication for root over SSH."
+	echo "  splash <name>               :  Sets the splash screen theme and rebuilds initrd. No theme name disables."
 	echo
 	exit 1
 }
@@ -44,7 +43,7 @@ countdown() {
 }
 
 
-# Toggles automatic login on tty1 via getty.
+# Enables or disables automatic login on tty1 via getty.
 if [[ "${1}" == "autologin" ]]; then
 
 	AUTOLOGINUSER="${2}"
@@ -69,7 +68,7 @@ if [[ "${1}" == "autologin" ]]; then
 fi
 
 
-# Command to run as part of X.Org Server startup using .xinitrc.
+# Command to run when Xserver is started as a given user (uses ~/.xinitrc).
 if [[ "${1}" == "autorunx" ]]; then
 
 	if [ "$#" -ne 3 ]; then
@@ -81,18 +80,18 @@ if [[ "${1}" == "autorunx" ]]; then
 		TARGETUSER="${2}"
 		TARGETCMD="${3}"
 
-		if [ -d /home/$TARGETUSER ] && [ ! -f /home/$TARGETUSER/.xinitrc ]; then
+		if [ -d /home/$TARGETUSER ]; then
+
+			if [ -f /home/$TARGETUSER/.xinitrc ]; then
+				echo "Backing up existing .xinitrc to /home/$TARGETUSER/.xinitrc.bak."
+				mv /home/$TARGETUSER/.xinitrc /home/$TARGETUSER/.xinitrc.bak
+			fi
 
 			echo -n "Writing /home/$TARGETUSER/.xinitrc..."
 			echo -e "export DISPLAY=:0.0\nsetterm -blank 0 -powersave off -powerdown 0\nxset dpms 0 0 0 s off\n[ -x $TARGETCMD ] && $TARGETCMD || /usr/bin/xterm" > /home/$TARGETUSER/.xinitrc
 			chown $TARGETUSER:$TARGETUSER /home/$TARGETUSER/.xinitrc
 			echo " done."
 			exit 0
-
-		elif [ -d /home/$TARGETUSER ] && [ -f /home/$TARGETUSER/.xinitrc ]; then
-			
-			echo "Found existing /home/$TARGETUSER/.xinitrc. Please remove it and try again."
-			exit 1
 
 		else
 
@@ -106,30 +105,29 @@ if [[ "${1}" == "autorunx" ]]; then
 fi
 
 
-# Creates systemd service to start Xserver as <user> at boot.
+# Enables or disables starting Xserver as given user at boot.
 if [[ "${1}" == "autostartx" ]]; then
 
-	# Need a username!
-	[ $# -ne 2 ] && usage
+	if [ $# -eq 2 ]; then
 
-	# Check whether the given user exists.
-	getent passwd ${2} &>/dev/null
-	USEREXISTS="$?"
-	
-	if [[ "$USEREXISTS" -ne 0 ]]; then
-		echo "Cannot find user '${2}'."
-		exit 1
-	fi
+		# Check whether the given user exists.
+		getent passwd ${2} &>/dev/null
+		USEREXISTS="$?"
+		
+		if [[ "$USEREXISTS" -ne 0 ]]; then
+			echo "Cannot find user '${2}'."
+			exit 1
+		fi
 
-	# Check whether X.Org Server is installed.
-	if [ ! -x /usr/bin/startx ]; then
-		echo "Xserver is not installed."
-		exit 1
-	fi
+		# Check whether X.Org Server is installed.
+		if [ ! -x /usr/bin/startx ]; then
+			echo "Xserver is not installed."
+			exit 1
+		fi
 
-	# Build the service file.
-	AUTOSTARTXSERVICE="[Unit]
-Description=Trigger startx before login prompts.
+		# Build the service file.
+		AUTOSTARTXSERVICE="[Unit]
+Description=triggering startx before login prompts
 Before=getty@tty1.service getty@tty2.service getty@tty3.service getty@tty4.service getty@tty5.service getty@tty6.service
 
 [Service]
@@ -138,11 +136,24 @@ User=${2}
 ExecStart=/usr/bin/startx -- :0
 
 [Install]
-WantedBy=multi-user.target"
+WantedBy=getty.target"
 
-	# Install service is user and Xserver exist.
-	echo "$AUTOSTARTXSERVICE" > /lib/systemd/system/startx.service
-	systemctl enable startx.service
+		# Install service if user and Xserver exist.
+		echo "$AUTOSTARTXSERVICE" > /lib/systemd/system/startx.service
+		systemctl enable startx.service
+
+	else
+
+		if [ -f /lib/systemd/system/startx.service ]; then
+
+			systemctl disable startx.service
+			rm /lib/systemd/system/startx.service
+
+		fi
+
+		exit 0
+
+	fi
 
 fi
 
@@ -284,41 +295,5 @@ if [[ "${1}" == "splash" ]]; then
 
 fi
 
-
-# Punches a big hole in your security for convenience!
-if [[ "${1}" == "sudonopasswd" ]]; then
-
-	SNPMSG="# SECURITY RISK! Allow any user to execute commands with root privileges with no additional authentication."
-	SNPSET="%admin ALL=(ALL) NOPASSWD: ALL"
-	SNPCFG="/etc/sudoers"
-
-	if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
-
-		echo "This is a terrible idea for security. Please disable at the earliest opportunity."
-
-		echo -n "Enabling '${1}'..."
-
-		if [[ $(grep -c "$SNPSET" "$SNPCFG") -gt 0 ]]; then
-			echo " already enabled."
-			exit 1
-		fi
-
-		echo >> $SNPCFG
-		echo $SNPMSG >> $SNPCFG
-		echo $SNPSET >> $SNPCFG
-
-	else
-
-		echo -n "Disabling '${1}'..."
-		sed -i "/$SNPMSG/d" $SNPCFG
-		sed -i "/$SNPSET/d" $SNPCFG
-		sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' $SNPCFG
-
-	fi
-
-	echo " done."
-	exit 0
-
-fi
 
 exit 0
