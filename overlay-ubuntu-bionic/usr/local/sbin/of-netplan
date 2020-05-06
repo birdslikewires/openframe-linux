@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# of-netplan v1.08 (6th April 2020)
-#  Manages netplan configuration and MAC addresses on OpenFrame devices.
+## of-netplan v1.08 (6th May 2020)
+##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
 ##  Then we copy the MAC from WLAN to LAN, but with the local bit set.
@@ -10,6 +10,11 @@
 ##  Finally, we put the modified file back into /boot.
 ##
 ##  We're also responsible for /etc/issue 
+
+if [ "$USER" != "root" ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo $0'."
+	exit 1
+fi
 
 source /etc/lsb-release
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.26 (5th May 2020)
+## of-identifier v2.27 (6th May 2020)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 source /etc/lsb-release
@@ -9,7 +9,10 @@ OPENFRAME=1
 KERNVER=$(uname -r)
 KERNMAJVER=$(echo "$KERNVER" | awk -F. '{print $1}')
 
-# We can't do anything useful until the system has decided upon its MAC addresses. This relies upon of-netplan.
+# Regenerate the SSH key files if they're not present.
+[ ! -f /etc/ssh/ssh_host_rsa_key ] && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure openssh-server
+
+# We can't do anything else that's useful until the system has decided upon its MAC addresses. This relies upon of-netplan.
 while [ ! -f /tmp/openframe.net ]; do sleep 1; done
 sync
 

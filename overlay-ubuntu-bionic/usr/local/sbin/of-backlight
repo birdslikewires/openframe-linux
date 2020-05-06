@@ -1,10 +1,26 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-# of-backlight v1.08 (22nd July 2015) by Andy Davison
-#  Automatic backlight control with fading for OpenFrame.
+## of-backlight v1.09 (6th May 2020) by Andrew Davison
+##  Automatic backlight control with fading for OpenFrame.
+
+usage() {
+	echo "Usage: $0 [0-100] | [999]"
+	echo
+	echo "  Enter a backlight value in the range 0-100 or 999 for automatic backlight."
+	echo "  Running with no arguments will return the current backlight value."
+	echo
+	exit 1
+}
 
 
-# Feed this ($1) Preferred Backlight ($2) Debug
+## We're expecting an integer, usage and die if it's not.
+RE='^[0-9]+$'
+if [[ ! "${1}" =~ $RE ]]; then
+	usage
+fi
+
+
+## Feed this ($1) Preferred Backlight ($2) Debug
 setbl() {
 	
 	getbl
@@ -54,7 +70,7 @@ getbl() {
 }
 
 
-## Check what system we're running on and whether we can access the backlight.
+## Check whether we can access the backlight.
 if [ -e /sys/class/backlight/openframe-bl/brightness ]; then
 	BLIF="/sys/class/backlight/openframe-bl/brightness"
 	SLEEP="sleep 0.001"
@@ -64,7 +80,7 @@ if [ -e /sys/class/backlight/openframe-bl/brightness ]; then
 	fi
 else
 	echo "No known backlight interface found."
-	exit 0
+	exit 1
 fi
 
 
@@ -75,15 +91,7 @@ if [ "$1" != "888" ]; then
 fi
 
 
-## Give basic usage info or set the requested brightness.
-if [ "$1" = "-h" ]; then
-	echo "Usage: $0 [0-100] | [999]"
-	echo "Enter either a backlight value between 0-100 or '999' to engage automatic backlight."
-	exit 0
-fi
-
-
-## Then grab the current backlight value.
+## Grab the current backlight value.
 getbl
 
 if [ ! "$1" ]; then
@@ -149,7 +157,7 @@ else
 
 		done
 	
-	## If we're given an '888', write out the current backlight 
+	## If we're given an '888', write out the current backlight value.
 	elif [ "$1" -eq "888" ]; then
 
 		echo `cat /sys/class/backlight/openframe-bl/brightness` > /tmp/of_initial_bl
@@ -161,3 +169,5 @@ else
 	fi
 
 fi
+
+exit 0

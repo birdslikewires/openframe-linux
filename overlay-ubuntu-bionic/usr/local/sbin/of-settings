@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# of-settings v1.09 (4th May 2020)
-#  Bundles a bunch of handy settings into one place.
+## of-settings v1.09 (4th May 2020)
+##  Bundles a bunch of handy settings into one place.
 
 usage() {
 	echo "Usage: $0 <option> [options]"
@@ -18,7 +18,7 @@ usage() {
 	exit 1
 }
 
-if [ $# -lt 1 ] || [[ "$1" == "-h" ]]; then
+if [ $# -lt 1 ] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
 	usage
 fi
 

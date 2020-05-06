@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-## of-flash v1.16 (15th August 2019) by Andy Davison
+## of-flash v1.17 (6th May 2020) by Andrew Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
 
-if [[ "$USER" != "root" ]]; then
-	echo "Must be run as root."
+if [ "$USER" != "root" ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo $0'."
 	exit 1
 fi
 
@@ -34,7 +34,7 @@ header() {
 	echo
 	echo
 	tput setaf $COLOUR
-	echo "                                                                        OpenFrame Reflash v1.16"
+	echo "                                                                        OpenFrame Reflash v1.17"
 	[ $DEBUG -eq 0 ] && echo "==============================================================================================="
 	[ $DEBUG -ne 0 ] && echo "====== DEBUG =================================================================================="
 	echo "                                                                             birdslikewires.net"

@@ -1,22 +1,33 @@
 #!/usr/bin/env bash
 
-# of-update v1.22 (29th April 2020)
-#  Automated updates without reimaging.
+## of-update v1.23 (6th May 2020)
+##  Automated updates without reimaging.
 
-if [ $# -gt 1 ]; then
-	echo "Usage: $0 [ force | systemd | test ]"
+
+usage() {
+	echo "Usage: $0 [ force | systemd ]"
+	echo
+	echo "  force    :  Reinstalls the latest of-scripts regardless of whether they appear up to date."
+	echo "  systemd  :  Indicates we are being triggered by systemd, in which case we stay alive."
+	echo
+	exit 1
+}
+
+if [ $# -gt 1 ] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
+	usage
+fi
+
+if [ "$USER" != "root" ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo $0'."
 	exit 1
 fi
 
-if [ "$USER" != "root" ] && [[ "${1}" != "systemd" ]]; then
-  echo "You need to run this with superuser privileges. Try 'sudo $0'."
-  exit 1
-fi
 
 SERVER="openbeak.net"
 SERVICE="/update/of-scripts.php"
 
 THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
+
 
 updateCheck() {
 
