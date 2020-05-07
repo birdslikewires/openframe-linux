@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-backlight v1.09 (6th May 2020) by Andrew Davison
+## of-backlight v1.10 (7th May 2020) by Andrew Davison
 ##  Automatic backlight control with fading for OpenFrame.
 
 usage() {
@@ -15,7 +15,7 @@ usage() {
 
 ## We're expecting an integer, usage and die if it's not.
 RE='^[0-9]+$'
-if [[ ! "${1}" =~ $RE ]]; then
+if [[ ! "${1}" =~ $RE ]] && [ $# -gt 0 ]; then
 	usage
 fi
 

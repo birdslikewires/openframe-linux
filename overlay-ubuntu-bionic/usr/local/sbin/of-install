@@ -18,7 +18,7 @@ if [ "$#" -lt 1 ] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
 	usage
 fi
 
-if [ "$USER" != "root" ]; then
+if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."
 	exit 1
 fi

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-## of-clean v1.22 (6th May 2020)
+## of-clean v1.23 (7th May 2020)
 ##  Cleans a running OpenFrame for later distribution.
 
-if [ "$USER" != "root" ]; then
+if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
   echo "You need to run this with superuser privileges. Try 'sudo $0'."
   exit 1
 fi

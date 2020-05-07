@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.27 (6th May 2020)
+## of-identifier v2.28 (7th May 2020)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
+
+if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo $0'."
+	exit 1
+fi
 
 source /etc/lsb-release
 
