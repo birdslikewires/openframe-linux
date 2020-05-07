@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-## of-netplan v1.08 (6th May 2020)
+## of-netplan v1.09 (7th May 2020)
 ##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
@@ -10,11 +10,6 @@
 ##  Finally, we put the modified file back into /boot.
 ##
 ##  We're also responsible for /etc/issue 
-
-if [ "$USER" != "root" ]; then
-	echo "You need to run this with superuser privileges. Try 'sudo $0'."
-	exit 1
-fi
 
 source /etc/lsb-release
 
@@ -42,7 +37,7 @@ fi
 
 # Configure what's shown on the text login prompt.
 if [ $(grep -c 'YOURWIFINAME:' /boot/$NETPLANCONFIG) -gt 0 ]; then
-	echo "$DISTRIB_DESCRIPTION \n \l \4{eth0}" > /etc/issue
+	echo "$DISTRIB_DESCRIPTION \n \l eth0:\4{eth0}" > /etc/issue
 else
 	echo "$DISTRIB_DESCRIPTION \n \l wlan0:\4{wlan0} eth0:\4{eth0}" > /etc/issue
 fi
