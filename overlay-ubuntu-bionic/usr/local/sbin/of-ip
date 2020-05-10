@@ -1,6 +1,9 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-# of-ip v1.00 (23rd August 2018)
-#  Spits out the active IP addresses and their interfaces.
+## of-ip v1.01 (6th May 2020)
+##  Spits out the active IP addresses and their interfaces.
+##  On the OpenFrame we always sort wlan0 first if present.
 
-ip route | grep default | awk -F\  {'print $9" "$5'}
+ip route | grep default | sort -r | grep 'wlan\|eth' | awk -F\  {'print $5":"$9'}
+
+exit 0

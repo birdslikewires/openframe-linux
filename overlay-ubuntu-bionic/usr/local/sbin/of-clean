@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# of-clean v1.21 (28th August 2018)
-#  Used to clean a running OpenFrame.
+## of-clean v1.23 (7th May 2020)
+##  Cleans a running OpenFrame for later distribution.
 
-if [ "$USER" != "root" ]; then
-  echo "Must be run as root."
-  exit
+if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
+  echo "You need to run this with superuser privileges. Try 'sudo $0'."
+  exit 1
 fi
 
 # Get the kernel version.
@@ -49,10 +49,6 @@ apt-get -y clean
 echo
 echo "Deleting caches..."
 rm -rvf /opt/squeezeplay/bin/gmon.out
-
-echo
-echo "Cleaning /etc..."
-rm -rvf /etc/sqpbeta
 
 echo
 echo "Sweeping out the root account..."

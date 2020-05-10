@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# of-expand v1.04 (6th December 2019)
-#  Expands the root partition to fill the drive.
+## of-expand v1.07 (7th May 2020)
+##  Expands the root partition to fill the drive.
 
-if [ "$USER" != "root" ]; then
-  echo "You need to run this with superuser privileges."
-  exit 1
+if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo $0'."
+	exit 1
 fi
 
 countdown() {
@@ -25,17 +25,11 @@ echo
 echo "This will expand the root filesystem to use any unallocated space on this drive."
 echo
 echo "The system will reboot immediately to begin resizing. Please DO NOT interrupt the"
-echo "process while there is drive activity and the /root/expanding file still exists."
+echo "process while there is drive activity and the /tmp/expanding file still exists."
 echo
 echo "WARNING! Resizing the root partition risks potential data loss!"
 echo
-echo -n "Are you sure? (y/N): "
-read -t 10 INSPECT
-if [[ ! "$INSPECT" == "y" ]] && [[ ! "$INSPECT" == "Y" ]]; then
-	echo "Stopping."
-	exit 0
-fi
-
+countdown "Cancel with <CTRL-C> otherwise resizing" 10
 echo
 
 ROOTISON=`mount | grep "on / " | awk -F\  {'print $1'}`
@@ -72,7 +66,7 @@ echo
 echo "The table for $ROOTISON$ROOTPARTNO has been extended and the partition must now be resized."
 echo "This will take a few minutes, depending upon the size of the new partition."
 echo
-echo "Do not power off the system until the file /root/expanding has disappeared."
+echo "Do not power off the system until the file /tmp/expanding has disappeared."
 echo
 countdown "The system will reboot" 10
 /sbin/reboot

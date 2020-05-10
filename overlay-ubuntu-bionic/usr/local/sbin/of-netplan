@@ -1,13 +1,22 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# of-netplan v1.07 (12th April 2020)
-#  Manages netplan configuration and MAC addresses on OpenFrame devices.
+## of-netplan v1.10 (7th May 2020)
+##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
 ##  Then we copy the MAC from WLAN to LAN, but with the local bit set.
 ##  If no WLAN interface is available, we generate a MAC for the LAN interface.
 ##  
 ##  Finally, we put the modified file back into /boot.
+##
+##  We're also responsible for /etc/issue 
+
+if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo $0'."
+	exit 1
+fi
+
+source /etc/lsb-release
 
 LAN="eth0"
 WLAN="wlan0"
@@ -30,6 +39,14 @@ if [ $COUNT -lt $CONFIGTIMEOUT ]; then
 	cp /boot/$NETPLANCONFIG /etc/netplan/$NETPLANCONFIG
 	chmod 644 /etc/netplan/$NETPLANCONFIG
 fi
+
+# Configure what's shown on the text login prompt.
+if [ $(grep -c 'YOURWIFINAME:' /boot/$NETPLANCONFIG) -gt 0 ]; then
+	echo "$DISTRIB_DESCRIPTION \n \l eth0:\4{eth0}" > /etc/issue
+else
+	echo "$DISTRIB_DESCRIPTION \n \l wlan0:\4{wlan0} eth0:\4{eth0}" > /etc/issue
+fi
+echo >> /etc/issue
 
 # Try to read the LAN MAC from our new file.
 LANMAC=`yq r /etc/netplan/$NETPLANCONFIG network.ethernets.$LAN.macaddress`

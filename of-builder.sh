@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-## of-builder.sh v1.19 (14th April 2020)
+## of-builder.sh v1.27 (1st May 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -11,7 +11,7 @@ fi
 ## Configurable Bits
 
 OURKERNVER="op"
-PATHTODOWNLOADAREA="/home/andy/Public/download_blw/openframe"
+PATHTODOWNLOADAREA="/home/andy/Public/download_blw"
 GITREPOURL="https://github.com/birdslikewires"
 GITREPOKER="openframe-kernel"
 GITREPOLIN="openframe-linux"
@@ -24,6 +24,8 @@ STARTTIME=`date +'%Y-%m-%d-%H%M'`
 KBRANCH="$1"
 KARCHIVES=`curl --silent https://www.kernel.org/index.html`
 KDOWNLOAD=`echo "$KARCHIVES" | grep -m 1 "linux-$KBRANCH" | grep ".xz" | awk -F\" {'print $2'}`
+GITKERNELOWNER=$(stat -c '%U' $THISSCRIPTPATH/../$GITREPOKER)
+GITLINUXOOWNER=$(stat -c '%U' $THISSCRIPTPATH/../$GITREPOLIN)
 GITKERNELUPDATED=0
 GITLINUXOUPDATED=0
 
@@ -38,8 +40,8 @@ if [[ ! -d "$THISSCRIPTPATH/../$GITREPOKER" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You're going to need $GITREPOURL/$GITREPOKER as well. Cloning..."
 	git clone "$GITREPOURL/$GITREPOKER" "$THISSCRIPTPATH/../$GITREPOKER"
 else
-	KSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" stash)
-	KPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" pull)
+	[[ "$USER" != "$GITKERNELOWNER" ]] && KSTSH=$(sudo -u $GITKERNELOWNER git -C "$THISSCRIPTPATH/../$GITREPOKER" stash) || KSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" stash)
+	[[ "$USER" != "$GITKERNELOWNER" ]] && KPULL=$(sudo -u $GITKERNELOWNER git -C "$THISSCRIPTPATH/../$GITREPOKER" pull) || KPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" pull)
 	if [[ "$KPULL" == "Already up to date." ]]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' is up to date."
 	elif [[ "$KPULL" =~ "error: " ]] || [[ "$KPULL" =~ "fatal: " ]]; then
@@ -61,8 +63,8 @@ if [[ ! -d "$THISSCRIPTPATH/../$GITREPOLIN" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You seem to be running me outside of my repo. I'm not much use without the rest of $GITREPOURL/$GITREPOLIN."
 	exit 1
 else
-	LSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash)
-	LPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull)
+	[[ "$USER" != "$GITLINUXOOWNER" ]] && LSTSH=$(sudo -u $GITKERNELOWNER git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash) || LSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash)
+	[[ "$USER" != "$GITLINUXOOWNER" ]] && LPULL=$(sudo -u $GITKERNELOWNER git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull) || LPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull)
 	if [[ "$LPULL" == "Already up to date." ]]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOLIN' is up to date."
 	elif [[ "$LPULL" =~ "error: " ]] || [[ "$LPULL" =~ "fatal: " ]]; then
@@ -85,21 +87,21 @@ KLATESTMIDVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $2'}
 KLATESTMINVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $3'}`
 KOURNAME="$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER$OURKERNVER"
 KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
-KDLPATH="$PATHTODOWNLOADAREA/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
+KDLPATH="$PATHTODOWNLOADAREA/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $KDLPATH ] && [ $GITKERNELUPDATED -eq 0 ] && KBUILDIT=0 || KBUILDIT=1
 
 IDISTNAME="$2"
 ICODENAME="$3"
 IDOWNLURL="$4"
-IDLPATH="$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/${ICODENAME,,}/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
+IDLPATH="$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $IDLPATH ] && [ $GITLINUXOUPDATED -eq 0 ] && IBUILDIT=0 || IBUILDIT=1
 
 ## Work To Do!
 
 cleanup() {
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Cleaning up..."
-	chown -R www-data:www-data $PATHTODOWNLOADAREA/images $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/logs
-	chmod -R 774 $PATHTODOWNLOADAREA/images $PATHTODOWNLOADAREA/kernel $PATHTODOWNLOADAREA/logs
+	chown -R www-data:www-data $PATHTODOWNLOADAREA/openframe/images $PATHTODOWNLOADAREA/openframe/kernel $PATHTODOWNLOADAREA/logs
+	chmod -R 774 $PATHTODOWNLOADAREA/openframe/images $PATHTODOWNLOADAREA/openframe/kernel $PATHTODOWNLOADAREA/logs
 	rm -rf ./$KOURBUILD*
 	rm -rf ./*.deb
 	rm -rf ./*.img*
@@ -142,8 +144,8 @@ else
 	echo " done."
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Applying OpenFrame kernel patches..."
-	for p in `ls $GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER`; do
-		patch -f -p1 -d "$KOURBUILD" < "$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER/$p"
+	for p in `ls $THISSCRIPTPATH/../$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER`; do
+		patch -f -p1 -d "$KOURBUILD" < "$THISSCRIPTPATH/../$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER/$p"
 	done
 	echo
 
@@ -171,8 +173,8 @@ else
 #	fi
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Updating config file with new defaults..."
-	KCONFIGFILE=`ls $GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
-	cp "$GITREPOKER/configs/$KCONFIGFILE" "$KOURBUILD/.config"
+	KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
+	cp "$THISSCRIPTPATH/../$GITREPOKER/configs/$KCONFIGFILE" "$KOURBUILD/.config"
 	cd "$KOURBUILD"
 	make olddefconfig
 
@@ -209,7 +211,7 @@ else
 	cp "$KOURBUILD/.config" "$KDLPATH/$KOURNAME.config"
 	echo " done."
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Copying kernel $KOURNAME patches..."
-	cp -R "$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER" "$KDLPATH/patches"
+	cp -R "$THISSCRIPTPATH/../$GITREPOKER/patches/$KLATESTMAJVER.$KLATESTMIDVER" "$KDLPATH/patches"
 	echo " done."
 	echo
 	cleanup
@@ -291,7 +293,7 @@ else
 
 	rm -rf ./*.img*
 
-	$THISSCRIPTPATH/of-imgcreate.sh "$(echo ${ICODENAME,,} | head -c 3)" ext2 1 uni 32 0 "${IDISTNAME,,} ${ICODENAME,,}" "$THISSCRIPTPATH/../$GITREPOLIN/overlay-${IDISTNAME,,}-${ICODENAME,,}" "$KDLPATH" "$IDOWNLURL"
+	$THISSCRIPTPATH/of-imgcreate.sh "$(echo ${ICODENAME,,} | head -c 3)" ext2 1 uni 43 0 "${IDISTNAME,,} ${ICODENAME,,}" "$THISSCRIPTPATH/../$GITREPOLIN/overlay-${IDISTNAME,,}-${ICODENAME,,}" "$KDLPATH" "$IDOWNLURL"
 
 	# This checks through the exit codes so far and kills us if any have been greater than zero.
 	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
@@ -316,9 +318,9 @@ else
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Moving to webserver..."
 	mkdir -p $IDLPATH
 	mv ./*.img* $IDLPATH
-	[ -L "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
-	[ -L "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
-	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	[ -L "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	[ -L "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
 	echo " done."
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image build completed."
