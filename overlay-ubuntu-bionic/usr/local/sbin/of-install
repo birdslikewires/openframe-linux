@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-install v1.11 (6th May 2020)
+## of-install v1.12 (12th May 2020)
 ## Simple installers for software on OpenFrames.
 
 usage() {
@@ -173,8 +173,8 @@ xserver() {
 		echo
 	fi
 
-	echo "Setting XTerm geometry..."
-	echo "*xterm*geometry: 132x36+0+0" > /etc/X11/app-defaults/XTerm
+	echo "Configuring XTerm..."
+	echo -e "*xterm*geometry: 132x36+0+0\n*xterm*background: black\n*xterm*foreground: lightgray" > /etc/X11/app-defaults/XTerm
 	echo
 
 	if ! grep -q startx /etc/profile; then
