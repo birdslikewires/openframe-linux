@@ -123,9 +123,9 @@ plex() {
 		adduser plex video &>/dev/null
 
 		# Install it.
-		sudo dpkg -i /tmp/plexmediaplayer_"$VERSION"_i386.deb
+		sudo dpkg -i /tmp/plexmediaplayer_"$VERSION"_i386.deb 2>/dev/null
 		sudo apt update
-		sudo apt --fix-broken install
+		sudo apt -y --fix-broken install
 
 		# Configure the system to run SqueezePlay without requiring login.
 		of-settings autostartx plex
