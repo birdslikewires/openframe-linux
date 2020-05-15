@@ -11,11 +11,11 @@ usage() {
 	echo "  autorunx                    :  Toggles starting Xserver for any user at tty1 login."
 	echo "  autostartx [user]           :  Enables or disables starting Xserver as <user> at boot (systemd)."
 	echo "  autoxrun <user> <cmd>       :  Command run when Xserver started as <user> (~/.xinitrc)."
-	echo "  expand                      :  Expands the root partition to fill the drive."
 	echo "  grubquiet <enable|disable>  :  Quiet GRUB prints nothing to the screen."
 	echo "  hostname <name>             :  Sets system hostname."
 	echo "  rootssh <enable|disable>    :  Allows password-based authentication for root over SSH."
 	echo "  splash <name>               :  Sets splash screen theme and rebuilds initramfs. No name disables."
+	echo "  xdefaults                   :  Sets OpenFrame system defaults for Xserver."
 	echo
 	exit 1
 }
@@ -179,14 +179,6 @@ if [[ "${1}" == "autoxrun" ]]; then
 fi
 
 
-# Expands the root partition to fill the drive.
-if [[ "${1}" == "expand" ]]; then
-
-	$THISSCRIPTPATH/of-expand
-
-fi
-
-
 # Silent GRUB prints nothing to the screen.
 if [[ "${1}" == "grubquiet" ]]; then
 
@@ -317,4 +309,17 @@ if [[ "${1}" == "splash" ]]; then
 fi
 
 
-exit 0
+# Sets OpenFrame system defaults for Xserver.
+if [[ "${1}" == "xdefaults" ]]; then
+
+	echo -n "Configuring Xserver defaults..."
+	echo -e "*xterm*geometry: 132x36+0+0\n*xterm*background: black\n*xterm*foreground: lightgray" > /etc/X11/app-defaults/XTerm
+	echo -e "allowed_users = anybody\nneeds_root_rights = yes" > /etc/X11/Xwrapper.config
+	echo " done."
+	exit 0
+
+fi
+
+
+echo "No '${1}' setting found."
+exit 1

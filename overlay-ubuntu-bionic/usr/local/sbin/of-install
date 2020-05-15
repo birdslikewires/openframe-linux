@@ -23,6 +23,8 @@ if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
 	exit 1
 fi
 
+THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
+
 
 ### Setup
 
@@ -159,11 +161,7 @@ squeezeplay() {
 xserver() {
 
 	apt-get -y install xserver-xorg xserver-xorg-legacy x11-utils xinit xterm
-	echo
-	echo "Configuring..."
-	echo -e "*xterm*geometry: 132x36+0+0\n*xterm*background: black\n*xterm*foreground: lightgray" > /etc/X11/app-defaults/XTerm
-	echo -e "allowed_users = anybody\nneeds_root_rights = yes" > /etc/X11/Xwrapper.config
-	echo
+	of-setings xdefaults
 
 	sync
 	echo "Installation of Xserver completed."
