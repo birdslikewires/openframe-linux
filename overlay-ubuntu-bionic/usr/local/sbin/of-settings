@@ -8,7 +8,7 @@ usage() {
 	echo
 	#    "####################################################################################################"
 	echo "  autologin [user]            :  Enables or disables automatic login on tty1 via getty."
-	echo "  autorunx                    :  Toggles starting Xserver for any user at tty1 login."
+	echo "  autologinrunx               :  Toggles starting Xserver for any user at tty1 login."
 	echo "  autostartx [user]           :  Enables or disables starting Xserver as <user> at boot (systemd)."
 	echo "  autoxrun <user> <cmd>       :  Command run when Xserver started as <user> (~/.xinitrc)."
 	echo "  grubquiet <enable|disable>  :  Quiet GRUB prints nothing to the screen."
@@ -68,7 +68,7 @@ fi
 
 
 # Toggles starting Xserver for any user at tty1 login.
-if [[ "${1}" == "autorunx" ]]; then
+if [[ "${1}" == "autologinrunx" ]]; then
 
 	if [ ! -f /etc/profile.d/startx.sh ]; then
 
