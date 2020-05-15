@@ -167,7 +167,7 @@ if [[ "${1}" == "autoxrun" ]]; then
 			fi
 
 			echo -n "Writing /home/$TARGETUSER/.xinitrc..."
-			echo -e "export DISPLAY=:0.0\nsetterm -blank 0 -powersave off -powerdown 0\nxset dpms 0 0 0 s off\n[ -x $TARGETCMD ] && $TARGETCMD || /usr/bin/xterm" > /home/$TARGETUSER/.xinitrc
+			echo -e "export DISPLAY=:0.0\nsetterm -blank 0 -powersave off -powerdown 0\nxset dpms 0 0 0 s off\n$TARGETCMD || /usr/bin/xterm" > /home/$TARGETUSER/.xinitrc
 			chown $TARGETUSER:$TARGETUSER /home/$TARGETUSER/.xinitrc
 			echo " done."
 			exit 0
