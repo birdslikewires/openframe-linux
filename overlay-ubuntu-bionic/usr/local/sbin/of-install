@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 
-## of-install v1.12 (12th May 2020)
+## of-install v1.13 (15th May 2020)
 ## Simple installers for software on OpenFrames.
 
 usage() {
 	echo "Usage: $0 <option> [options]"
 	echo
 	echo "  build        :  Installs kernel headers and essential build components."
-	echo "  mplayer      :  Installs MPlayer "
+	echo "  mplayer      :  Installs mplayer."
+	echo "  plex         :  Installs Plex Media Player."
 	echo "  squeezeplay  :  Installs SqueezePlay and the X.Org Server."
 	echo "  xserver      :  Installs the X.Org Server."
 	echo
@@ -22,6 +23,8 @@ if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."
 	exit 1
 fi
+
+THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
 
 
 ### Setup
@@ -81,6 +84,65 @@ mplayer () {
 
 }
 
+
+plex() {
+
+	VERSION="2.57.0-1"
+
+	wget -P /tmp https://birdslikewires.net/download/openframe/plex/plexmediaplayer_"$VERSION"_i386.deb
+	wget -P /tmp https://birdslikewires.net/download/openframe/plex/plexmediaplayer_"$VERSION"_i386.deb.md5
+
+	DEBHASH=$(cat "/tmp/plexmediaplayer_"$VERSION"_i386.deb.md5" | awk -F' ' {'print $1'})
+	OURHASH=$(md5sum "/tmp/plexmediaplayer_"$VERSION"_i386.deb" | awk -F' ' {'print $1'})
+
+	echo $DEBHASH
+	echo $OURHASH
+	echo
+
+	if [[ "$DEBHASH" == "" ]] || [[ "$OURHASH" == "" ]]; then
+
+		echo "No checksums! Looks like the download failed."
+		rm /tmp/plexmediaplayer_*
+		exit 1
+
+	fi
+
+	if [[ ! "$OURHASH" == "$DEBHASH" ]]; then
+
+		echo "Checksum mismatch. Bailing!"
+		rm /tmp/plexmediaplayer_*
+		exit 1
+
+	else
+
+		echo "Checksums match, continuing..."
+
+		# Create a standard user 'plex' with no configured password.
+		id -u plex &>/dev/null || useradd -s /bin/bash --create-home plex
+		adduser plex audio &>/dev/null
+		adduser plex users &>/dev/null
+		adduser plex video &>/dev/null
+
+		# Install it.
+		sudo dpkg -i /tmp/plexmediaplayer_"$VERSION"_i386.deb 2>/dev/null
+		sudo apt update
+		sudo apt -y --fix-broken install
+
+		# Configure the system to run SqueezePlay without requiring login.
+		of-settings autostartx plex
+		of-settings autoxrun plex "/opt/plexmediaplayer/bin/plexmediaplayer --fullscreen"
+
+		# Tidy up.
+		rm /tmp/plexmediaplayer_*
+
+		sync
+		echo "Installation of Plex Media Player completed."
+
+	fi
+
+}
+
+
 squeezeplay() {
 
 	### Configuration #####
@@ -131,11 +193,11 @@ squeezeplay() {
 
 		# Configure the system to run SqueezePlay without requiring login.
 		of-settings autostartx squeezeplay
-		of-settings autorunx squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
+		of-settings autoxrun squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
 
 		# Configure the system to autologin and run SqueezePlay on startup.
 		#of-settings autologin squeezeplay
-		#of-settings autorunx squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
+		#of-settings autoxrun squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
 
 		# Configure splash screens.
 		if [ -d /usr/share/plymouth/themes ]; then
@@ -158,30 +220,8 @@ squeezeplay() {
 
 xserver() {
 
-	rm /etc/X11/app-defaults/XTerm &>/dev/null
 	apt-get -y install xserver-xorg xserver-xorg-legacy x11-utils xinit xterm
-	echo
-
-	echo -e "allowed_users = anybody\nneeds_root_rights = yes" > /etc/X11/Xwrapper.config
-
-	if [[ "$@" == "mplayer" ]]; then
-		echo "Installing mplayer..."
-		echo
-		apt-get -y install mplayer
-		echo -e "\n###OpenFrame Specific\nvo=x11\nva=x11\nao=alsa\nzoom=yes\nfs=yes" >> /etc/mplayer/mplayer.conf
-		echo -e "\n###OpenFrame Specific\nMOUSE_BTN0_DBL quit\nMOUSE_BTN0-MOUSE_BTN0_DBL quit" >> /etc/mplayer/input.conf
-		echo
-	fi
-
-	echo "Configuring XTerm..."
-	echo -e "*xterm*geometry: 132x36+0+0\n*xterm*background: black\n*xterm*foreground: lightgray" > /etc/X11/app-defaults/XTerm
-	echo
-
-	if ! grep -q startx /etc/profile; then
-		echo "Enabling Xorg at tty1 login..."
-		echo -e "\nif [[ "'$(tty)'" = /dev/tty1 ]]; then\n  exec /usr/bin/startx &>/dev/null\nfi\n" >> /etc/profile
-		echo
-	fi
+	of-settings xdefaults
 
 	sync
 	echo "Installation of Xserver completed."
@@ -203,6 +243,11 @@ elif [[ "${1}" == "mplayer" ]]; then
 
 	[ ! -x /usr/bin/startx ] && /usr/bin/apt update && xserver
 	mplayer
+
+elif [[ "${1}" == "plex" ]]; then
+
+	[ ! -x /usr/bin/startx ] && /usr/bin/apt update && xserver
+	plex
 
 elif [[ "${1}" == "squeezeplay" ]]; then
 
