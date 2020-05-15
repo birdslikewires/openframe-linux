@@ -7,7 +7,8 @@ usage() {
 	echo "Usage: $0 <option> [options]"
 	echo
 	echo "  build        :  Installs kernel headers and essential build components."
-	echo "  mplayer      :  Installs MPlayer "
+	echo "  mplayer      :  Installs mplayer."
+	echo "  plex         :  Installs Plex Media Player."
 	echo "  squeezeplay  :  Installs SqueezePlay and the X.Org Server."
 	echo "  xserver      :  Installs the X.Org Server."
 	echo
