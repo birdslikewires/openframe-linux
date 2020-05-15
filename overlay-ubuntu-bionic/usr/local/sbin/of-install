@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-install v1.12 (12th May 2020)
+## of-install v1.13 (15th May 2020)
 ## Simple installers for software on OpenFrames.
 
 usage() {
@@ -131,11 +131,11 @@ squeezeplay() {
 
 		# Configure the system to run SqueezePlay without requiring login.
 		of-settings autostartx squeezeplay
-		of-settings autorunx squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
+		of-settings autoxrun squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
 
 		# Configure the system to autologin and run SqueezePlay on startup.
 		#of-settings autologin squeezeplay
-		#of-settings autorunx squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
+		#of-settings autoxrun squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
 
 		# Configure splash screens.
 		if [ -d /usr/share/plymouth/themes ]; then
@@ -158,30 +158,12 @@ squeezeplay() {
 
 xserver() {
 
-	rm /etc/X11/app-defaults/XTerm &>/dev/null
 	apt-get -y install xserver-xorg xserver-xorg-legacy x11-utils xinit xterm
 	echo
-
-	echo -e "allowed_users = anybody\nneeds_root_rights = yes" > /etc/X11/Xwrapper.config
-
-	if [[ "$@" == "mplayer" ]]; then
-		echo "Installing mplayer..."
-		echo
-		apt-get -y install mplayer
-		echo -e "\n###OpenFrame Specific\nvo=x11\nva=x11\nao=alsa\nzoom=yes\nfs=yes" >> /etc/mplayer/mplayer.conf
-		echo -e "\n###OpenFrame Specific\nMOUSE_BTN0_DBL quit\nMOUSE_BTN0-MOUSE_BTN0_DBL quit" >> /etc/mplayer/input.conf
-		echo
-	fi
-
-	echo "Configuring XTerm..."
+	echo "Configuring..."
 	echo -e "*xterm*geometry: 132x36+0+0\n*xterm*background: black\n*xterm*foreground: lightgray" > /etc/X11/app-defaults/XTerm
+	echo -e "allowed_users = anybody\nneeds_root_rights = yes" > /etc/X11/Xwrapper.config
 	echo
-
-	if ! grep -q startx /etc/profile; then
-		echo "Enabling Xorg at tty1 login..."
-		echo -e "\nif [[ "'$(tty)'" = /dev/tty1 ]]; then\n  exec /usr/bin/startx &>/dev/null\nfi\n" >> /etc/profile
-		echo
-	fi
 
 	sync
 	echo "Installation of Xserver completed."

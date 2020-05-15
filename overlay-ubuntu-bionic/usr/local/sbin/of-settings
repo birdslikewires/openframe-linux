@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-settings v1.10 (7th May 2020)
+## of-settings v1.11 (15th May 2020)
 ##  Bundles a bunch of handy settings into one place.
 
 usage() {
@@ -8,8 +8,9 @@ usage() {
 	echo
 	#    "####################################################################################################"
 	echo "  autologin [user]            :  Enables or disables automatic login on tty1 via getty."
-	echo "  autorunx <user> <cmd>       :  Command run when Xserver started as given user (uses ~/.xinitrc)."
-	echo "  autostartx [user]           :  Enables or disables starting Xserver as given user at boot."
+	echo "  autorunx                    :  Toggles starting Xserver for any user at tty1 login."
+	echo "  autostartx [user]           :  Enables or disables starting Xserver as <user> at boot (systemd)."
+	echo "  autoxrun <user> <cmd>       :  Command run when Xserver started as <user> (~/.xinitrc)."
 	echo "  expand                      :  Expands the root partition to fill the drive."
 	echo "  grubquiet <enable|disable>  :  Quiet GRUB prints nothing to the screen."
 	echo "  hostname <name>             :  Sets system hostname."
@@ -63,45 +64,27 @@ if [[ "${1}" == "autologin" ]]; then
 
 	fi
 
-	echo " done."
-	exit 0
-
 fi
 
 
-# Command to run when Xserver is started as a given user (uses ~/.xinitrc).
+# Toggles starting Xserver for any user at tty1 login.
 if [[ "${1}" == "autorunx" ]]; then
 
-	if [ "$#" -ne 3 ]; then
+	if [ ! -f /etc/profile.d/startx.sh ]; then
 
-		usage
+		echo -n "Enabling Xserver at tty1 login..."
+		echo -e "\nif [[ "'$(tty)'" = /dev/tty1 ]]; then\n  exec /usr/bin/startx &>/dev/null\nfi\n" > /etc/profile.d/startx.sh
+		echo
 
 	else
 
-		TARGETUSER="${2}"
-		TARGETCMD="${3}"
-
-		if [ -d /home/$TARGETUSER ]; then
-
-			if [ -f /home/$TARGETUSER/.xinitrc ]; then
-				echo "Backing up existing .xinitrc to /home/$TARGETUSER/.xinitrc.bak."
-				mv /home/$TARGETUSER/.xinitrc /home/$TARGETUSER/.xinitrc.bak
-			fi
-
-			echo -n "Writing /home/$TARGETUSER/.xinitrc..."
-			echo -e "export DISPLAY=:0.0\nsetterm -blank 0 -powersave off -powerdown 0\nxset dpms 0 0 0 s off\n[ -x $TARGETCMD ] && $TARGETCMD || /usr/bin/xterm" > /home/$TARGETUSER/.xinitrc
-			chown $TARGETUSER:$TARGETUSER /home/$TARGETUSER/.xinitrc
-			echo " done."
-			exit 0
-
-		else
-
-			echo "No home directory found for user '$TARGETUSER'."
-			exit 1
-
-		fi
+		echo -n "Disabling Xserver at tty1 login..."
+		rm /etc/profile.d/startx.sh
 
 	fi
+	
+	echo " done."
+	exit 0
 
 fi
 
@@ -153,6 +136,43 @@ WantedBy=getty.target"
 		fi
 
 		exit 0
+
+	fi
+
+fi
+
+
+# Command to run when Xserver is started as a given user (uses ~/.xinitrc).
+if [[ "${1}" == "autoxrun" ]]; then
+
+	if [ "$#" -ne 3 ]; then
+
+		usage
+
+	else
+
+		TARGETUSER="${2}"
+		TARGETCMD="${3}"
+
+		if [ -d /home/$TARGETUSER ]; then
+
+			if [ -f /home/$TARGETUSER/.xinitrc ]; then
+				echo "Backing up existing .xinitrc to /home/$TARGETUSER/.xinitrc.bak."
+				mv /home/$TARGETUSER/.xinitrc /home/$TARGETUSER/.xinitrc.bak
+			fi
+
+			echo -n "Writing /home/$TARGETUSER/.xinitrc..."
+			echo -e "export DISPLAY=:0.0\nsetterm -blank 0 -powersave off -powerdown 0\nxset dpms 0 0 0 s off\n[ -x $TARGETCMD ] && $TARGETCMD || /usr/bin/xterm" > /home/$TARGETUSER/.xinitrc
+			chown $TARGETUSER:$TARGETUSER /home/$TARGETUSER/.xinitrc
+			echo " done."
+			exit 0
+
+		else
+
+			echo "No home directory found for user '$TARGETUSER'."
+			exit 1
+
+		fi
 
 	fi
 
