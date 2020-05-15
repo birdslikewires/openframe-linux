@@ -94,11 +94,11 @@ plex() {
 	DEBHASH=$(cat "/tmp/plexmediaplayer_"$VERSION"_i386.deb.md5" | awk -F' ' {'print $1'})
 	OURHASH=$(md5sum "/tmp/plexmediaplayer_"$VERSION"_i386.deb" | awk -F' ' {'print $1'})
 
-	echo $TGZHASH
+	echo $DEBHASH
 	echo $OURHASH
 	echo
 
-	if [[ "$TGZHASH" == "" ]] || [[ "$OURHASH" == "" ]]; then
+	if [[ "$DEBHASH" == "" ]] || [[ "$OURHASH" == "" ]]; then
 
 		echo "No checksums! Looks like the download failed."
 		rm /tmp/plexmediaplayer_*
@@ -106,7 +106,7 @@ plex() {
 
 	fi
 
-	if [[ ! "$OURHASH" == "$TGZHASH" ]]; then
+	if [[ ! "$OURHASH" == "$DEBHASH" ]]; then
 
 		echo "Checksum mismatch. Bailing!"
 		rm /tmp/plexmediaplayer_*
