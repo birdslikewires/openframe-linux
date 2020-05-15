@@ -83,6 +83,64 @@ mplayer () {
 
 }
 
+
+plex() {
+
+	VERSION="2.57.0-1"
+
+	wget -P /tmp https://birdslikewires.net/download/openframe/plex/plexmediaplayer_$VERSION_i386.deb
+	wget -P /tmp https://birdslikewires.net/download/openframe/plex/plexmediaplayer_$VERSION_i386.deb.md5
+
+	DEBHASH=$(cat /tmp/plexmediaplayer_$VERSION_i386.deb.md5 | awk -F' ' {'print $1'})
+	OURHASH=$(md5sum /tmp/plexmediaplayer_$VERSION_i386.deb | awk -F' ' {'print $1'})
+
+	echo $TGZHASH
+	echo $OURHASH
+	echo
+
+	if [[ "$TGZHASH" == "" ]] || [[ "$OURHASH" == "" ]]; then
+
+		echo "No checksums! Looks like the download failed."
+		exit 1
+
+	fi
+
+	if [[ ! "$OURHASH" == "$TGZHASH" ]]; then
+
+		echo "Checksum mismatch. Bailing!"
+		rm /tmp/plexmediaplayer_*
+		exit 1
+
+	else
+
+		echo "Checksums match, continuing..."
+
+		# Create a standard user 'plex' with no configured password.
+		id -u plex &>/dev/null || useradd -s /bin/bash --create-home plex
+		adduser plex audio &>/dev/null
+		adduser plex users &>/dev/null
+		adduser plex video &>/dev/null
+
+		# Install it.
+		sudo dpkg -i /tmp/plexmediaplayer_$VERSION_i386.deb
+		sudo apt update
+		sudo apt --fix-broken install
+
+		# Configure the system to run SqueezePlay without requiring login.
+		of-settings autostartx plex
+		of-settings autoxrun plex "/opt/plexmediaplayer/bin/plexmediaplayer --fullscreen"
+
+		# Tidy up.
+		rm /tmp/plexmediaplayer_*
+
+		sync
+		echo "Installation of Plex Media Player completed."
+
+	fi
+
+}
+
+
 squeezeplay() {
 
 	### Configuration #####
@@ -183,6 +241,11 @@ elif [[ "${1}" == "mplayer" ]]; then
 
 	[ ! -x /usr/bin/startx ] && /usr/bin/apt update && xserver
 	mplayer
+
+elif [[ "${1}" == "plex" ]]; then
+
+	[ ! -x /usr/bin/startx ] && /usr/bin/apt update && xserver
+	plex
 
 elif [[ "${1}" == "squeezeplay" ]]; then
 
