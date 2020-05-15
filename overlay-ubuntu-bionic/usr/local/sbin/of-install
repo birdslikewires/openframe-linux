@@ -91,8 +91,8 @@ plex() {
 	wget -P /tmp https://birdslikewires.net/download/openframe/plex/plexmediaplayer_"$VERSION"_i386.deb
 	wget -P /tmp https://birdslikewires.net/download/openframe/plex/plexmediaplayer_"$VERSION"_i386.deb.md5
 
-	DEBHASH=$(cat /tmp/plexmediaplayer_"$VERSION"_i386.deb.md5 | awk -F' ' {'print $1'})
-	OURHASH=$(md5sum /tmp/plexmediaplayer_"$VERSION"_i386.deb | awk -F' ' {'print $1'})
+	DEBHASH=$(cat "/tmp/plexmediaplayer_"$VERSION"_i386.deb.md5" | awk -F' ' {'print $1'})
+	OURHASH=$(md5sum "/tmp/plexmediaplayer_"$VERSION"_i386.deb" | awk -F' ' {'print $1'})
 
 	echo $TGZHASH
 	echo $OURHASH
@@ -101,6 +101,7 @@ plex() {
 	if [[ "$TGZHASH" == "" ]] || [[ "$OURHASH" == "" ]]; then
 
 		echo "No checksums! Looks like the download failed."
+		rm /tmp/plexmediaplayer_*
 		exit 1
 
 	fi
