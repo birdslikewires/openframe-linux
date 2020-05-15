@@ -123,6 +123,7 @@ ExecStart=/usr/bin/startx -- :0
 WantedBy=getty.target"
 
 		# Install service if user and Xserver exist.
+		echo "Enabling Xserver start as '${2}' by systemd...'"
 		echo "$AUTOSTARTXSERVICE" > /lib/systemd/system/startx.service
 		systemctl enable startx.service
 
@@ -132,6 +133,7 @@ WantedBy=getty.target"
 
 		if [ -f /lib/systemd/system/startx.service ]; then
 
+			echo "Disabling Xserver start by systemd...'"
 			systemctl disable startx.service
 			rm /lib/systemd/system/startx.service
 
