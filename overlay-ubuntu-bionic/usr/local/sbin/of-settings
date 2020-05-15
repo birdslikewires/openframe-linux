@@ -126,6 +126,8 @@ WantedBy=getty.target"
 		echo "$AUTOSTARTXSERVICE" > /lib/systemd/system/startx.service
 		systemctl enable startx.service
 
+		exit 0
+
 	else
 
 		if [ -f /lib/systemd/system/startx.service ]; then
