@@ -161,7 +161,7 @@ squeezeplay() {
 xserver() {
 
 	apt-get -y install xserver-xorg xserver-xorg-legacy x11-utils xinit xterm
-	of-setings xdefaults
+	of-settings xdefaults
 
 	sync
 	echo "Installation of Xserver completed."
