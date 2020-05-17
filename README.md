@@ -11,9 +11,9 @@ So you want to automatically build images for OpenFrame devices on your server? 
 
 ### Build Environment
 
-The OpenFrame devices are all 32-bit, so for the vast majority of build operations you're going to need a i386 environment. Debian still provide i386 images, which is great, but Ubuntu do not.
+The OpenFrame devices are all 32-bit, so you're going to need a i386 environment. Debian still provide i386 images, which is great, but Ubuntu do not beyond Bionic (18.04).
 
-The solution is to create a 32-bit chroot on the 64-bit system. For Ubuntu Bionic, probably the last version worth doing this with, it can be achieved like this:
+The solution is to create a 32-bit chroot on the 64-bit system. For Ubuntu Bionic it can be achieved like this:
 
 ```
 sudo apt install debootstrap schroot
