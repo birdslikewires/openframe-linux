@@ -264,7 +264,7 @@ else
 	cd crystalhd/driver/linux
 	autoconf
 	./configure
-	make
+	make -C /lib/modules/$KOURNAME/build M=`pwd`
 	cd ../../..
 	cp crystalhd/driver/linux/crystalhd.ko lib/modules/$KOURNAME/kernel/drivers/video/broadcom
 	rm -rf crystalhd
