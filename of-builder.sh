@@ -257,6 +257,18 @@ else
 
 	fi
 
+	## Crystal HD Driver
+	[ -d crystalhd ] && rm -rf crystalhd
+	git clone https://github.com/birdslikewires/crystalhd.git
+	mkdir -p lib/modules/$KOURNAME/kernel/drivers/video/broadcom
+	cd crystalhd/driver/linux
+	autoconf
+	./configure
+	make
+	cd ../../..
+	cp crystalhd/driver/linux/crystalhd.ko lib/modules/$KOURNAME/kernel/drivers/video/broadcom
+	rm -rf crystalhd
+
 	## Firmware Hub Module
 	[ -d fh ] && rm -rf fh
 	git clone https://github.com/andydvsn/fh.git
