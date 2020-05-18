@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-install v1.14 (17th May 2020)
+## of-install v1.15 (17th May 2020)
 ## Simple installers for software on OpenFrames.
 
 usage() {
@@ -56,7 +56,7 @@ build() {
 		dpkg -i /tmp/$(uname -r)/linux-headers*.deb
 		echo "Installing build-essential..."
 		apt-get update
-		apt-get -y install autoconf build-essential
+		apt-get -y install autoconf build-essential git
 
 	else
 
