@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.27 (1st May 2020)
+## of-builder.sh v1.28 (19th May 2020)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -260,12 +260,16 @@ else
 	## Crystal HD Driver
 	[ -d crystalhd ] && rm -rf crystalhd
 	git clone https://github.com/birdslikewires/crystalhd.git
+	mkdir -p etc/udev/rules.d
+	mkdir -p lib/udev/rules.d
 	mkdir -p lib/modules/$KOURNAME/kernel/drivers/video/broadcom
 	cd crystalhd/driver/linux
 	autoconf
 	./configure
 	make -C /lib/modules/$KOURNAME/build M=`pwd`
 	cd ../../..
+	cp crystalhd/driver/linux/20-crystalhd.rules etc/udev/rules.d
+	cp crystalhd/driver/linux/20-crystalhd.rules lib/udev/rules.d
 	cp crystalhd/driver/linux/crystalhd.ko lib/modules/$KOURNAME/kernel/drivers/video/broadcom
 	rm -rf crystalhd
 
