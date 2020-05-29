@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-backlight v1.10 (7th May 2020) by Andrew Davison
+## of-backlight v1.11 (29th May 2020) by Andrew Davison
 ##  Automatic backlight control with fading for OpenFrame.
 
 usage() {
@@ -160,7 +160,7 @@ else
 	## If we're given an '888', write out the current backlight value.
 	elif [ "$1" -eq "888" ]; then
 
-		echo `cat /sys/class/backlight/openframe-bl/brightness` > /tmp/of_initial_bl
+		echo `cat /sys/class/backlight/openframe-bl/brightness` > /tmp/backlight.prv
 		
 	else
 
