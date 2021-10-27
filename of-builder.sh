@@ -98,11 +98,27 @@ KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
 KDLPATH="$PATHTODOWNLOADAREA/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $KDLPATH ] && [ $GITKERNELUPDATED -eq 0 ] && KBUILDIT=0 || KBUILDIT=1
 
+if [[ "$KBUILDIT" == 0 ]]; then
+	KSTALE=$(find "$KDLPATH" -maxdepth 0 -mtime +30)
+	if [ "$KSTALE" != "" ]; then
+		/bin/mv "$KDLPATH" "$KDLPATH-$(date +'\%Y-\%m-\%d-\%H\%M')"
+		KBUILDIT=1
+	fi
+fi
+
 IDISTNAME="$2"
 ICODENAME="$3"
 IDOWNLURL="$4"
 IDLPATH="$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $IDLPATH ] && [ $GITLINUXOUPDATED -eq 0 ] && IBUILDIT=0 || IBUILDIT=1
+
+if [[ "$IBUILDIT" == 0 ]]; then
+	ISTALE=$(find "$IDLPATH" -maxdepth 0 -mtime +30)
+	if [ "$ISTALE" != "" ]; then
+		/bin/mv "$IDLPATH" "$IDLPATH-$(date +'\%Y-\%m-\%d-\%H\%M')"
+		IBUILDIT=1
+	fi
+fi
 
 ## Work To Do!
 
