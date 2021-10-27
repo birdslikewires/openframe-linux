@@ -71,8 +71,8 @@ if [[ ! -d "$THISSCRIPTPATH/../$GITREPOLIN" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You seem to be running me outside of my repo. I'm not much use without the rest of $GITREPOURL/$GITREPOLIN."
 	exit 1
 else
-	[[ "$USER" != "$GITLINUXOOWNER" ]] && LSTSH=$(sudo -u $GITKERNELOWNER git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash) || LSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash)
-	[[ "$USER" != "$GITLINUXOOWNER" ]] && LPULL=$(sudo -u $GITKERNELOWNER git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull) || LPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull)
+	[[ "$USER" != "$GITLINUXOOWNER" ]] && LSTSH=$(sudo -u $GITKERNELOWNER -H git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash) || LSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash)
+	[[ "$USER" != "$GITLINUXOOWNER" ]] && LPULL=$(sudo -u $GITKERNELOWNER -H git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull) || LPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull)
 	if [[ "$LPULL" == "Already up to date." ]]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOLIN' is up to date."
 	elif [[ "$LPULL" =~ "error: " ]] || [[ "$LPULL" =~ "fatal: " ]]; then
