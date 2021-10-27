@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.28 (19th May 2020)
+## of-builder.sh v1.29 (28th October 2021)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 1 ]; then
@@ -22,14 +22,22 @@ COREDIVIDER=1
 THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
 STARTTIME=`date +'%Y-%m-%d-%H%M'`
 KBRANCH="$1"
-KARCHIVES=`curl --silent https://www.kernel.org/index.html`
-KDOWNLOAD=`echo "$KARCHIVES" | grep -m 1 "linux-$KBRANCH" | grep ".xz" | awk -F\" {'print $2'}`
 GITKERNELOWNER=$(stat -c '%U' $THISSCRIPTPATH/../$GITREPOKER)
 GITLINUXOOWNER=$(stat -c '%U' $THISSCRIPTPATH/../$GITREPOLIN)
 GITKERNELUPDATED=0
 GITLINUXOUPDATED=0
 
-if [[ ! "$KDOWNLOAD" ]]; then
+
+# Use the URL we're given for the kernel, or figure out the latest archive of that branch to download.
+KDOWNLOAD=""
+if [[ "$KBRANCH" =~ "https://" ]]; then
+	KDOWNLOAD="$KBRANCH"
+else
+	KARCHIVES=`curl --silent https://www.kernel.org/index.html`
+	KDOWNLOAD=`echo "$KARCHIVES" | grep -m 1 "linux-$KBRANCH" | grep ".xz" | awk -F\" {'print $2'}`
+fi
+
+if [[ "$KDOWNLOAD" = "" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel branch $KBRANCH was not found as stable or longterm on the kernel.org homepage."
 	exit 1
 fi
