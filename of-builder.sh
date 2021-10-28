@@ -102,7 +102,7 @@ if [[ "$KBUILDIT" == 0 ]]; then
 	KSTALE=$(find "$KDLPATH" -maxdepth 0 -mtime +30)
 	if [ "$KSTALE" != "" ]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel $KOURNAME has gone stale. Time to bake a new one!"
-		/bin/mv "$KDLPATH" "$KDLPATH-$(date  -d "30 days ago" +'%Y-%m-%d-%H%M')"
+		/bin/mv "$KDLPATH" "$KDLPATH-$(date  -d "30 days ago" +'%Y-%m-%d')"
 		KBUILDIT=1
 	fi
 fi
@@ -117,7 +117,7 @@ if [[ "$IBUILDIT" == 0 ]]; then
 	ISTALE=$(find "$IDLPATH" -maxdepth 0 -mtime +30)
 	if [ "$ISTALE" != "" ]; then
 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image ${IDISTNAME^} ${ICODENAME^} $KOURNAME has gone stale. Time to bake a new one!"
-		/bin/mv "$IDLPATH" "$IDLPATH-$(date  -d "30 days ago" +'%Y-%m-%d-%H%M')"
+		/bin/mv "$IDLPATH" "$IDLPATH-$(date  -d "30 days ago" +'%Y-%m-%d')"
 		IBUILDIT=1
 	fi
 fi
