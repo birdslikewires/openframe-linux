@@ -101,7 +101,8 @@ KDLPATH="$PATHTODOWNLOADAREA/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOU
 if [[ "$KBUILDIT" == 0 ]]; then
 	KSTALE=$(find "$KDLPATH" -maxdepth 0 -mtime +30)
 	if [ "$KSTALE" != "" ]; then
-		/bin/mv "$KDLPATH" "$KDLPATH-$(date +'\%Y-\%m-\%d-\%H\%M')"
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Kernel $KOURNAME has gone stale. Time to bake a new one!"
+		/bin/mv "$KDLPATH" "$KDLPATH-$(date  -d "30 days ago" +'%Y-%m-%d-%H%M')"
 		KBUILDIT=1
 	fi
 fi
@@ -115,7 +116,8 @@ IDLPATH="$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/$KLA
 if [[ "$IBUILDIT" == 0 ]]; then
 	ISTALE=$(find "$IDLPATH" -maxdepth 0 -mtime +30)
 	if [ "$ISTALE" != "" ]; then
-		/bin/mv "$IDLPATH" "$IDLPATH-$(date +'\%Y-\%m-\%d-\%H\%M')"
+		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image ${IDISTNAME^} ${ICODENAME^} $KOURNAME has gone stale. Time to bake a new one!"
+		/bin/mv "$IDLPATH" "$IDLPATH-$(date  -d "30 days ago" +'%Y-%m-%d-%H%M')"
 		IBUILDIT=1
 	fi
 fi
