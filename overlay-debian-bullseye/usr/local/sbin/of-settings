@@ -1,0 +1,330 @@
+#!/usr/bin/env bash
+
+## of-settings v1.11 (15th May 2020)
+##  Bundles a bunch of handy settings into one place.
+
+usage() {
+	echo "Usage: $0 <option> [options]"
+	echo
+	#    "####################################################################################################"
+	echo "  autologin [user]            :  Enables or disables automatic login on tty1 via getty."
+	echo "  autologinrunx               :  Toggles starting Xserver for any user at tty1 login."
+	echo "  autostartx [user]           :  Enables or disables starting Xserver as <user> at boot (systemd)."
+	echo "  autoxrun <user> <cmd>       :  Command run when Xserver started as <user> (~/.xinitrc)."
+	echo "  grubquiet <enable|disable>  :  Quiet GRUB prints nothing to the screen."
+	echo "  hostname <name>             :  Sets system hostname."
+	echo "  rootssh <enable|disable>    :  Allows password-based authentication for root over SSH."
+	echo "  splash <name>               :  Sets splash screen theme and rebuilds initramfs. No name disables."
+	echo "  xdefaults                   :  Sets OpenFrame system defaults for Xserver."
+	echo
+	exit 1
+}
+
+if [ $# -lt 1 ] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
+	usage
+fi
+
+if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo $0'."
+	exit 1
+fi
+
+THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
+
+countdown() {
+	MSG="$1"
+	SEC=$2
+	tput civis
+	while [ $SEC -gt 0 ]; do
+		echo -ne "$MSG in $SEC\033[0K\r"
+		sleep 1
+		: $((SEC--))
+	done
+	echo -e "$MSG now..."
+	tput cnorm
+}
+
+
+# Enables or disables automatic login on tty1 via getty.
+if [[ "${1}" == "autologin" ]]; then
+
+	AUTOLOGINUSER="${2}"
+
+	[ ! -d /etc/systemd/system/getty@tty1.service.d ] && mkdir -p /etc/systemd/system/getty@tty1.service.d
+
+	if [[ "$AUTOLOGINUSER" != "" ]]; then
+
+		echo -n "Enabling auto-login for user '$AUTOLOGINUSER'..."
+		echo -e "[Service]\nExecStart=\nExecStart=-/sbin/agetty -a $AUTOLOGINUSER --noclear %I \$TERM\n" > /etc/systemd/system/getty@tty1.service.d/autologin.conf
+
+	else
+
+		echo -n "Disabling auto-login..."
+		rm /etc/systemd/system/getty@tty1.service.d/autologin.conf
+
+	fi
+
+fi
+
+
+# Toggles starting Xserver for any user at tty1 login.
+if [[ "${1}" == "autologinrunx" ]]; then
+
+	if [ ! -f /etc/profile.d/startx.sh ]; then
+
+		echo -n "Enabling Xserver at tty1 login..."
+		echo -e "\nif [[ "'$(tty)'" = /dev/tty1 ]]; then\n  exec /usr/bin/startx &>/dev/null\nfi\n" > /etc/profile.d/startx.sh
+		echo
+
+	else
+
+		echo -n "Disabling Xserver at tty1 login..."
+		rm /etc/profile.d/startx.sh
+
+	fi
+	
+	echo " done."
+	exit 0
+
+fi
+
+
+# Enables or disables starting Xserver as given user at boot.
+if [[ "${1}" == "autostartx" ]]; then
+
+	if [ $# -eq 2 ]; then
+
+		# Check whether the given user exists.
+		getent passwd ${2} &>/dev/null
+		USEREXISTS="$?"
+		
+		if [[ "$USEREXISTS" -ne 0 ]]; then
+			echo "Cannot find user '${2}'."
+			exit 1
+		fi
+
+		# Check whether X.Org Server is installed.
+		if [ ! -x /usr/bin/startx ]; then
+			echo "Xserver is not installed."
+			exit 1
+		fi
+
+		# Build the service file.
+		AUTOSTARTXSERVICE="[Unit]
+Description=triggering startx before login prompts
+Before=getty@tty1.service getty@tty2.service getty@tty3.service getty@tty4.service getty@tty5.service getty@tty6.service
+
+[Service]
+Type=oneshot
+User=${2}
+ExecStart=/usr/bin/startx -- :0
+
+[Install]
+WantedBy=getty.target"
+
+		# Install service if user and Xserver exist.
+		echo -n "Enabling Xserver start as '${2}' by systemd..."
+		echo "$AUTOSTARTXSERVICE" > /lib/systemd/system/startx.service
+		systemctl enable startx.service
+		echo " done."
+		exit 0
+
+	else
+
+		if [ -f /lib/systemd/system/startx.service ]; then
+
+			echo -n "Disabling Xserver start by systemd...'"
+			systemctl disable startx.service
+			rm /lib/systemd/system/startx.service
+			echo " done."
+
+		fi
+
+		exit 0
+
+	fi
+
+fi
+
+
+# Command to run when Xserver is started as a given user (uses ~/.xinitrc).
+if [[ "${1}" == "autoxrun" ]]; then
+
+	if [ "$#" -ne 3 ]; then
+
+		usage
+
+	else
+
+		TARGETUSER="${2}"
+		TARGETCMD="${3}"
+
+		if [ -d /home/$TARGETUSER ]; then
+
+			if [ -f /home/$TARGETUSER/.xinitrc ]; then
+				echo "Backing up existing .xinitrc to /home/$TARGETUSER/.xinitrc.bak."
+				mv /home/$TARGETUSER/.xinitrc /home/$TARGETUSER/.xinitrc.bak
+			fi
+
+			echo -n "Writing /home/$TARGETUSER/.xinitrc..."
+			echo -e "export DISPLAY=:0.0\nsetterm -blank 0 -powersave off -powerdown 0\nxset dpms 0 0 0 s off\n$TARGETCMD || /usr/bin/xterm" > /home/$TARGETUSER/.xinitrc
+			chown $TARGETUSER:$TARGETUSER /home/$TARGETUSER/.xinitrc
+			echo " done."
+			exit 0
+
+		else
+
+			echo "No home directory found for user '$TARGETUSER'."
+			exit 1
+
+		fi
+
+	fi
+
+fi
+
+
+# Silent GRUB prints nothing to the screen.
+if [[ "${1}" == "grubquiet" ]]; then
+
+	if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
+
+		echo -n "Enabling '${1}'..."
+		echo -e "fs1:grubq\nfs0:grubq" > /boot/boot.nsh
+
+	else
+
+		echo -n "Disabling '${1}'..."
+		echo -e "fs1:grub\nfs0:grub" > /boot/boot.nsh
+
+	fi
+
+	echo " done."
+	exit 0
+
+fi
+
+
+# Sets the system hostname.
+if [[ "${1}" == "hostname" ]]; then
+
+	echo -n "Setting hostname to '${2}'..."
+	sed -i "s/127.0.1.1.*/127.0.1.1\t${2}/g" /etc/hosts
+	echo "${2}" > /etc/hostname
+	hostname "${2}"
+	echo " done."
+	exit 0
+
+fi
+
+
+# Allows password-based authentication for root over SSH.
+if [[ "${1}" == "rootssh" ]]; then
+
+	PRSMSG="# Allows password-based authentication for root over SSH."
+	PRSSET="PermitRootLogin yes"
+	PRSCFG="/etc/ssh/sshd_config"
+
+	if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
+
+		echo -n "Enabling '${1}'..."
+
+		if [[ $(grep -c "$PRSSET" "$PRSCFG") -gt 0 ]]; then
+			echo " already enabled."
+			exit 1
+		fi
+
+		echo >> $PRSCFG
+		echo $PRSMSG >> $PRSCFG
+		echo $PRSSET >> $PRSCFG
+
+	else
+
+		echo -n "Disabling '${1}'..."
+		sed -i "/$PRSMSG/d" $PRSCFG
+		sed -i "/$PRSSET/d" $PRSCFG
+		sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' $PRSCFG
+
+	fi
+
+	systemctl restart sshd.service
+
+	echo " done."
+	exit 0
+
+fi
+
+
+# Sets the splash screen theme and rebuilds initrd.
+if [[ "${1}" == "splash" ]]; then
+
+	GRUBCFG=$(cat /boot/grub.cfg | grep vmlinuz)
+	PLYMOUTHTHEMESLOC="/usr/share/plymouth/themes"
+
+	if [[ "${2}" != "" ]]; then
+
+		# Check we've been given a valid theme name.
+		if [ ! -d "$PLYMOUTHTHEMESLOC"/"${2}" ]; then
+
+			echo "Theme '${2}' not found in $PLYMOUTHTHEMESLOC. Available themes are:"
+			echo
+
+			for d in /usr/share/plymouth/themes/*/; do
+				echo "$d" | awk -F'/' {'print $(NF-1)'}
+			done
+
+			exit 1
+
+		else
+
+			PLYMOUTHCURRENTTHEME=$(update-alternatives --get-selections | grep default.plymouth)
+
+			# Make sure we have the 'splash' option in GRUB config.
+			[[ "$GRUBCFG" =~ "splash" ]] || sed -i "s,$GRUBCFG,$GRUBCFG splash,g" /boot/grub.cfg
+
+			if [[ "$PLYMOUTHCURRENTTHEME" =~ "${2}.plymouth" ]]; then
+
+				echo "Theme '${2}' is already selected."
+				exit 1
+
+			else
+
+				echo -n "Configuring splash theme '${2}'..."
+				update-alternatives --remove-all default.plymouth 2>/dev/null
+				update-alternatives --remove-all text.plymouth 2>/dev/null
+				update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/"${2}"/"${2}".plymouth 100 &>/dev/null
+
+				echo -n " updating initramfs..."
+				update-initramfs -u &>/dev/null
+
+			fi
+
+		fi
+
+	else
+
+		echo -n "Disabling splash screens..."
+		[[ "$GRUBCFG" =~ "splash" ]] && sed -i "s, splash,,g" /boot/grub.cfg
+
+	fi
+
+	echo " done."
+	exit 0
+
+fi
+
+
+# Sets OpenFrame system defaults for Xserver.
+if [[ "${1}" == "xdefaults" ]]; then
+
+	echo -n "Configuring Xserver defaults..."
+	echo -e "*xterm*geometry: 132x36+0+0\n*xterm*background: black\n*xterm*foreground: lightgray" > /etc/X11/app-defaults/XTerm
+	echo -e "allowed_users = anybody\nneeds_root_rights = yes" > /etc/X11/Xwrapper.config
+	echo " done."
+	exit 0
+
+fi
+
+
+echo "No '${1}' setting found."
+exit 1

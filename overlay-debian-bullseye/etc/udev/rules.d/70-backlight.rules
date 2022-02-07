@@ -1,0 +1,1 @@
+KERNEL=="openframe-bl", RUN+="/bin/chmod 666 /sys/class/backlight/openframe-bl/bl_power /sys/class/backlight/openframe-bl/brightness"

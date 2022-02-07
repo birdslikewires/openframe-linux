@@ -57,23 +57,23 @@ fi
 if [[ ! -d "$THISSCRIPTPATH/../$GITREPOKER" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You're going to need $GITREPOURL/$GITREPOKER as well. Cloning..."
 	git clone "$GITREPOURL/$GITREPOKER" "$THISSCRIPTPATH/../$GITREPOKER"
-else
-	[[ "$USER" != "$GITKERNELOWNER" ]] && KSTSH=$(sudo -u $GITKERNELOWNER -H git -C "$THISSCRIPTPATH/../$GITREPOKER" stash) || KSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" stash)
-	[[ "$USER" != "$GITKERNELOWNER" ]] && KPULL=$(sudo -u $GITKERNELOWNER -H git -C "$THISSCRIPTPATH/../$GITREPOKER" pull) || KPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" pull)
-	if [[ "$KPULL" == "Already up to date." ]]; then
-		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' is up to date."
-	elif [[ "$KPULL" =~ "error: " ]] || [[ "$KPULL" =~ "fatal: " ]]; then
-		echo
-		echo "$KPULL"
-		echo
-		exit 1
-	else
-		GITKERNELUPDATED=1
-		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' requires update..."
-		echo
-		echo "$KPULL"
-		echo
-	fi
+# else
+# 	[[ "$USER" != "$GITKERNELOWNER" ]] && KSTSH=$(sudo -u $GITKERNELOWNER -H git -C "$THISSCRIPTPATH/../$GITREPOKER" stash) || KSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" stash)
+# 	[[ "$USER" != "$GITKERNELOWNER" ]] && KPULL=$(sudo -u $GITKERNELOWNER -H git -C "$THISSCRIPTPATH/../$GITREPOKER" pull) || KPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" pull)
+# 	if [[ "$KPULL" == "Already up to date." ]]; then
+# 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' is up to date."
+# 	elif [[ "$KPULL" =~ "error: " ]] || [[ "$KPULL" =~ "fatal: " ]]; then
+# 		echo
+# 		echo "$KPULL"
+# 		echo
+# 		exit 1
+# 	else
+# 		GITKERNELUPDATED=1
+# 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' requires update..."
+# 		echo
+# 		echo "$KPULL"
+# 		echo
+# 	fi
 fi
 
 # Check whether I've been removed from my repo or not. Die if I have.

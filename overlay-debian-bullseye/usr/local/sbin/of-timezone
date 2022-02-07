@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+## of-timezone v1.09 (6th May 2020) by Andrew Davison
+##  Checks or sets the timezone, returning the timezone once complete, with automatic update option.
+
+
+usage() {
+	echo "Usage: $0 [action] [options]"
+	echo
+	echo "  check              :  Prints the current time zone to stdout."
+	echo "  set <timezone>     :  Sets the system time zone to given value."
+	echo "  update [platform]  :  Sets the system time zone automatically."
+	echo
+	exit 1
+}
+
+if [[ "$#" -gt 2 ]] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
+	usage
+fi
+
+
+## Change this to use an alternative time zone server.
+SERVER="openbeak.net"
+SERVICE="/tz/lookup.php"
+##
+
+
+THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
+
+if [[ "$1" == "check" ]] || [[ "$#" -eq 0 ]]; then
+
+	timedatectl status | grep "Time zone" | awk -F\  {'print $3'}
+	exit 0
+
+elif [[ "$1" == "set" ]]; then
+
+	if [[ "$2" != "" ]]; then
+
+		/usr/bin/timedatectl set-timezone "$2"
+
+		RESULT=$(timedatectl status | grep "Time zone" | awk -F\  {'print $3'})
+
+		if [[ "$RESULT" == "$1" ]]; then
+
+			echo $RESULT
+			exit 0
+
+		else
+
+			echo "Failed to set the given time zone."
+			exit 1
+
+		fi
+
+	else
+
+		echo "No time zone provided."
+		exit 1
+
+	fi
+
+elif [[ "$1" == "update" ]]; then
+
+	[ -f /etc/lsb-release ] && source /etc/lsb-release
+
+	[[ "${2}" != "" ]] && PLATFORM="${2}" || PLATFORM="of-timezone"
+
+	if [ -e /tmp/openframe.uid ] && [ -e /tmp/openframe.net ]; then
+		SYS_TYP="$(cat /tmp/openframe.uid)/$(cat /tmp/openframe.net)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/$(uname -r)/$PLATFORM"
+	elif [ -f /etc/lsb-release ]; then
+		SYS_TYP="///$(hostname)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/$(uname -r)/$PLATFORM"
+	else
+		SYS_TYP="///$(hostname)////$(uname -r)/$PLATFORM"
+	fi
+
+	TIMEZONE=$(timeout 10 curl -sA "$SYS_TYP" -m 2 "https://$SERVER/$SERVICE")
+	TIMEZONEVALID=$(echo $TIMEZONE | grep -c '/')
+
+	if [[ "$TIMEZONE" != "" ]] && [[ "${#TIMEZONE}" -ge 6 ]] && [[ "${#TIMEZONE}" -le 32 ]] && [[ "$TIMEZONEVALID" -le 2 ]]; then
+
+		/usr/bin/timedatectl set-timezone "$TIMEZONE"
+		RESULT=$(timedatectl status | grep "Time zone" | awk -F\  {'print $3'})
+
+		if [[ "$RESULT" == "$1" ]]; then
+
+			echo $RESULT
+			exit 0
+
+		else
+
+			echo "Failed to set the given time zone."
+			exit 1
+
+		fi
+
+	else
+
+		echo "Could not understand the server's response."
+		exit 1
+
+	fi
+
+fi
+
+exit 0

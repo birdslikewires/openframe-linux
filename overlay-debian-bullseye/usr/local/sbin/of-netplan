@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+
+## of-netplan v1.10 (7th May 2020)
+##  Manages netplan configuration and MAC addresses on OpenFrame devices.
+
+##  If there's a /boot/network.yaml file, we copy and use that.
+##  Then we copy the MAC from WLAN to LAN, but with the local bit set.
+##  If no WLAN interface is available, we generate a MAC for the LAN interface.
+##  
+##  Finally, we put the modified file back into /boot.
+##
+##  We're also responsible for /etc/issue 
+
+if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo $0'."
+	exit 1
+fi
+
+source /etc/lsb-release
+
+LAN="eth0"
+WLAN="wlan0"
+WLANTIMEOUT=15
+CONFIGTIMEOUT=10
+NETPLANCONFIG="network.yaml"
+
+# Remove the network information file if present.
+[ -e /tmp/openframe.net ] && rm /tmp/openframe.net
+
+# See if there's a network.yaml config file on /boot.
+COUNT=0
+while [ $COUNT -lt $CONFIGTIMEOUT -a ! -e /boot/$NETPLANCONFIG ]; do
+	COUNT=$((COUNT+1))
+ 	sleep 1
+done
+
+# If we found one, copy it into the system.
+if [ $COUNT -lt $CONFIGTIMEOUT ]; then
+	cp /boot/$NETPLANCONFIG /etc/netplan/$NETPLANCONFIG
+	chmod 644 /etc/netplan/$NETPLANCONFIG
+fi
+
+# Configure what's shown on the text login prompt.
+if [ $(grep -c 'YOURWIFINAME:' /boot/$NETPLANCONFIG) -gt 0 ]; then
+	echo "$DISTRIB_DESCRIPTION \n \l eth0:\4{eth0}" > /etc/issue
+else
+	echo "$DISTRIB_DESCRIPTION \n \l wlan0:\4{wlan0} eth0:\4{eth0}" > /etc/issue
+fi
+echo >> /etc/issue
+
+# Try to read the LAN MAC from our new file.
+LANMAC=`yq r /etc/netplan/$NETPLANCONFIG network.ethernets.$LAN.macaddress`
+
+if [[ "$LANMAC" == "null" ]] || [[ "$LANMAC" == "" ]]; then
+
+	# Try to discover the WLAN interface MAC address.
+	WLANMAC=""
+	WLANCHECKCOUNT=0
+	while [[ "$WLANMAC" == "" ]]; do
+		WLANMAC=`ip link show $WLAN 2>&1`
+		if [[ "$WLANMAC" =~ "does not exist" ]]; then
+			WLANMAC=""
+			[ $WLANCHECKCOUNT -lt $WLANTIMEOUT ] && ((WLANCHECKCOUNT++))
+			[ $WLANCHECKCOUNT -eq $WLANTIMEOUT ] && break
+		else
+			break
+		fi
+		sleep 1
+	done
+
+	if [[ $WLANMAC != "" ]]; then
+
+		# Fake the MAC if there's none present and no WLAN to mirror.
+		WLANMAC=`echo "$WLANMAC" | grep "link/ether" | cut -d " " -f6`
+		SOMEOCTETS=`echo $WLANMAC | cut -b 4-`
+		LANMAC="02:$SOMEOCTETS"
+		echo "Found $WLANMAC as $WLAN hardware address."
+		echo "Applying $LANMAC to $LAN (local bit set)."
+
+	else
+
+		# Use the WLAN MAC address with the local bit set.
+		LANMAC="02:`cat /proc/interrupts | md5sum | sed -r "s/(.{2})/\1:/g; s/^(.{14}).*/\1/"`"
+		echo "Unable to determine $WLAN hardware address after $WLANCHECKCOUNT seconds."
+		echo "Applying $LANMAC to $LAN (generated)."
+
+	fi
+
+	# Write the new LAN MAC to the config file.
+	yq w -i /etc/netplan/$NETPLANCONFIG network.ethernets.$LAN.macaddress $LANMAC
+
+else
+
+	echo "Hardware address $LANMAC for $LAN is present."
+
+fi
+
+# Copy the updated config file back to /boot for next time.
+cp /etc/netplan/$NETPLANCONFIG /boot/$NETPLANCONFIG
+
+# Go live with the changes.
+netplan apply
+
+# Create /tmp/openframe.net as a quick network information reference.
+MACW=$(ip link | sed -n '/wlan0/{n;p;}' | awk -F\  {'print $2'})
+MACE=$(ip link | sed -n '/eth0/{n;p;}' | awk -F\  {'print $2'})
+[[ "$MACW" == "" ]] && MACW="00:00:00:00:00:00"
+[[ "$MACE" == "" ]] && MACW="00:00:00:00:00:00"
+echo "$MACW"/"$MACE"/"$(hostname)" > /tmp/openframe.net
+
+exit 0

@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+
+## of-backlight v1.11 (29th May 2020) by Andrew Davison
+##  Automatic backlight control with fading for OpenFrame.
+
+usage() {
+	echo "Usage: $0 [0-100] | [999]"
+	echo
+	echo "  Enter a backlight value in the range 0-100 or 999 for automatic backlight."
+	echo "  Running with no arguments will return the current backlight value."
+	echo
+	exit 1
+}
+
+
+## We're expecting an integer, usage and die if it's not.
+RE='^[0-9]+$'
+if [[ ! "${1}" =~ $RE ]] && [ $# -gt 0 ]; then
+	usage
+fi
+
+
+## Feed this ($1) Preferred Backlight ($2) Debug
+setbl() {
+	
+	getbl
+	PREFBL="$1"
+
+	if [ $PREFBL -gt $CRNTBL ]; then
+		STEP="1"
+		STEPMSG="Brightening backlight..."
+	elif [ $PREFBL -lt $CRNTBL ]; then
+		STEP="-1"
+		STEPMSG="Dimming backlight..."
+	else
+		STEP="0"
+		STEPMSG="No action: backlight already at this value."
+	fi
+
+	if [ "$2" = "debug" ]; then
+		echo "Using interface: $BLIF"
+		echo "Current backlight level: $CRNTBL"
+		echo "Set backlight level to:  $1"
+		echo "$STEPMSG"
+	fi
+
+	if [ $STEP -eq 0 ]; then
+		return
+	fi
+
+	for b in `seq $CRNTBL $STEP $PREFBL`;
+	do
+
+		b=$(($b/3))
+		
+		[ "$2" != "debug" ] || echo $b
+
+		echo "$b" > $BLIF 2>/dev/null
+		$SLEEP
+
+	done
+	
+}
+
+getbl() {
+	
+	CRNTBL=`cat $BLIF`
+	CRNTBL=$(($CRNTBL*3))
+
+}
+
+
+## Check whether we can access the backlight.
+if [ -e /sys/class/backlight/openframe-bl/brightness ]; then
+	BLIF="/sys/class/backlight/openframe-bl/brightness"
+	SLEEP="sleep 0.001"
+	if [ ! -w /sys/class/backlight/openframe-bl/brightness ]; then
+		echo "Permissions do not currently allow you to set the backlight level."
+		echo "You can allow this by creating a udev rule."
+	fi
+else
+	echo "No known backlight interface found."
+	exit 1
+fi
+
+
+## Kill any other running instances first.
+if [ "$1" != "888" ]; then
+	BLPIDS=`ps aux | grep -v grep | grep -v $$ | grep $0 | awk -F\  '{print $2}'`
+	kill `echo $BLPIDS` 2>/dev/null
+fi
+
+
+## Grab the current backlight value.
+getbl
+
+if [ ! "$1" ]; then
+	
+	echo $CRNTBL
+
+else
+	
+	## If we're in automatic mode, run a monitoring loop.
+	if [ "$1" -eq "999" ]; then
+		
+		getbl
+		LASTBL="$CRNTBL"
+		
+		while true
+		do
+
+			TIME=`date +%H`
+			LIGHT=`readlightsensor`
+			
+			# Here we deal with 'night and day' variations.
+			if [ "$TIME" -ge 22 ] || [ "$TIME" -lt 6 ]; then
+				MODE="Night"
+				# Night hysteresis values, so that less change is required to dim display, more is required to light it.
+				HYSUP="-4"
+				HYSDOWN="2"
+			else
+				MODE="Day"
+				# Normal hysteresis values, so we don't 'bounce' the backlight with minor light changes.
+				HYSUP="-3"
+				HYSDOWN="3"
+				# Artificially increase the read light level a bit.
+				if [ ! "$LIGHT" -le "5" ]; then
+					LIGHT=$(($LIGHT+10))
+				fi
+			fi
+			
+			PREFBL=$(($LIGHT))			
+			DELTABL=$(($LASTBL-$PREFBL))
+			
+			if [ "$2" = "debug" 2>/dev/null ]; then
+				echo "Current Mode is:       $MODE"
+				echo "Light sensor reads:    $LIGHT"
+				echo "Backlight % should be: $PREFBL"
+				echo "Previous backlight % : $LASTBL"
+				echo "Backlight delta %:     $DELTABL"
+				echo
+			fi
+			
+			if [ "$DELTABL" -le $HYSUP ] || [ "$DELTABL" -gt $HYSDOWN ]; then
+				if [ "$2" = "debug" 2>/dev/null ]; then
+					echo "Altering to: $PREFBL"
+					echo
+					setbl $PREFBL debug
+				else
+					setbl $PREFBL
+				fi
+				
+			fi
+						
+			LASTBL="$PREFBL"
+			sleep 2
+
+		done
+	
+	## If we're given an '888', write out the current backlight value.
+	elif [ "$1" -eq "888" ]; then
+
+		echo `cat /sys/class/backlight/openframe-bl/brightness` > /tmp/backlight.prv
+		
+	else
+
+		setbl $1 $2
+
+	fi
+
+fi
+
+exit 0
