@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.29 (28th October 2021)
+## of-builder.sh v1.30 (7th February 2022)
 ##  Builds kernels, modules and images.
 
-if [ $# -lt 1 ]; then
-	echo "Usage: $0 <kernelbranch> <distro> <codename> <url>"
+if [ $# -lt 5 ]; then
+	echo "Usage: $0 <distro> <codename> <apt> <kernel> <output>"
+	echo
+	echo "  distro   : Distribution name, eg. \"debian\" or \"ubuntu\"."
+	echo "  codename : Release codename, eg. \"bullseye\" or \"bionic\"."
+	echo "  apt      : An HTTP(S) URL link to the apt source for your chosen distribution."
+	echo "  kernel   : An HTTPS URL link to the kernel source in .tar.xz format."
+	echo "  output   : Local path for output."
+	echo
 	exit 1
 fi
 
 ## Configurable Bits
 
 OURKERNVER="op"
-PATHTODOWNLOADAREA="/home/andy/Public/download_blw"
 GITREPOURL="https://github.com/birdslikewires"
 GITREPOKER="openframe-kernel"
 GITREPOLIN="openframe-linux"
@@ -21,7 +27,11 @@ COREDIVIDER=1
 
 THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
 STARTTIME=`date +'%Y-%m-%d-%H%M'`
-KBRANCH="$1"
+IDISTNAME="$1"
+ICODENAME="$2"
+IDOWNLURL="$3"
+KBRANCH="$4"
+OUTPUTPATH="$5"
 GITKERNELOWNER=$(stat -c '%U' $THISSCRIPTPATH/../$GITREPOKER)
 GITLINUXOOWNER=$(stat -c '%U' $THISSCRIPTPATH/../$GITREPOLIN)
 GITKERNELUPDATED=0
@@ -95,7 +105,7 @@ KLATESTMIDVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $2'}
 KLATESTMINVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $3'}`
 KOURNAME="$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER$OURKERNVER"
 KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
-KDLPATH="$PATHTODOWNLOADAREA/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
+KDLPATH="$OUTPUTPATH/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $KDLPATH ] && [ $GITKERNELUPDATED -eq 0 ] && KBUILDIT=0 || KBUILDIT=1
 
 if [[ "$KBUILDIT" == 0 ]]; then
@@ -107,10 +117,7 @@ if [[ "$KBUILDIT" == 0 ]]; then
 	fi
 fi
 
-IDISTNAME="$2"
-ICODENAME="$3"
-IDOWNLURL="$4"
-IDLPATH="$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
+IDLPATH="$OUTPUTPATH/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $IDLPATH ] && [ $GITLINUXOUPDATED -eq 0 ] && IBUILDIT=0 || IBUILDIT=1
 
 if [[ "$IBUILDIT" == 0 ]]; then
@@ -126,8 +133,8 @@ fi
 
 cleanup() {
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Cleaning up..."
-	chown -R www-data:www-data $PATHTODOWNLOADAREA/openframe/images $PATHTODOWNLOADAREA/openframe/kernel $PATHTODOWNLOADAREA/logs
-	chmod -R 774 $PATHTODOWNLOADAREA/openframe/images $PATHTODOWNLOADAREA/openframe/kernel $PATHTODOWNLOADAREA/logs
+	chown -R www-data:www-data $OUTPUTPATH/openframe/images $OUTPUTPATH/openframe/kernel $OUTPUTPATH/logs
+	chmod -R 774 $OUTPUTPATH/openframe/images $OUTPUTPATH/openframe/kernel $OUTPUTPATH/logs
 	rm -rf ./$KOURBUILD*
 	rm -rf ./*.deb
 	rm -rf ./*.img*
@@ -360,9 +367,9 @@ else
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Moving to webserver..."
 	mkdir -p $IDLPATH
 	mv ./*.img* $IDLPATH
-	[ -L "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
-	[ -L "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
-	ln -s "$IDLPATH" "$PATHTODOWNLOADAREA/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	[ -L "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	[ -L "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	ln -s "$IDLPATH" "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
 	echo " done."
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Image build completed."
