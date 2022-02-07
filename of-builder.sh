@@ -133,8 +133,8 @@ fi
 
 cleanup() {
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Cleaning up..."
-	chown -R www-data:www-data $OUTPUTPATH/openframe/images $OUTPUTPATH/openframe/kernel $OUTPUTPATH/logs
-	chmod -R 774 $OUTPUTPATH/openframe/images $OUTPUTPATH/openframe/kernel $OUTPUTPATH/logs
+	#chown -R www-data:www-data $OUTPUTPATH/openframe/images $OUTPUTPATH/openframe/kernel $OUTPUTPATH/logs
+	#chmod -R 774 $OUTPUTPATH/openframe/images $OUTPUTPATH/openframe/kernel $OUTPUTPATH/logs
 	rm -rf ./$KOURBUILD*
 	rm -rf ./*.deb
 	rm -rf ./*.img*
