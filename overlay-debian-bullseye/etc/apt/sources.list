@@ -7,5 +7,5 @@ deb-src DBSERVER CODENAME-updates main contrib non-free
 deb DBSERVER CODENAME-backports main contrib non-free
 deb-src DBSERVER CODENAME-backports main contrib non-free
 
-deb DBSERVER CODENAME-security bullseye-security main contrib non-free
-deb-src DBSERVER CODENAME-security bullseye-security main contrib non-free
+deb DBSERVER-security CODENAME-security bullseye-security main contrib non-free
+deb-src DBSERVER-security CODENAME-security bullseye-security main contrib non-free
