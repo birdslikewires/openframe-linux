@@ -90,13 +90,9 @@ for f in `find / -iname *bashrc 2>/dev/null`; do
 done
 echo
 
-# Stop the reporting and CLI spam.
-echo "Setting MOTD preferences..."
-sed -i 's/^ENABLED=.*/ENABLED=0/' /etc/default/motd-news
-
 # Plain old-fashioned deletions.
 echo "Removing unnecessary components..."
-rm -v /etc/update-motd.d/*
+#rm -v /etc/update-motd.d/*
 echo
 
 # We use this for simple command line control of yaml files, eg. the netplan config file.
@@ -161,35 +157,35 @@ echo "Installing kernel $KERNVER into ${VERSION_CODENAME^} chroot..."
 dpkg -i /mnt/linux-image*.deb
 echo
 
-KERNELURL="$DLSERVER/openframe/kernel/$KERNMAJVER.$KERNMIDVER/$KERNVER"
-echo "Checking $KERNELURL for companion modules..."
-if curl -k -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
-	echo
-	echo "Found additional modules on $DLSERVER for $KERNVER. Downloading and installing."
-	echo
-	curl -k -o /modules-$KERNVER.tgz "$KERNELURL/modules-$KERNVER.tgz"
-	if [ -f /modules-$KERNVER.tgz ]; then
-		tar zxvf /modules-$KERNVER.tgz -C /
-		rm /modules-$KERNVER.tgz
-	fi
-else
-	echo
-	echo "No additional modules found."
-	echo
-fi
+# KERNELURL="$DLSERVER/openframe/kernel/$KERNMAJVER.$KERNMIDVER/$KERNVER"
+# echo "Checking $KERNELURL for companion modules..."
+# if curl -k -f "$KERNELURL/modules-$KERNVER.tgz" >/dev/null 2>&1; then
+# 	echo
+# 	echo "Found additional modules on $DLSERVER for $KERNVER. Downloading and installing."
+# 	echo
+# 	curl -k -o /modules-$KERNVER.tgz "$KERNELURL/modules-$KERNVER.tgz"
+# 	if [ -f /modules-$KERNVER.tgz ]; then
+# 		tar zxvf /modules-$KERNVER.tgz -C /
+# 		rm /modules-$KERNVER.tgz
+# 	fi
+# else
+# 	echo
+# 	echo "No additional modules found."
+# 	echo
+# fi
 
-depmod -a $KERNVER
-echo
+# depmod -a $KERNVER
+# echo
 
-if [ `grep -c initrd /boot/grub.cfg` -gt 0 ]; then
-	echo -n "Making initrd..."
-	# We were experimenting with faster initramfs booting, but we need udev, so it was a little pointless.
-	#sed -i 's/MODULES\=most/MODULES\=dep/g' /etc/initramfs-tools/initramfs.conf
-	#sed -i 's/COMPRESS\=gzip/COMPRESS\=xz/g' /etc/initramfs-tools/initramfs.conf
-	mkinitramfs -o /boot/initrd.img-$KERNVER $KERNVER
-	sleep 2
-	echo " done!"
-fi
+# if [ `grep -c initrd /boot/grub.cfg` -gt 0 ]; then
+# 	echo -n "Making initrd..."
+# 	# We were experimenting with faster initramfs booting, but we need udev, so it was a little pointless.
+# 	#sed -i 's/MODULES\=most/MODULES\=dep/g' /etc/initramfs-tools/initramfs.conf
+# 	#sed -i 's/COMPRESS\=gzip/COMPRESS\=xz/g' /etc/initramfs-tools/initramfs.conf
+# 	mkinitramfs -o /boot/initrd.img-$KERNVER $KERNVER
+# 	sleep 2
+# 	echo " done!"
+# fi
 
 
 ### Wind Down
