@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 99-of-clean-bionic v1.23 (3rd September 2018)
+# 99-of-clean.sh v1.24 (10th February 2022)
 #  Used to clean an OpenFrame.
 
 OPTIONS=""
@@ -54,6 +54,8 @@ rm -rvf /opt/squeezeplay/bin/gmon.out
 
 echo
 echo "Cleaning /etc..."
+rm -rvf /etc/resolv.conf
+ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 rm -rvf /etc/sqpbeta
 
 echo

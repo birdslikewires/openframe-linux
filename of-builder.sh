@@ -133,8 +133,6 @@ fi
 
 cleanup() {
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Cleaning up..."
-	#chown -R www-data:www-data $OUTPUTPATH/openframe/images $OUTPUTPATH/openframe/kernel $OUTPUTPATH/logs
-	#chmod -R 774 $OUTPUTPATH/openframe/images $OUTPUTPATH/openframe/kernel $OUTPUTPATH/logs
 	rm -rf ./$KOURBUILD*
 	rm -rf ./*.deb
 	rm -rf ./*.img*
@@ -196,14 +194,6 @@ else
 		sed -i "s/EXTRAVERSION =/EXTRAVERSION = $OURKERNVER/g" "$KOURBUILD/Makefile"
 	fi
 	echo " done."
-
-## This is unfortunately no good because overriding the architecture with '-d' still results in the packages being created
-## with the wrong filename, due to it believing a 64-bit build was in progress.
-#	if [ $KLATESTMAJVER -eq 5 ]; then
-#		echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying -d flag to dpkg-buildpackage to work around cross-compiling misidentification issue..."
-#		sed -i "s/dpkg-buildpackage/dpkg-buildpackage -d/g" "$KOURBUILD/scripts/package/Makefile"
-#		echo " done."
-#	fi
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Updating config file with new defaults..."
 	KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`

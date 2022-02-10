@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep v1.08 (7th February 2022)
+# 00-of-prep.sh v1.08 (10th February 2022)
 #  Set up the basics.
 
 #set -x
