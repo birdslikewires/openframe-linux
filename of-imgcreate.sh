@@ -535,7 +535,7 @@ if [[ "$INSTALL" != "" ]]; then
       sed -i "s/CODENAME/$INSTALL/" $BLDLOC/etc/apt/sources.list
 
       # Make sure that the console font isn't changed. I'm not keen on that.
-      sed -i "s/FONTFACE=\"Fixed\"/FONTFACE=\"VGA\"/" $BLDLOC/etc/default/console-setup
+#      sed -i "s/FONTFACE=\"Fixed\"/FONTFACE=\"VGA\"/" $BLDLOC/etc/default/console-setup
 
       mount --bind /dev $BLDLOC/dev
       mount --bind /dev/pts $BLDLOC/dev/pts
