@@ -1,9 +1,0 @@
-[Unit]
-Description=OpenFrame heartbeat
-
-[Service]
-ExecStart=/usr/local/sbin/of-heartbeat
-StandardOutput=syslog
-
-[Install]
-WantedBy=multi-user.target

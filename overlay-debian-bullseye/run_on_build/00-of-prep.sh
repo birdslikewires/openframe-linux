@@ -66,6 +66,7 @@ if [ "$OPENFRAMEUSER" != "root" ]; then
 	addgroup admin
 	adduser $OPENFRAMEUSER admin
 	adduser $OPENFRAMEUSER audio
+	adduser $OPENFRAMEUSER sudo
 	adduser $OPENFRAMEUSER tty
 	adduser $OPENFRAMEUSER users
 	adduser $OPENFRAMEUSER video
@@ -104,8 +105,8 @@ echo "Ensure correct permissions..."
 chown root:root /home
 [[ "$OPENFRAMEUSER" != "root" ]] && chown -R $OPENFRAMEUSER:$OPENFRAMEUSER $HOMEPATH $HOMEPATH/.*
 chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo /usr/sbin/ntpdate
-chown -R root:root /etc/polkit-1/localauthority/20-org.d
-chmod 600 /etc/polkit-1/localauthority/20-org.d/*
+#chown -R root:root /etc/polkit-1/localauthority/20-org.d
+#chmod 600 /etc/polkit-1/localauthority/20-org.d/*
 chown -R root:root /etc/sudoers.d
 chmod -R 440 /etc/sudoers.d/*
 chown root:root /usr/local/bin/*
