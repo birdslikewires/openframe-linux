@@ -38,7 +38,7 @@ echo
 apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
 
 # Install usbmount from GitHub
-wget -P /tmp https://github.com/birdslikewires/usbmount/releases/download/v0.0.25/usbmount_0.0.25_all.deb
+wget --no-check-certificate -P /tmp https://github.com/birdslikewires/usbmount/releases/download/v0.0.25/usbmount_0.0.25_all.deb
 dpkg -i /tmp/usbmount_0.0.25_all.deb
 
 
