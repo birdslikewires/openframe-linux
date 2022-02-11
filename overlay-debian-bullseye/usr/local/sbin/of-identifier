@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.28 (7th May 2020)
+## of-identifier v2.29 (11th February 2022)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -8,7 +8,7 @@ if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
 	exit 1
 fi
 
-source /etc/lsb-release
+source /etc/os-release
 
 OPENFRAME=1
 KERNVER=$(uname -r)
@@ -44,11 +44,11 @@ removestac9202pinpatch() {
 }
 
 outputsysteminformation() {
-	DESC=$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')
+	DESC=$(echo ${ID^} ${VERSION_CODENAME^} | awk -F' ' '{print $1 "/" $2}')
 	MMRY=$(free -b | grep 'Mem:' | tr -s ' ' | cut -c6- | sed 's/ /\//g')
 	DRVE=$(df -B 1 | grep '/$' | sed 's/\/dev\///g' | tr -s ' ' | rev | cut -c3- | rev | sed 's/ /\//g')
 	ICPU=$(grep -Em1 "^model name.*Intel" /proc/cpuinfo | awk -F\  '{print $7}')
-	echo -n "$DESC"/"${DISTRIB_CODENAME,,}"/"$(uname -r)"/"$MMRY"/"$DRVE" > /tmp/openframe.nfo
+	echo -n "$DESC"/"${VERSION_CODENAME,,}"/"$(uname -r)"/"$MMRY"/"$DRVE" > /tmp/openframe.nfo
 	echo -n "/$ICPU" >> /tmp/openframe.nfo || echo >> /tmp/openframe.nfo
 	echo "/openframe" >> /tmp/openframe.nfo
 }
@@ -126,7 +126,7 @@ fi
 if [ -f /etc/firstboot ]; then
 
 	# Apply a new UUID to the root partition and rename boot and root to avoid conflicts.
-	CODEPRE=${DISTRIB_CODENAME: 0:3}
+	CODEPRE=${VERSION_CODENAME: 0:3}
 	BOOTLOC=`/sbin/blkid | grep ${CODEPRE^^}-BOOT | awk -F\: {'print $1'}`
 	ROOTLOC=`/sbin/blkid | grep ${CODEPRE^^}-ROOT | awk -F\: {'print $1'}`
 	NEWUUID=`/usr/bin/uuid`

@@ -178,16 +178,6 @@ echo
 # depmod -a $KERNVER
 # echo
 
-# if [ `grep -c initrd /boot/grub.cfg` -gt 0 ]; then
-# 	echo -n "Making initrd..."
-# 	# We were experimenting with faster initramfs booting, but we need udev, so it was a little pointless.
-# 	#sed -i 's/MODULES\=most/MODULES\=dep/g' /etc/initramfs-tools/initramfs.conf
-# 	#sed -i 's/COMPRESS\=gzip/COMPRESS\=xz/g' /etc/initramfs-tools/initramfs.conf
-# 	mkinitramfs -o /boot/initrd.img-$KERNVER $KERNVER
-# 	sleep 2
-# 	echo " done!"
-# fi
-
 
 ### Wind Down
 

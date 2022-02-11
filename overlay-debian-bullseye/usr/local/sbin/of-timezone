@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-timezone v1.09 (6th May 2020) by Andrew Davison
+## of-timezone v1.10 (11th February 2020) by Andrew Davison
 ##  Checks or sets the timezone, returning the timezone once complete, with automatic update option.
 
 
@@ -24,6 +24,7 @@ SERVER="openbeak.net"
 SERVICE="/tz/lookup.php"
 ##
 
+source /etc/os-release
 
 THISSCRIPTPATH="$(cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P)"
 
@@ -66,9 +67,9 @@ elif [[ "$1" == "update" ]]; then
 	[[ "${2}" != "" ]] && PLATFORM="${2}" || PLATFORM="of-timezone"
 
 	if [ -e /tmp/openframe.uid ] && [ -e /tmp/openframe.net ]; then
-		SYS_TYP="$(cat /tmp/openframe.uid)/$(cat /tmp/openframe.net)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/$(uname -r)/$PLATFORM"
+		SYS_TYP="$(cat /tmp/openframe.uid)/$(cat /tmp/openframe.net)/$(echo ${ID,,} ${VERSION_CODENAME,,} | awk -F' ' '{print $1 "/" $2}')/${VERSION_CODENAME,,}/$(uname -r)/$PLATFORM"
 	elif [ -f /etc/lsb-release ]; then
-		SYS_TYP="///$(hostname)/$(echo ${DISTRIB_DESCRIPTION,,} | awk -F' ' '{print $1 "/" $2}')/${DISTRIB_CODENAME,,}/$(uname -r)/$PLATFORM"
+		SYS_TYP="///$(hostname)/$(echo ${ID,,} ${VERSION_CODENAME,,} | awk -F' ' '{print $1 "/" $2}')/${VERSION_CODENAME,,}/$(uname -r)/$PLATFORM"
 	else
 		SYS_TYP="///$(hostname)////$(uname -r)/$PLATFORM"
 	fi
