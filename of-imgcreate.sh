@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofimgcreate v1.46 (10th March 2020)
+# ofimgcreate v1.47 (11th February 2022)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -299,13 +299,13 @@ filesystems_create()
     ;;
     ext2)
       echo "ext2 configuration."
-      MKFS="mkfs.$FS"
+      MKFS="mkfs.ext2"
       TUNEFS="tune2fs -i 0 $ROOTLOOP"
       FSCK="e2fsck -f $ROOTLOOP"
     ;;
     ext4)
       echo "ext4 (without journal) configuration."
-      MKFS="mkfs.$FS -O ^has_journal"
+      MKFS="mkfs.ext4 -O ^has_journal"
       TUNEFS="tune2fs -i 0 $ROOTLOOP"
       FSCK="e2fsck -f $ROOTLOOP"
     ;;
