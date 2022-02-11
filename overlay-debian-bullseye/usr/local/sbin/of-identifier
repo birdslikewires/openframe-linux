@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.30 (11th February 2022)
+## of-identifier v2.31 (11th February 2022)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -133,7 +133,7 @@ if [ -f /etc/firstboot ]; then
 	NEWUUIDSHORT="${NEWUUID:0:4}"
 
 	if [[ "$BOOTLOC" != "" ]]; then
-		sed -i 's/LABEL=BIO-BOOT/LABEL='BOOT${NEWUUIDSHORT^^}'/g' /etc/fstab
+		sed -i 's/LABEL='${CODEPRE^^}'-BOOT/LABEL='BOOT${NEWUUIDSHORT^^}'/g' /etc/fstab
 		/sbin/dosfslabel $BOOTLOC "BOOT${NEWUUIDSHORT^^}" >/dev/null 2>&1
 	else
 		echo "Change of label aborted. Cannot find the boot partition labelled '${CODEPRE^^}-BOOT'."
@@ -141,8 +141,8 @@ if [ -f /etc/firstboot ]; then
 
 	if [[ "$ROOTLOC" != "" ]]; then
 		/sbin/tune2fs $ROOTLOC -U $NEWUUID >/dev/null
-		sed -i 's/LABEL=BIO-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
-		sed -i 's/LABEL=BIO-ROOT/UUID='$NEWUUID'/g' /etc/fstab
+		sed -i 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
+		sed -i 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /etc/fstab
 		/sbin/e2label $ROOTLOC "ROOT${NEWUUIDSHORT^^}"
 	else
 		echo "Change of UUID aborted. Cannot find the root partition labelled '${CODEPRE^^}-ROOT'."
