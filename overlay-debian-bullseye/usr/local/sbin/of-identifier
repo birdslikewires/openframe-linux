@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.29 (11th February 2022)
+## of-identifier v2.30 (11th February 2022)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -126,7 +126,7 @@ fi
 if [ -f /etc/firstboot ]; then
 
 	# Apply a new UUID to the root partition and rename boot and root to avoid conflicts.
-	CODEPRE=${VERSION_CODENAME: 0:3}
+	CODEPRE=${VERSION_CODENAME:0:3}
 	BOOTLOC=`/sbin/blkid | grep ${CODEPRE^^}-BOOT | awk -F\: {'print $1'}`
 	ROOTLOC=`/sbin/blkid | grep ${CODEPRE^^}-ROOT | awk -F\: {'print $1'}`
 	NEWUUID=`/usr/bin/uuid`
