@@ -38,8 +38,8 @@ echo
 apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
 
 # Install usbmount from GitHub
-wget --no-check-certificate -P /tmp https://github.com/birdslikewires/usbmount/releases/download/v0.0.25/usbmount_0.0.25_all.deb
-dpkg -i /tmp/usbmount_0.0.25_all.deb
+#wget --no-check-certificate -P /tmp https://github.com/birdslikewires/usbmount/releases/download/v0.0.25/usbmount_0.0.25_all.deb
+#dpkg -i /tmp/usbmount_0.0.25_all.deb
 
 
 ### Tweaks and Permissions
@@ -131,13 +131,13 @@ echo "Enable password authentication for root user over SSH..."
 [[ "$OPENFRAMEUSER" == "root" ]] && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
 
 
-echo "Configure usbmount..."
-cp /temp/usbmount/usbmount.conf /etc/usbmount/usbmount.conf
-cp /temp/usbmount/mount.d/* /etc/usbmount/mount.d/
-cp /temp/usbmount/umount.d/* /etc/usbmount/umount.d/
-chown root:root /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
-chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
-echo
+# echo "Configure usbmount..."
+# cp /temp/usbmount/usbmount.conf /etc/usbmount/usbmount.conf
+# cp /temp/usbmount/mount.d/* /etc/usbmount/mount.d/
+# cp /temp/usbmount/umount.d/* /etc/usbmount/umount.d/
+# chown root:root /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
+# chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
+# echo
 
 
 ### Kernel Installation
@@ -180,27 +180,5 @@ echo
 
 
 ### Wind Down
-
-echo
-echo "=== Wind Down ======================================="
-echo
-sleep 2
-
-apt-get -y autoremove
-apt-get clean
-echo
-
-echo "Cleaning..."
-rm -rf /etc/apparmor*
-rm -rf /temp
-rm -rf /var/cache/apt/*.bin
-rm -rf /var/lib/apt/lists
-mkdir -p /var/lib/apt/lists/partial
-echo
-
-echo "Remove SSH host keys..."
-rm -v /etc/ssh/ssh_host_*
-echo
-
-echo "Prep complete."
+## This is now part of 99-of-clean.sh
 exit 0

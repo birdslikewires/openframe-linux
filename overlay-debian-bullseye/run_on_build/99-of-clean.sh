@@ -18,6 +18,14 @@ else
   KERNEL=`uname -r`
 fi
 
+echo
+echo "=== Wind Down ======================================="
+echo
+sleep 2
+
+# Disable unwanted services.
+/bin/systemctl disable e2scrub_reap.service
+
 # This bit removes the development packages, source code and man files.
 if [[ "$@" == "dev" ]] || [[ "$OPTIONS" =~ "dev" ]]; then
   echo
@@ -40,19 +48,23 @@ fi
 if [[ "$@" == "ssh" ]] || [[ "$OPTIONS" =~ "ssh" ]]; then
   echo
   echo "Removing SSH server keys..."
-  rm /etc/ssh/ssh_host*
+  rm -v /etc/ssh/ssh_host*
 fi
 
 echo
 echo "Tidying the package manager..."
 apt-get -y autoremove
 apt-get -y clean
-
 echo
+
 echo "Deleting caches..."
 rm -rvf /opt/squeezeplay/bin/gmon.out
-
+rm -rvf /temp
+rm -rf /var/cache/apt/*.bin
+rm -rf /var/lib/apt/lists
+mkdir -p /var/lib/apt/lists/partial
 echo
+
 echo "Cleaning /etc..."
 rm -rvf /etc/resolv.conf
 ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
@@ -65,8 +77,8 @@ rm -rfv /root/.bash_history
 rm -rfv /root/.cache
 rm -rfv /root/.debtags
 rm -rfv /root/.local
-
 echo
+
 echo
 [[ "$CHROOTKERN" == "" ]] && df -h
 echo
