@@ -21,7 +21,7 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 
 # Additions
-APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools e2fsprogs htop i2c-tools initramfs-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 lockfile-progs lsb-release nano net-tools netplan.io ntpdate patch pciutils plymouth policykit-1 psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput"
+APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools e2fsck-static e2fsprogs htop i2c-tools initramfs-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 lockfile-progs lsb-release nano net-tools netplan.io ntpdate patch pciutils plymouth policykit-1 psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput"
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
 
@@ -51,6 +51,7 @@ sleep 2
 
 echo "Generating en_GB.UTF-8 locale..."
 echo
+sed -i 's/^# *\(en_GB.UTF-8\)/\1/' /etc/locale.gen
 locale-gen en_GB.UTF-8
 mv /etc/localtime /etc/localtime.dist
 ln -s /usr/share/zoneinfo/Europe/London /etc/localtime
