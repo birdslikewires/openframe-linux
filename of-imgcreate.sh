@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofimgcreate v1.47 (11th February 2022)
+# ofimgcreate v1.48 (12th February 2022)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -20,13 +20,13 @@ if [[ "$#" -lt 6 ]]; then
   echo "Usage: $0 <name> <filesystem> <initramfs> <totalMB> <bootMB> <swapMB> <source> [overlay] [kerneldir]"
   echo
   echo "  name:            System name. Will be used for filename and partition prefix."
-  echo "  filesystem:      Choose from ext2, ext4 or btrfs."
+  echo "  filesystem:      Choose from ext2 or btrfs."
   echo "  initramfs        Enter '1' to use an initrd, or '0' to boot without it."
   echo "  totalMB:         The total size of the image file; specify 'of1' or 'of2' for respective internal MMC."
   echo "  bootMB:          The size of the FAT16 boot volume (8 MB minimum with no initrd, otherwise 32 MB minimum)."
   echo "  swapMB:          The size of the swap partition. Enter 0 for no swap."
   echo "  source:          Source of operating system, MUST BE QUOTED. You have two options here:"
-  echo "                      1) Give an official distro name and code name, eg. "ubuntu bionic"."
+  echo "                      1) Give an official distro name and code name, eg. 'ubuntu bionic'."
   echo "                      2) Point to a local .tgz file containing boot and root structures."
   echo
   echo "  overlay:         Location of overlay files to be copied (required when using distro name and code name as source)."
@@ -49,9 +49,9 @@ fi
 
 NAME="${1^^}"
 FS="${2}"
-if [ "$FS" == "ext3" ]; then
-	echo "We don't support ext3. Setting to ext4 instead."
-	FS="ext4"
+if [ "$FS" == "ext3" ] || [ "$FS" == "ext3" ]; then
+	echo "We don't support $FS. Setting to ext2 instead."
+	FS="ext2"
 fi
 if [ "$FS" == "btrfs" ]; then
   echo "Our btrfs methods are broken. Setting to ext2 instead."

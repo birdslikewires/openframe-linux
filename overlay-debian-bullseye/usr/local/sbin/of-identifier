@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.31 (11th February 2022)
+## of-identifier v2.32 (12th February 2022)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -148,8 +148,9 @@ if [ -f /etc/firstboot ]; then
 		echo "Change of UUID aborted. Cannot find the root partition labelled '${CODEPRE^^}-ROOT'."
 	fi
 
-	# Set a sensible default audio level.
-	/usr/bin/amixer -c 0 sset "Master" 50% unmute >/dev/null 2>&1
+	# Set a sensible default audio level and enable auto-mute.
+	/usr/bin/amixer -c 0 sset 'Master' 50% unmute >/dev/null 2>&1
+	/usr/bin/amixer -c 0 sset 'Auto-Mute Mode' 'Line Out+Speaker'
 
 	# Leave a temporary note for non-critical scripts that this was our first boot.
 	mv /etc/firstboot /tmp/firstboot

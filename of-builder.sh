@@ -99,6 +99,9 @@ else
 	fi
 fi
 
+sync
+sleep 2
+
 KFILENAME=`echo "$KDOWNLOAD" | sed 's:.*/::'`
 KLATESTMAJVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $1'}`
 KLATESTMIDVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $2'}`
