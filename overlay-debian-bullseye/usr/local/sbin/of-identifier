@@ -22,16 +22,14 @@ while [ ! -f /tmp/openframe.net ]; do sleep 1; done
 sync
 
 applystac9202pinpatch() {
-	if [ ! -f /etc/modprobe.d/of1-stac9202.conf ]; then
 	echo -n "Applying STAC9202 audio patch for kernel series v$KERNMAJVER..."
-		if [ $KERNMAJVER -lt 4 ]; then
-			echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202v$KERNMAJVER.patch" > /etc/modprobe.d/of1-stac9202.conf
-		else
-			echo "options snd-hda-intel patch=of1-stac9202v$KERNMAJVER.patch" > /etc/modprobe.d/of1-stac9202.conf
-		fi
-		/sbin/alsa force-reload &>/dev/null
-		echo " done."
+	if [ $KERNMAJVER -lt 4 ]; then
+		echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=of1-stac9202v3.patch" > /etc/modprobe.d/of1-stac9202.conf
+	else
+		rm /etc/modprobe.d/of1-stac9202.conf
 	fi
+	#/sbin/alsa force-reload &>/dev/null
+	echo " done."
 }
 
 removestac9202pinpatch() {

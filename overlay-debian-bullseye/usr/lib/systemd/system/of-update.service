@@ -3,7 +3,7 @@ Description=OpenFrame Update
 
 [Service]
 ExecStart=/usr/local/sbin/of-update systemd
-StandardOutput=syslog
+StandardOutput=journal
 
 [Install]
 WantedBy=multi-user.target

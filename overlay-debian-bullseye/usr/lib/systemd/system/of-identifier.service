@@ -5,7 +5,7 @@ Wants=network-pre.target
 
 [Service]
 ExecStart=/usr/local/sbin/of-identifier
-StandardOutput=syslog
+StandardOutput=journal
 
 [Install]
 WantedBy=multi-user.target
