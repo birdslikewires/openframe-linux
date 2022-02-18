@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.32 (18th February 2022)
+## of-identifier v2.33 (18th February 2022)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -24,6 +24,7 @@ sync
 applystac9202pinpatch() {
 	echo -n "Applying STAC9202 audio patch..."
 	echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=stac9202.patch" > /etc/modprobe.d/stac9202.conf
+	systemctl restart alsa-restore
 	echo " done."
 }
 
@@ -31,6 +32,7 @@ removestac9202pinpatch() {
 	if [ -f /etc/modprobe.d/stac9202.conf ]; then
 		echo -n "Removing STAC9202 audio patch..."
 		rm /etc/modprobe.d/stac9202.conf
+		systemctl restart alsa-restore
 		echo " done."
 	fi
 }
