@@ -191,12 +191,12 @@ else
 		exit $RC
 	fi
 
-	# echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying extraversion to makefile..."
-	# KMAKEFILE=`cat "$KOURBUILD/Makefile"`
-	# if [[ ! "$KMAKEFILE" =~ "EXTRAVERSION = $OURKERNVER" ]]; then
-	# 	sed -i "s/EXTRAVERSION =/EXTRAVERSION = $OURKERNVER/g" "$KOURBUILD/Makefile"
-	# fi
-	# echo " done."
+	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Applying extraversion to makefile..."
+	KMAKEFILE=`cat "$KOURBUILD/Makefile"`
+	if [[ ! "$KMAKEFILE" =~ "EXTRAVERSION = $OURKERNVER" ]]; then
+		sed -i "s/EXTRAVERSION =/EXTRAVERSION = $OURKERNVER/g" "$KOURBUILD/Makefile"
+	fi
+	echo " done."
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Updating config file with new defaults..."
 	KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`

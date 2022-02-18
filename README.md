@@ -11,23 +11,23 @@ So you want to automatically build images for OpenFrame devices on your server? 
 
 ### Build Environment
 
-The OpenFrame devices are all 32-bit, so you're going to need a i386 environment. Debian still provide i386 images, which is great, but Ubuntu do not beyond Bionic (18.04).
+The OpenFrame devices are all 32-bit, so you're going to need a i386 environment.
 
-The solution is to create a 32-bit chroot on the 64-bit system. For Ubuntu Bionic it can be achieved like this:
+Our solution is to create a 32-bit chroot on a 64-bit system. For Debian Bullseye it can be achieved like this:
 
 ```
 sudo apt install debootstrap schroot
-sudo nano /etc/schroot/chroot.d/bionic-i386.conf
+sudo nano /etc/schroot/chroot.d/i386.conf
 ```
 
 Copy in:
 
 ```
-[bionic-i386]
-description=bionic-i386
+[i386]
+description=i386
 type=directory
 union-type=overlay
-directory=/var/lib/schroot/chroots/bionic-i386
+directory=/var/lib/schroot/chroots/i386
 personality=linux32
 groups=root,sudo
 root-groups=root,sudo
@@ -36,14 +36,14 @@ root-groups=root,sudo
 Then install the base system with debootstrap:
 
 ```
-sudo mkdir -p /var/lib/schroot/chroots/bionic-i386
-sudo debootstrap --arch=i386 bionic /var/lib/schroot/chroots/bionic-i386 http://mirrors.ukfast.co.uk/sites/archive.ubuntu.com
+sudo mkdir -p /var/lib/schroot/chroots/i386
+sudo debootstrap --arch=i386 bullseye /var/lib/schroot/chroots/i386 http://deb.debian.org/debian
 ```
 
 Hop in to the chrooted environment like this:
 
 ```
-sudo schroot -c source:bionic-i386
+sudo schroot -c source:i386
 ```
 
 You can then complete the setup of your build environment.
@@ -51,7 +51,7 @@ You can then complete the setup of your build environment.
 For normal use, get in to the chroot like this:
 
 ```
-schroot -c bionic-i386
+schroot -c i386
 ```
 
 
