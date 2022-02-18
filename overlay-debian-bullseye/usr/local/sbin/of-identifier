@@ -21,21 +21,21 @@ KERNMAJVER=$(echo "$KERNVER" | awk -F. '{print $1}')
 while [ ! -f /tmp/openframe.net ]; do sleep 1; done
 sync
 
-applystac9202pinpatch() {
-	echo -n "Applying STAC9202 audio patch..."
-	echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=stac9202.patch" > /etc/modprobe.d/stac9202.conf
-	systemctl restart alsa-restore
-	echo " done."
-}
+# applystac9202pinpatch() {
+# 	echo -n "Applying STAC9202 audio patch..."
+# 	echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=stac9202.patch" > /etc/modprobe.d/stac9202.conf
+# 	systemctl restart alsa-restore
+# 	echo " done."
+# }
 
-removestac9202pinpatch() {
-	if [ -f /etc/modprobe.d/stac9202.conf ]; then
-		echo -n "Removing STAC9202 audio patch..."
-		rm /etc/modprobe.d/stac9202.conf
-		systemctl restart alsa-restore
-		echo " done."
-	fi
-}
+# removestac9202pinpatch() {
+# 	if [ -f /etc/modprobe.d/stac9202.conf ]; then
+# 		echo -n "Removing STAC9202 audio patch..."
+# 		rm /etc/modprobe.d/stac9202.conf
+# 		systemctl restart alsa-restore
+# 		echo " done."
+# 	fi
+# }
 
 outputsysteminformation() {
 	DESC=$(echo ${ID^} ${VERSION_CODENAME^} | awk -F' ' '{print $1 "/" $2}')
@@ -104,11 +104,11 @@ echo $OPENFRAME > /tmp/openframe.ver
 
 if [ "$OPENFRAME" -eq 1 ]; then
 	## Here be the OpenFrame 1 tweaks.
-	applystac9202pinpatch
+	#applystac9202pinpatch
 
 elif [ "$OPENFRAME" -eq 2 ]; then
 	## Here be the OpenFrame 2 tweaks.
-	removestac9202pinpatch
+	#removestac9202pinpatch
 
 else
 
