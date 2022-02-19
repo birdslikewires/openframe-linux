@@ -111,7 +111,6 @@ KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
 
 KDLPATH="$OUTPUTPATH/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $KDLPATH ] && [ $GITKERNELUPDATED -eq 0 ] && KBUILDIT=0 || KBUILDIT=1
-mkdir -p $KDLPATH
 
 if [[ "$KBUILDIT" == 0 ]]; then
 	KSTALE=$(find "$KDLPATH" -maxdepth 0 -mtime +30)
@@ -124,7 +123,6 @@ fi
 
 IDLPATH="$OUTPUTPATH/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $IDLPATH ] && [ $GITLINUXOUPDATED -eq 0 ] && IBUILDIT=0 || IBUILDIT=1
-mkdir -p $IDLPATH
 
 if [[ "$IBUILDIT" == 0 ]]; then
 	ISTALE=$(find "$IDLPATH" -maxdepth 0 -mtime +30)
@@ -314,7 +312,8 @@ else
 
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules done, but check the log above. Compressing and moving..."
-	tar zcvf modules-$KOURNAME.tgz etc lib
+	#tar zcvf modules-$KOURNAME.tgz etc lib
+	tar zcvf modules-$KOURNAME.tgz lib
 	rm -rf lib
 	mv modules-$KOURNAME.tgz $KDLPATH
 
