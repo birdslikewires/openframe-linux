@@ -67,8 +67,10 @@ echo
 
 echo "Cleaning /etc..."
 rm -rvf /etc/resolv.conf
-ln -s /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 rm -rvf /etc/sqpbeta
+
+echo "Relinking systemd resolved..."
+ln -sv /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 echo
 echo "Sweeping out the root account..."
