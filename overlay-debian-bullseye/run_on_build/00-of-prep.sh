@@ -25,8 +25,6 @@ APT_SYSTEM="acpi bash-completion bc bluez curl dosfstools e2fsck-static e2fsprog
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
 
-#MISSING: libcrystalhd3 usbmount zlibc
-
 # Removals
 APT_REM_SYSTEM=""
 

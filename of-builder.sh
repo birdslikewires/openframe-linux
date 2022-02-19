@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.31 (18th February 2022)
+## of-builder.sh v1.32 (19th February 2022)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -108,8 +108,10 @@ KLATESTMIDVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $2'}
 KLATESTMINVER=`echo "$KFILENAME" | awk -F\- {'print $2'} | awk -F\. {'print $3'}`
 KOURNAME="$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER$OURKERNVER"
 KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
+
 KDLPATH="$OUTPUTPATH/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $KDLPATH ] && [ $GITKERNELUPDATED -eq 0 ] && KBUILDIT=0 || KBUILDIT=1
+mkdir -p $KDLPATH
 
 if [[ "$KBUILDIT" == 0 ]]; then
 	KSTALE=$(find "$KDLPATH" -maxdepth 0 -mtime +30)
@@ -122,6 +124,7 @@ fi
 
 IDLPATH="$OUTPUTPATH/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $IDLPATH ] && [ $GITLINUXOUPDATED -eq 0 ] && IBUILDIT=0 || IBUILDIT=1
+mkdir -p $IDLPATH
 
 if [[ "$IBUILDIT" == 0 ]]; then
 	ISTALE=$(find "$IDLPATH" -maxdepth 0 -mtime +30)
@@ -284,20 +287,20 @@ else
 	fi
 
 	## Crystal HD Driver
-	[ -d crystalhd ] && rm -rf crystalhd
-	git clone https://github.com/birdslikewires/crystalhd.git
-	mkdir -p etc/udev/rules.d
-	mkdir -p lib/udev/rules.d
-	mkdir -p lib/modules/$KOURNAME/kernel/drivers/video/broadcom
-	cd crystalhd/driver/linux
-	autoconf
-	./configure
-	make -C /lib/modules/$KOURNAME/build M=`pwd`
-	cd ../../..
-	cp crystalhd/driver/linux/20-crystalhd.rules etc/udev/rules.d
-	cp crystalhd/driver/linux/20-crystalhd.rules lib/udev/rules.d
-	cp crystalhd/driver/linux/crystalhd.ko lib/modules/$KOURNAME/kernel/drivers/video/broadcom
-	rm -rf crystalhd
+	# [ -d crystalhd ] && rm -rf crystalhd
+	# git clone https://github.com/birdslikewires/crystalhd.git
+	# mkdir -p etc/udev/rules.d
+	# mkdir -p lib/udev/rules.d
+	# mkdir -p lib/modules/$KOURNAME/kernel/drivers/video/broadcom
+	# cd crystalhd/driver/linux
+	# autoconf
+	# ./configure
+	# make -C /lib/modules/$KOURNAME/build M=`pwd`
+	# cd ../../..
+	# cp crystalhd/driver/linux/20-crystalhd.rules etc/udev/rules.d
+	# cp crystalhd/driver/linux/20-crystalhd.rules lib/udev/rules.d
+	# cp crystalhd/driver/linux/crystalhd.ko lib/modules/$KOURNAME/kernel/drivers/video/broadcom
+	# rm -rf crystalhd
 
 	## Firmware Hub Module
 	[ -d fh ] && rm -rf fh
