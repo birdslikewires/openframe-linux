@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.34 (23rd February 2022)
+## of-identifier v2.35 (1st March 2022)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -21,22 +21,6 @@ KERNMAJVER=$(echo "$KERNVER" | awk -F. '{print $1}')
 while [ ! -f /tmp/openframe.net ]; do sleep 1; done
 sync
 
-# applystac9202pinpatch() {
-# 	echo -n "Applying STAC9202 audio patch..."
-# 	echo "options snd-hda-intel position_fix=1 bdl_pos_adj=64 patch=stac9202.patch" > /etc/modprobe.d/stac9202.conf
-# 	systemctl restart alsa-restore
-# 	echo " done."
-# }
-
-# removestac9202pinpatch() {
-# 	if [ -f /etc/modprobe.d/stac9202.conf ]; then
-# 		echo -n "Removing STAC9202 audio patch..."
-# 		rm /etc/modprobe.d/stac9202.conf
-# 		systemctl restart alsa-restore
-# 		echo " done."
-# 	fi
-# }
-
 outputsysteminformation() {
 	DESC=$(echo ${ID^} ${VERSION_CODENAME^} | awk -F' ' '{print $1 "/" $2}')
 	MMRY=$(free -b | grep 'Mem:' | tr -s ' ' | cut -c6- | sed 's/ /\//g')
@@ -54,38 +38,30 @@ outputsystemuid() {
 
 if [ -e /boot/openframe.ver ]; then
 
-	OPENFRAME=`cat /boot/openframe.ver | cut -b1`
+	OPENFRAME=$(cat /boot/openframe.ver | cut -b1)
 	MMCSIZE=""
 	echo "Specified as OpenFrame $OPENFRAME via override file."
 
 else
 
-	MMC=`/bin/ls -1 /dev/mmcblk* 2>/dev/null | grep -v "p"`
+	MMC=$(ls -1 /dev/mmcblk* 2>/dev/null | grep -v "p")
 
 	if [ "$MMC" != "" ]; then
 
-		MMCCOUNT=`/bin/echo "$MMC" | /usr/bin/wc -l`
+		MMCCOUNT=$(echo "$MMC" | wc -l)
 
 		if [ $MMCCOUNT -le 1 ];  then
-
 			# If only one /dev/mmcblk appears, we can use it to identify the unit.
 
-			MMCNUM=`echo "${MMC: -1}"`
-			MMCSIZE=`/sbin/fdisk -l /dev/mmcblk$MMCNUM | grep -m1 mmcblk$MMCNUM: | awk -F\  {'print $5'}`
+			MMCNUM=$(echo "${MMC: -1}")
+			MMCSIZE=$(fdisk -l /dev/mmcblk$MMCNUM | grep -m1 mmcblk$MMCNUM: | awk -F\  {'print $5'})
 
-			if [ $MMCSIZE -gt 1028128768 ]; then
-				OPENFRAME=2
-			fi
-
-			if [ ! $MMCSIZE -gt 0 ]; then
-				echo "Could not identify MMC capacity. Assuming OpenFrame 1."
-			#else
-				#echo "OpenFrame $OPENFRAME with "$(($MMCSIZE/1024/1024))" MB internal storage."
-			fi
-
+			[ $MMCSIZE -gt 1028128768 ] && OPENFRAME=2 || OPENFRAME=1
+			[ ! $MMCSIZE -gt 0 ] && echo "Could not identify MMC capacity. Assuming OpenFrame 1."
+				
 		else
-
 			# If we get more than one, we can't guarantee which is the internal one.
+			
 			echo "Multiple MMC devices found. Assuming OpenFrame 1."
 
 		fi
@@ -102,15 +78,8 @@ fi
 
 echo $OPENFRAME > /tmp/openframe.ver
 
-if [ "$OPENFRAME" -eq 1 ]; then
-	## Here be the OpenFrame 1 tweaks.
-	#applystac9202pinpatch
-
-elif [ "$OPENFRAME" -eq 2 ]; then
-	## Here be the OpenFrame 2 tweaks.
-	#removestac9202pinpatch
-
-else
+if [ ! "$OPENFRAME" -eq 1 ] && [ ! "$OPENFRAME" -eq 2 ]; then
+	# We had some patches to do in earlier versions and this is where we did them.
 
 	echo "Unable to identify this device. Is it an OpenFrame?"
 	exit 1
@@ -121,30 +90,30 @@ if [ -f /etc/firstboot ]; then
 
 	# Apply a new UUID to the root partition and rename boot and root to avoid conflicts.
 	CODEPRE=${VERSION_CODENAME:0:3}
-	BOOTLOC=`/sbin/blkid | grep ${CODEPRE^^}-BOOT | awk -F\: {'print $1'}`
-	ROOTLOC=`/sbin/blkid | grep ${CODEPRE^^}-ROOT | awk -F\: {'print $1'}`
-	NEWUUID=`/usr/bin/uuid`
+	BOOTLOC=$(blkid | grep ${CODEPRE^^}-BOOT | awk -F\: {'print $1'})
+	ROOTLOC=$(blkid | grep ${CODEPRE^^}-ROOT | awk -F\: {'print $1'})
+	NEWUUID=$(uuid)
 	NEWUUIDSHORT="${NEWUUID:0:4}"
 
 	if [[ "$BOOTLOC" != "" ]]; then
 		sed -i 's/LABEL='${CODEPRE^^}'-BOOT/LABEL='BOOT${NEWUUIDSHORT^^}'/g' /etc/fstab
-		/sbin/dosfslabel $BOOTLOC "BOOT${NEWUUIDSHORT^^}" >/dev/null 2>&1
+		dosfslabel $BOOTLOC "BOOT${NEWUUIDSHORT^^}" >/dev/null 2>&1
 	else
 		echo "Change of label aborted. Cannot find the boot partition labelled '${CODEPRE^^}-BOOT'."
 	fi
 
 	if [[ "$ROOTLOC" != "" ]]; then
-		/sbin/tune2fs $ROOTLOC -U $NEWUUID >/dev/null
+		tune2fs $ROOTLOC -U $NEWUUID >/dev/null
 		sed -i 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
 		sed -i 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /etc/fstab
-		/sbin/e2label $ROOTLOC "ROOT${NEWUUIDSHORT^^}"
+		e2label $ROOTLOC "ROOT${NEWUUIDSHORT^^}"
 	else
 		echo "Change of UUID aborted. Cannot find the root partition labelled '${CODEPRE^^}-ROOT'."
 	fi
 
 	# Set a sensible default audio level and enable auto-mute.
-	/usr/bin/amixer -c 0 sset 'Master' 50% unmute >/dev/null 2>&1
-	/usr/bin/amixer -c 0 sset 'Auto-Mute Mode' 'Line Out+Speaker'
+	amixer -c 0 sset 'Master' 50% unmute >/dev/null 2>&1
+	amixer -c 0 sset 'Auto-Mute Mode' 'Line Out+Speaker'
 
 	# Leave a temporary note for non-critical scripts that this was our first boot.
 	mv /etc/firstboot /tmp/firstboot
