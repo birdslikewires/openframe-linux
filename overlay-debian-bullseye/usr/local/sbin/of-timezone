@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-timezone v1.10 (11th February 2020) by Andrew Davison
+## of-timezone v1.11 (24th February 2022) by Andrew Davison
 ##  Checks or sets the timezone, returning the timezone once complete, with automatic update option.
 
 
@@ -62,13 +62,13 @@ elif [[ "$1" == "set" ]]; then
 
 elif [[ "$1" == "update" ]]; then
 
-	[ -f /etc/lsb-release ] && source /etc/lsb-release
+	[ -f /etc/os-release ] && source /etc/os-release
 
 	[[ "${2}" != "" ]] && PLATFORM="${2}" || PLATFORM="of-timezone"
 
 	if [ -e /tmp/openframe.uid ] && [ -e /tmp/openframe.net ]; then
 		SYS_TYP="$(cat /tmp/openframe.uid)/$(cat /tmp/openframe.net)/$(echo ${ID,,} ${VERSION_CODENAME,,} | awk -F' ' '{print $1 "/" $2}')/${VERSION_CODENAME,,}/$(uname -r)/$PLATFORM"
-	elif [ -f /etc/lsb-release ]; then
+	elif [ -f /etc/os-release ]; then
 		SYS_TYP="///$(hostname)/$(echo ${ID,,} ${VERSION_CODENAME,,} | awk -F' ' '{print $1 "/" $2}')/${VERSION_CODENAME,,}/$(uname -r)/$PLATFORM"
 	else
 		SYS_TYP="///$(hostname)////$(uname -r)/$PLATFORM"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-expand v1.07 (7th May 2020)
+## of-expand v1.08 (22nd February 2022)
 ##  Expands the root partition to fill the drive.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -40,7 +40,7 @@ ROOTSTART=`fdisk -l | grep $ROOTISON$ROOTPARTNO | awk -F\  {'print $2'}`
 
 echo "Found / on $ROOTISON partition $ROOTPARTNO starting at $ROOTSTART."
 
-/sbin/fdisk $ROOTISON <<EOF
+fdisk $ROOTISON <<EOF
 p
 d
 $ROOTPARTNO
@@ -59,7 +59,7 @@ echo "$ROOTISON$ROOTPARTNO" > /root/expanding
 sed -i '/\/var\/cache\/apt/d' /etc/fstab
 sed -i '\/var\/lib\/apt\/lists/d' /etc/fstab
 
-/sbin/fdisk -l $ROOTISON
+fdisk -l $ROOTISON
 
 echo
 echo
@@ -69,6 +69,6 @@ echo
 echo "Do not power off the system until the file /tmp/expanding has disappeared."
 echo
 countdown "The system will reboot" 10
-/sbin/reboot
+reboot
 
 exit 0
