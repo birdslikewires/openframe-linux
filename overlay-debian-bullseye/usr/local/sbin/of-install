@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-install v1.16 (24th February 2022)
+## of-install v1.17 (1st March 2022)
 ## Simple installers for software on OpenFrames.
 
 usage() {
@@ -117,7 +117,7 @@ plex() {
 		echo "Checksums match, continuing..."
 
 		# Create a standard user 'plex' with no configured password.
-		id -u plex &>/dev/null || useradd -s /bin/bash --create-home plex
+		id -u plex &>/dev/null || useradd -s bash --create-home plex
 		adduser plex audio &>/dev/null
 		adduser plex users &>/dev/null
 		adduser plex video &>/dev/null
@@ -180,7 +180,7 @@ squeezeplay() {
 		echo "Checksums match, continuing..."
 
 		# Create a standard user 'squeezeplay' with no configured password.
-		id -u squeezeplay &>/dev/null || useradd -s /bin/bash --create-home squeezeplay
+		id -u squeezeplay &>/dev/null || useradd -s bash --create-home squeezeplay
 		adduser squeezeplay audio &>/dev/null
 		adduser squeezeplay users &>/dev/null
 		adduser squeezeplay video &>/dev/null
@@ -235,27 +235,27 @@ echo
 
 if [[ "${1}" == "build" ]]; then
 
-	/usr/bin/apt update
+	apt update
 	build
 
 elif [[ "${1}" == "mplayer" ]]; then
 
-	[ ! -x /usr/bin/startx ] && /usr/bin/apt update && xserver
+	[ ! -x /usr/bin/startx ] && apt update && xserver
 	mplayer
 
 elif [[ "${1}" == "plex" ]]; then
 
-	[ ! -x /usr/bin/startx ] && /usr/bin/apt update && xserver
+	[ ! -x /usr/bin/startx ] && apt update && xserver
 	plex
 
 elif [[ "${1}" == "squeezeplay" ]]; then
 
-	[ ! -x /usr/bin/startx ] && /usr/bin/apt update && xserver
+	[ ! -x /usr/bin/startx ] && apt update && xserver
 	squeezeplay
 
 elif [[ "${1}" == "xserver" ]]; then
 
-	/usr/bin/apt update
+	apt update
 	xserver
 
 else

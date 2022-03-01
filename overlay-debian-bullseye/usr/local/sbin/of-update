@@ -37,11 +37,11 @@ updateCheck() {
 	[[ "${1}" == "force" ]] && OFSCRIPTS_VER="000" || OFSCRIPTS_VER=$(cat /usr/local/sbin/of-scripts.ver)
 
 	# During the first running session, try to set our timezone.
-	[ -f /tmp/firstboot ] && /usr/bin/timeout 10 $THISSCRIPTPATH/of-timezone update of-update &>/dev/null
+	[ -f /tmp/firstboot ] && timeout 10 $THISSCRIPTPATH/of-timezone update of-update &>/dev/null
 
 	# Before we send anything, test the validity of the URL with a plain curl request.
 	TEST_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" https://$SERVER$SERVICE)
-	[[ "$TEST_RESPONSE" == "200" ]] && SERVICE_RESPONSE=$(/usr/bin/curl -fsSA "$USER_AGENT" "https://$SERVER$SERVICE?ver=$OFSCRIPTS_VER" 2>&1) || SERVICE_RESPONSE="$TEST_RESPONSE"
+	[[ "$TEST_RESPONSE" == "200" ]] && SERVICE_RESPONSE=$(curl -fsSA "$USER_AGENT" "https://$SERVER$SERVICE?ver=$OFSCRIPTS_VER" 2>&1) || SERVICE_RESPONSE="$TEST_RESPONSE"
 
 	# If the test was passed and the update server sent a valid HTTPS URL in response, we go for it.
 	if [[ "${SERVICE_RESPONSE:0:8}" == "https://" ]] && [[ "${1}" != "test" ]]; then
@@ -51,7 +51,7 @@ updateCheck() {
 		TMP_HOST=$(echo "$TMP_PATH" | awk -F/ '{print $1}')
 
 		# Get new version number.
-		OFSCRIPTS_VERNEW=$(/usr/bin/curl -s $SERVICE_RESPONSE/of-scripts.ver)
+		OFSCRIPTS_VERNEW=$(curl -s $SERVICE_RESPONSE/of-scripts.ver)
 		OFSCRIPTS_VERNEW=${OFSCRIPTS_VERNEW:0:3}
 
 		# Check that those three digits make an integer.
@@ -60,7 +60,7 @@ updateCheck() {
 			echo "Updating of-scripts v${OFSCRIPTS_VER:0:1}.${OFSCRIPTS_VER:1} to v${OFSCRIPTS_VERNEW:0:1}.${OFSCRIPTS_VERNEW:1} from $TMP_HOST..."
 
 			# If we've received a secure URL in response, download any file prefixed by 'of-' into /tmp with full path from server.
-			/usr/bin/timeout 10 /usr/bin/wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$SERVICE_RESPONSE"
+			timeout 10 wget -o /dev/null -e robots=off --no-parent -r -A 'of-*' -P /tmp/ "$SERVICE_RESPONSE"
 
 			# Work out the path to which files have been downloaded.
 			TMP_PATH=$(echo "$SERVICE_RESPONSE" | awk -Fhttps:// '{print $2}')
@@ -160,12 +160,12 @@ sync
 while true; do
 
 	PINGTRIES=1
-	while ! /bin/ping -c 1 1.1.1.1 2>&1 >/dev/null; do
+	while ! ping -c 1 1.1.1.1 2>&1 >/dev/null; do
 
 		# Only wait in loop if we're running as a system service.
 		if [[ "${1}" == "systemd" ]]; then
 			echo "Internet connectivity down. Retrying in $PINGTRIES seconds..."
-			/bin/sleep $PINGTRIES
+			sleep $PINGTRIES
 			[[ $PINGTRIES -lt 3600 ]] && ((PINGTRIES++))
 		else
 			echo "Internet connectivity down."
@@ -182,19 +182,19 @@ while true; do
 
 		if [[ "$EXITSTATUS" -eq 0 ]]; then
 			echo "Sleeping for 24 hours."
-			/bin/sleep 86400
+			sleep 86400
 
 		elif [[ "$EXITSTATUS" -eq 1 ]]; then
 			echo "Retrying in 10 seconds."
-			/bin/sleep 10
+			sleep 10
 
 		elif [[ "$EXITSTATUS" -eq 2 ]]; then
 			echo "Retrying in 1 hour."
-			/bin/sleep 3600
+			sleep 3600
 
 		elif [[ "$EXITSTATUS" -eq 3 ]]; then
 			echo "Retrying in 6 hours."
-			/bin/sleep 21600
+			sleep 21600
 		fi
 
 	else

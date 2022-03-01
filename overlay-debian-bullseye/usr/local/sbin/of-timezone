@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-timezone v1.11 (24th February 2022) by Andrew Davison
+## of-timezone v1.12 (1st March 2022) by Andrew Davison
 ##  Checks or sets the timezone, returning the timezone once complete, with automatic update option.
 
 
@@ -37,7 +37,7 @@ elif [[ "$1" == "set" ]]; then
 
 	if [[ "$2" != "" ]]; then
 
-		/usr/bin/timedatectl set-timezone "$2"
+		timedatectl set-timezone "$2"
 
 		RESULT=$(timedatectl status | grep "Time zone" | awk -F\  {'print $3'})
 
@@ -79,7 +79,7 @@ elif [[ "$1" == "update" ]]; then
 
 	if [[ "$TIMEZONE" != "" ]] && [[ "${#TIMEZONE}" -ge 6 ]] && [[ "${#TIMEZONE}" -le 32 ]] && [[ "$TIMEZONEVALID" -le 2 ]]; then
 
-		/usr/bin/timedatectl set-timezone "$TIMEZONE"
+		timedatectl set-timezone "$TIMEZONE"
 		RESULT=$(timedatectl status | grep "Time zone" | awk -F\  {'print $3'})
 
 		if [[ "$RESULT" == "$1" ]]; then

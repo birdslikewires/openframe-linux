@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-flash v1.17 (6th May 2020) by Andrew Davison
+## of-flash v1.18 (1st March 2022) by Andrew Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
 
 if [ "$USER" != "root" ]; then
@@ -23,7 +23,7 @@ tput cnorm
 
 
 
-/usr/bin/amixer -c 0 sset "Master" 20% unmute &>/dev/null
+amixer -c 0 sset "Master" 20% unmute &>/dev/null
 
 header() {
 
@@ -92,7 +92,7 @@ droptoshell() {
 		countdown "Dropping to shell" $1
 		sleep 1
 		clear
-		/usr/local/sbin/of-getip
+		of-ip
 		tput sgr0
 		echo
 	fi
@@ -182,7 +182,7 @@ if [ $FILECOUNT -eq 2 ] && [ $IMGPRESENT -eq 1 ] && [ $CHKPRESENT -eq 1 ]; then
 		gzip -dc $IMGLOC/$IMG.img.gz | dd of=$MMCDEST bs=1M
 		sleep 1
 
-		/usr/bin/aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
+		aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
 
 		tput setaf $COLOUR
 		echo
@@ -287,7 +287,7 @@ elif [ $FILECOUNT -eq 2 ] && [ $EFIPRESENT -eq 2 ]; then
 						[ ! -d $IMGLOC/complete ] && mkdir $IMGLOC/complete
 						mv $IMGLOC/$EFI.img $IMGLOC/$EFI.img.md5 $IMGLOC/complete/
 
-						/usr/bin/aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
+						aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
 
 						tput setaf $COLOUR
 						echo
@@ -303,7 +303,7 @@ elif [ $FILECOUNT -eq 2 ] && [ $EFIPRESENT -eq 2 ]; then
 
 					else
 
-						/usr/bin/aplay -q -f a_law -r 44100 /usr/local/share/sounds/failure.au &
+						aplay -q -f a_law -r 44100 /usr/local/share/sounds/failure.au &
 
 						tput setaf 3
 						echo

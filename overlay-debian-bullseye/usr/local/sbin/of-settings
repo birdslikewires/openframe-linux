@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-settings v1.11 (15th May 2020)
+## of-settings v1.12 (1st March 2022)
 ##  Bundles a bunch of handy settings into one place.
 
 usage() {
@@ -55,7 +55,7 @@ if [[ "${1}" == "autologin" ]]; then
 	if [[ "$AUTOLOGINUSER" != "" ]]; then
 
 		echo -n "Enabling auto-login for user '$AUTOLOGINUSER'..."
-		echo -e "[Service]\nExecStart=\nExecStart=-/sbin/agetty -a $AUTOLOGINUSER --noclear %I \$TERM\n" > /etc/systemd/system/getty@tty1.service.d/autologin.conf
+		echo -e "[Service]\nExecStart=\nExecStart=-/usr/sbin/agetty -a $AUTOLOGINUSER --noclear %I \$TERM\n" > /etc/systemd/system/getty@tty1.service.d/autologin.conf
 
 	else
 
