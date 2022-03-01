@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-expand v1.08 (22nd February 2022)
+## of-expand v1.09 (1st March 2022)
 ##  Expands the root partition to fill the drive.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -32,11 +32,11 @@ echo
 countdown "Cancel with <CTRL-C> otherwise resizing" 10
 echo
 
-ROOTISON=`mount | grep "on / " | awk -F\  {'print $1'}`
-ROOTPARTNO=`echo "${ROOTISON: -1}"`
+ROOTISON=$(mount | grep "on / " | awk -F\  {'print $1'})
+ROOTPARTNO=$(echo "${ROOTISON: -1}")
 [[ "$ROOTISON" =~ "mmc" ]] && TRIM=2 || TRIM=1
-ROOTISON=`echo "${ROOTISON:: -$TRIM}"`
-ROOTSTART=`fdisk -l | grep $ROOTISON$ROOTPARTNO | awk -F\  {'print $2'}`
+ROOTISON=$(echo "${ROOTISON:: -$TRIM}")
+ROOTSTART=$(fdisk -l | grep $ROOTISON$ROOTPARTNO | awk -F\  {'print $2'})
 
 echo "Found / on $ROOTISON partition $ROOTPARTNO starting at $ROOTSTART."
 
