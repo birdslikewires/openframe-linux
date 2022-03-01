@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-backlight v1.11 (29th May 2020) by Andrew Davison
+## of-backlight v1.12 (1st March 2022) by Andrew Davison
 ##  Automatic backlight control with fading for OpenFrame.
 
 usage() {
@@ -11,6 +11,9 @@ usage() {
 	echo
 	exit 1
 }
+
+
+BLIF="/sys/class/backlight/openframe-bl/brightness"
 
 
 ## We're expecting an integer, usage and die if it's not.
@@ -48,7 +51,7 @@ setbl() {
 		return
 	fi
 
-	for b in `seq $CRNTBL $STEP $PREFBL`;
+	for b in $(seq $CRNTBL $STEP $PREFBL);
 	do
 
 		b=$(($b/3))
@@ -64,17 +67,15 @@ setbl() {
 
 getbl() {
 	
-	CRNTBL=`cat $BLIF`
-	CRNTBL=$(($CRNTBL*3))
+	CRNTBL=$(($(cat $BLIF)*3*100/96))
 
 }
 
 
 ## Check whether we can access the backlight.
-if [ -e /sys/class/backlight/openframe-bl/brightness ]; then
-	BLIF="/sys/class/backlight/openframe-bl/brightness"
+if [ -e $BLIF ]; then
 	SLEEP="sleep 0.001"
-	if [ ! -w /sys/class/backlight/openframe-bl/brightness ]; then
+	if [ ! -w $BLIF ]; then
 		echo "Permissions do not currently allow you to set the backlight level."
 		echo "You can allow this by creating a udev rule."
 	fi
@@ -86,8 +87,8 @@ fi
 
 ## Kill any other running instances first.
 if [ "$1" != "888" ]; then
-	BLPIDS=`ps aux | grep -v grep | grep -v $$ | grep $0 | awk -F\  '{print $2}'`
-	kill `echo $BLPIDS` 2>/dev/null
+	BLPIDS=$(ps aux | grep -v grep | grep -v $$ | grep $0 | awk -F\  '{print $2}')
+	kill $(echo $BLPIDS) 2>/dev/null
 fi
 
 
@@ -109,8 +110,8 @@ else
 		while true
 		do
 
-			TIME=`date +%H`
-			LIGHT=`readlightsensor`
+			TIME=$(date +%H)
+			LIGHT=$(readlightsensor)
 			
 			# Here we deal with 'night and day' variations.
 			if [ "$TIME" -ge 22 ] || [ "$TIME" -lt 6 ]; then
@@ -160,7 +161,7 @@ else
 	## If we're given an '888', write out the current backlight value.
 	elif [ "$1" -eq "888" ]; then
 
-		echo `cat /sys/class/backlight/openframe-bl/brightness` > /tmp/backlight.prv
+		echo $(cat $BLIF) > /tmp/backlight.prv
 		
 	else
 
