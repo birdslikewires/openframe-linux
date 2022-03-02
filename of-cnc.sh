@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofcnc.sh v1.20 (23rd August 2018)
+# ofcnc.sh v1.21 (2nd March 2022)
 #  Used to clean 'n' copy a Joggler OS from a storage device.
 
 #set -x
@@ -44,7 +44,6 @@ rm -v $JR/opt/squeezeplay/bin/gmon.out 2>/dev/null
 
 echo
 echo "Removing MAC address, udev and other /etc stuff..."
-rm -rvf $JR/etc/apparmor* 2>/dev/null
 rm -v $JR/etc/*-old 2>/dev/null
 rm -v $JR/etc/init/*_old 2>/dev/null
 rm -v $JR/etc/network/joggler-eth 2>/dev/null
