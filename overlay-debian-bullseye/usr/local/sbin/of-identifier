@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.35 (1st March 2022)
+## of-identifier v2.36 (2nd March 2022)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -122,6 +122,9 @@ fi
 
 outputsystemuid
 outputsysteminformation
+
+# Init the light sensor readings.
+readlightsensor &>/dev/null
 
 if [ -f /root/expanding ]; then
 	echo "Expanding root filesystem..."
