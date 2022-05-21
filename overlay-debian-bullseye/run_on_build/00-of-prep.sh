@@ -120,6 +120,7 @@ echo
 
 echo "Enable systemd services..."
 /bin/systemctl enable systemd-resolved.service
+/bin/systemctl enable systemd-timesyncd
 chmod +x /usr/local/sbin/of-*
 chmod +x /usr/sbin/*
 for f in `ls -1 /lib/systemd/system | grep 'of-' | grep '.service'`; do
