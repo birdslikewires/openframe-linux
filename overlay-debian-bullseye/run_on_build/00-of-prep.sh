@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.09 (1st March 2022)
+# 00-of-prep.sh v1.10 (22nd May 2022)
 #  Set up the basics.
 
 #set -x
@@ -21,7 +21,7 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 
 # Additions
-APT_SYSTEM="acpi bash-completion bc bluez ca-certificates curl dosfstools e2fsck-static e2fsprogs htop i2c-tools initramfs-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 lockfile-progs lsb-release nano net-tools netplan.io ntpdate openssl patch pciutils plymouth policykit-1 psmisc rsync sudo tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput"
+APT_SYSTEM="acpi bash-completion bc bluez ca-certificates curl dosfstools e2fsck-static e2fsprogs htop i2c-tools initramfs-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 lockfile-progs lsb-release nano net-tools netplan.io ntpdate openssl patch pciutils plymouth policykit-1 psmisc rsync sudo systemd-timesyncd tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput"
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
 
