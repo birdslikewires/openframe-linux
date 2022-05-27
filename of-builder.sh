@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.33 (23rd May 2022)
+## of-builder.sh v1.34 (27th May 2022)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -52,51 +52,16 @@ if [[ "$KDOWNLOAD" = "" ]]; then
 	exit 1
 fi
 
+# Check whether I've been removed from my repo or not. Die if I have.
+if [[ ! -d "$THISSCRIPTPATH/../$GITREPOLIN" ]]; then
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You seem to be running me outside of my repo. I'm not much use without the rest of $GITREPOURL/$GITREPOLIN."
+	exit 1
+fi
 
 # Check whether we've got the kernel repo available, otherwise kernel builds will obviously fail.
 if [[ ! -d "$THISSCRIPTPATH/../$GITREPOKER" ]]; then
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You're going to need $GITREPOURL/$GITREPOKER as well. Cloning..."
 	git clone "$GITREPOURL/$GITREPOKER" "$THISSCRIPTPATH/../$GITREPOKER"
-# else
-# 	[[ "$USER" != "$GITKERNELOWNER" ]] && KSTSH=$(sudo -u $GITKERNELOWNER -H git -C "$THISSCRIPTPATH/../$GITREPOKER" stash) || KSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" stash)
-# 	[[ "$USER" != "$GITKERNELOWNER" ]] && KPULL=$(sudo -u $GITKERNELOWNER -H git -C "$THISSCRIPTPATH/../$GITREPOKER" pull) || KPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOKER" pull)
-# 	if [[ "$KPULL" == "Already up to date." ]]; then
-# 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' is up to date."
-# 	elif [[ "$KPULL" =~ "error: " ]] || [[ "$KPULL" =~ "fatal: " ]]; then
-# 		echo
-# 		echo "$KPULL"
-# 		echo
-# 		exit 1
-# 	else
-# 		GITKERNELUPDATED=1
-# 		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOKER' requires update..."
-# 		echo
-# 		echo "$KPULL"
-# 		echo
-# 	fi
-fi
-
-# Check whether I've been removed from my repo or not. Die if I have.
-if [[ ! -d "$THISSCRIPTPATH/../$GITREPOLIN" ]]; then
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: You seem to be running me outside of my repo. I'm not much use without the rest of $GITREPOURL/$GITREPOLIN."
-	exit 1
-else
-	[[ "$USER" != "$GITLINUXOOWNER" ]] && LSTSH=$(sudo -u $GITKERNELOWNER -H git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash) || LSTSH=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" stash)
-	[[ "$USER" != "$GITLINUXOOWNER" ]] && LPULL=$(sudo -u $GITKERNELOWNER -H git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull --rebase) || LPULL=$(git -C "$THISSCRIPTPATH/../$GITREPOLIN" pull)
-	if [[ "$LPULL" == "Already up to date." ]]; then
-		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOLIN' is up to date."
-	elif [[ "$LPULL" =~ "error: " ]] || [[ "$LPULL" =~ "fatal: " ]]; then
-		echo
-		echo "$LPULL"
-		echo
-		exit 1
-	else
-		GITLINUXOUPDATED=1
-		echo "`date  +'%Y-%m-%d %H:%M:%S'`: Local copy of repository '$GITREPOLIN' requires update..."
-		echo
-		echo "$LPULL"
-		echo
-	fi
 fi
 
 sync
