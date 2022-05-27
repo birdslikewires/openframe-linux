@@ -104,8 +104,8 @@ rm -rf /tmp/installing/yq
 echo
 
 echo "Ensure correct permissions..."
-chown root:root /home
 [[ "$OPENFRAMEUSER" != "root" ]] && chown -R $OPENFRAMEUSER:$OPENFRAMEUSER $HOMEPATH $HOMEPATH/.*
+chown root:root /home
 chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo /usr/sbin/ntpdate
 #chown -R root:root /etc/polkit-1/localauthority/20-org.d
 #chmod 600 /etc/polkit-1/localauthority/20-org.d/*
