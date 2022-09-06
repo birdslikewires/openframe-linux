@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.10 (22nd May 2022)
+# 00-of-prep.sh v1.11 (6th September 2022)
 #  Set up the basics.
 
 #set -x
@@ -21,7 +21,7 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 
 # Additions
-APT_SYSTEM="acpi bash-completion bc bluez ca-certificates curl dosfstools e2fsck-static e2fsprogs htop i2c-tools initramfs-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 lockfile-progs lsb-release nano net-tools netplan.io ntpdate openssl patch pciutils plymouth policykit-1 psmisc rsync sudo systemd-timesyncd tcpd usbutils usb-modeswitch usb-modeswitch-data unclutter unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput"
+APT_SYSTEM="acpi bash-completion bc bluez ca-certificates curl dosfstools e2fsck-static e2fsprogs htop i2c-tools initramfs-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 lockfile-progs lsb-release nano net-tools netplan.io ntpdate openssl patch pciutils plymouth policykit-1 psmisc rsync sudo systemd-timesyncd tcpd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput"
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
 
@@ -79,9 +79,9 @@ else
 
 fi
 
-echo "Setting plymouth boot screen defaults..."
-update-alternatives --remove-all default.plymouth 2>/dev/null
-update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/tribar/tribar.plymouth 100
+#echo "Setting plymouth boot screen defaults..."
+#update-alternatives --remove-all default.plymouth 2>/dev/null
+#update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/tribar/tribar.plymouth 100
 
 echo "Setting terminal preferences..."
 # Colour terminal for all!
@@ -120,7 +120,7 @@ echo
 
 echo "Enable systemd services..."
 /bin/systemctl enable systemd-resolved.service
-/bin/systemctl enable systemd-timesyncd
+/bin/systemctl enable systemd-timesyncd.service
 chmod +x /usr/local/sbin/of-*
 chmod +x /usr/sbin/*
 for f in `ls -1 /lib/systemd/system | grep 'of-' | grep '.service'`; do
