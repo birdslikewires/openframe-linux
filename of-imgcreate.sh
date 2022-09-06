@@ -488,9 +488,11 @@ if [[ "$INSTALL" != "" ]]; then
       echo -n "Sanitising overlay..."
       find $OVERLAY -type f -name .DS_Store -delete
       echo " done."
+	  echo
       sync
       sleep 1
       echo "Copying '$OVERLAY'..."
+	  echo
       cp -Rv $OVERLAY/* $BLDLOC
 
       # Replace the placeholders in grub.cfg
