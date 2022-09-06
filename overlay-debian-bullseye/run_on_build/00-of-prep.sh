@@ -35,10 +35,6 @@ apt-get autoremove -y
 echo
 apt-get install -y $APT_SYSTEM $APT_AUDIO $APT_SSH
 
-# Install usbmount from GitHub
-#wget --no-check-certificate -P /tmp https://github.com/birdslikewires/usbmount/releases/download/v0.0.25/usbmount_0.0.25_all.deb
-#dpkg -i /tmp/usbmount_0.0.25_all.deb
-
 
 ### Tweaks and Permissions
 
@@ -79,10 +75,6 @@ else
 
 fi
 
-#echo "Setting plymouth boot screen defaults..."
-#update-alternatives --remove-all default.plymouth 2>/dev/null
-#update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/tribar/tribar.plymouth 100
-
 echo "Setting terminal preferences..."
 # Colour terminal for all!
 for f in `find / -iname *bashrc 2>/dev/null`; do
@@ -91,9 +83,9 @@ done
 echo
 
 # Plain old-fashioned deletions.
-echo "Removing unnecessary components..."
+#echo "Removing unnecessary components..."
 #rm -v /etc/update-motd.d/*
-echo
+#echo
 
 # We use this for simple command line control of yaml files, eg. the netplan config file.
 echo "Installing yq..."
@@ -107,8 +99,6 @@ echo "Ensure correct permissions..."
 [[ "$OPENFRAMEUSER" != "root" ]] && chown -R $OPENFRAMEUSER:$OPENFRAMEUSER $HOMEPATH $HOMEPATH/.*
 chown root:root /home
 chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo /usr/sbin/ntpdate
-#chown -R root:root /etc/polkit-1/localauthority/20-org.d
-#chmod 600 /etc/polkit-1/localauthority/20-org.d/*
 chown -R root:root /etc/sudoers.d
 chmod -R 440 /etc/sudoers.d/*
 chown root:root /usr/local/bin/*
@@ -132,15 +122,6 @@ echo
 
 echo "Enable password authentication for root user over SSH..."
 [[ "$OPENFRAMEUSER" == "root" ]] && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
-
-
-# echo "Configure usbmount..."
-# cp /temp/usbmount/usbmount.conf /etc/usbmount/usbmount.conf
-# cp /temp/usbmount/mount.d/* /etc/usbmount/mount.d/
-# cp /temp/usbmount/umount.d/* /etc/usbmount/umount.d/
-# chown root:root /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
-# chmod 755 /etc/usbmount/mount.d/* /etc/usbmount/umount.d/*
-# echo
 
 
 ### Kernel Installation
@@ -177,11 +158,8 @@ echo
 # 	echo "No additional modules found."
 # 	echo
 # fi
-
+#
 # depmod -a $KERNVER
 # echo
 
-
-### Wind Down
-## This is now part of 99-of-clean.sh
 exit 0
