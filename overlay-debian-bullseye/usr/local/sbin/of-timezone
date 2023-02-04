@@ -41,7 +41,7 @@ elif [[ "$1" == "set" ]]; then
 
 		RESULT=$(timedatectl status | grep "Time zone" | awk -F\  {'print $3'})
 
-		if [[ "$RESULT" == "$1" ]]; then
+		if [[ "$RESULT" == "$2" ]]; then
 
 			echo $RESULT
 			exit 0
