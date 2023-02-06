@@ -117,7 +117,7 @@ plex() {
 		echo "Checksums match, continuing..."
 
 		# Create a standard user 'plex' with no configured password.
-		id -u plex &>/dev/null || useradd -s bash --create-home plex
+		id -u plex &>/dev/null || useradd -s /bin/sh --create-home plex
 		adduser plex audio &>/dev/null
 		adduser plex users &>/dev/null
 		adduser plex video &>/dev/null
@@ -180,7 +180,7 @@ squeezeplay() {
 		echo "Checksums match, continuing..."
 
 		# Create a standard user 'squeezeplay' with no configured password.
-		id -u squeezeplay &>/dev/null || useradd -s bash --create-home squeezeplay
+		id -u squeezeplay &>/dev/null || useradd -s /bin/sh --create-home squeezeplay
 		adduser squeezeplay audio &>/dev/null
 		adduser squeezeplay users &>/dev/null
 		adduser squeezeplay video &>/dev/null
