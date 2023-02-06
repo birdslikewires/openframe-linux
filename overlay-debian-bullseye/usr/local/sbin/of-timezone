@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-timezone v1.12 (1st March 2022) by Andrew Davison
+## of-timezone v1.13 (6th February 2023) by Andrew Davison
 ##  Checks or sets the timezone, returning the timezone once complete, with automatic update option.
 
 
