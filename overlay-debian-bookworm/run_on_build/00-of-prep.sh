@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.11 (6th September 2022)
+# 00-of-prep.sh v1.12 (14th June 2023)
 #  Set up the basics.
 
 #set -x
@@ -21,7 +21,7 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 
 # Additions
-APT_SYSTEM="acpi bash-completion bc bluez ca-certificates curl dosfstools e2fsck-static e2fsprogs htop i2c-tools initramfs-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 lockfile-progs lsb-release nano net-tools netplan.io ntpdate openssl patch pciutils plymouth policykit-1 psmisc rsync sudo systemd-timesyncd tcpd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput"
+APT_SYSTEM="acpi bash-completion bc bluez ca-certificates curl dosfstools e2fsck-static e2fsprogs htop i2c-tools initramfs-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 lockfile-progs lsb-release nano net-tools netplan.io ntpdate openssl patch pciutils plymouth policykit-1 psmisc rsync sudo systemd-resolved systemd-timesyncd tcpd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-tools x11-xserver-utils xauth xinput yq"
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
 
@@ -88,12 +88,12 @@ echo
 #echo
 
 # We use this for simple command line control of yaml files, eg. the netplan config file.
-echo "Installing yq..."
-mkdir -p /tmp/installing/yq
-curl -k -o /tmp/installing/yq/yq $DLSERVER/openframe/deps/yq_linux_386
-cp /tmp/installing/yq/yq /usr/local/bin/
-rm -rf /tmp/installing/yq
-echo
+# echo "Installing yq..."
+# mkdir -p /tmp/installing/yq
+# curl -k -o /tmp/installing/yq/yq $DLSERVER/openframe/deps/yq_linux_386
+# cp /tmp/installing/yq/yq /usr/local/bin/
+# rm -rf /tmp/installing/yq
+# echo
 
 echo "Ensure correct permissions..."
 [[ "$OPENFRAMEUSER" != "root" ]] && chown -R $OPENFRAMEUSER:$OPENFRAMEUSER $HOMEPATH $HOMEPATH/.*
