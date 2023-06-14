@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofimgcreate v1.48 (12th February 2022)
+# ofimgcreate v1.49 (14th June 2023)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -368,7 +368,7 @@ trap cleanup INT
 # Make the image file.
 echo "Creating "$TSIZE"MB image file..."
 if [ "$BYTESSIZE" != "0" ]; then
-	BYTESSIZE=$BYTESSIZE / 8
+	BYTESSIZE=$(($BYTESSIZE/8))
 	dd if=/dev/zero of="$FILENAME" bs=$BYTESSIZE count=8
 else
 	dd if=/dev/zero of="$FILENAME" bs=1MB count=$TSIZE
