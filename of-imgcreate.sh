@@ -258,13 +258,13 @@ loop_create()
 {
   # Create our own loop devices so we're not in competition with anyone.
   if [ ! -e /dev/of-loop0 ]; then
-    /bin/mknod /dev/of-loop0 b 7 200
-    /bin/mknod /dev/of-loop1 b 7 201
-    /bin/mknod /dev/of-loop2 b 7 202
+    mknod /dev/of-loop0 b 7 200
+    mknod /dev/of-loop1 b 7 201
+    mknod /dev/of-loop2 b 7 202
   fi
   OFFSET=$(get_part_byte_offset $2 1)
   SIZE=$(get_part_byte_offset $2 3)
-  /sbin/losetup /dev/of-loop$1 --offset $OFFSET --sizelimit $SIZE "$FILENAME"
+  losetup /dev/of-loop$1 --offset $OFFSET --sizelimit $SIZE "$FILENAME"
 }
 
 loop_delete()
