@@ -1,0 +1,11 @@
+[Unit]
+Description=OpenFrame device identification
+Before=network-pre.target
+Wants=network-pre.target
+
+[Service]
+ExecStart=/usr/local/sbin/of-identifier
+StandardOutput=journal
+
+[Install]
+WantedBy=multi-user.target

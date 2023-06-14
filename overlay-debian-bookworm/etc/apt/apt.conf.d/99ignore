@@ -1,0 +1,2 @@
+APT::Install-Recommends "false";
+Dir::Ignore-Files-Silently:: "disabled";

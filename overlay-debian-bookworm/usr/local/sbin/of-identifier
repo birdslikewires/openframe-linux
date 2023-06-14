@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+
+## of-identifier v2.36 (2nd March 2022)
+##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
+
+if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo $0'."
+	exit 1
+fi
+
+source /etc/os-release
+
+OPENFRAME=1
+KERNVER=$(uname -r)
+KERNMAJVER=$(echo "$KERNVER" | awk -F. '{print $1}')
+
+# Regenerate the SSH key files if they're not present.
+[ ! -f /etc/ssh/ssh_host_rsa_key ] && DEBIAN_FRONTEND=noninteractive dpkg-reconfigure openssh-server
+
+# We can't do anything else that's useful until the system has decided upon its MAC addresses. This relies upon of-netplan.
+while [ ! -f /tmp/openframe.net ]; do sleep 1; done
+sync
+
+outputsysteminformation() {
+	DESC=$(echo ${ID^} ${VERSION_CODENAME^} | awk -F' ' '{print $1 "/" $2}')
+	MMRY=$(free -b | grep 'Mem:' | tr -s ' ' | cut -c6- | sed 's/ /\//g')
+	DRVE=$(df -B 1 | grep '/$' | sed 's/\/dev\///g' | tr -s ' ' | rev | cut -c3- | rev | sed 's/ /\//g')
+	ICPU=$(grep -Em1 "^model name.*Intel" /proc/cpuinfo | awk -F\  '{print $7}')
+	echo -n "$DESC"/"${VERSION_CODENAME,,}"/"$(uname -r)"/"$MMRY"/"$DRVE" > /tmp/openframe.nfo
+	echo -n "/$ICPU" >> /tmp/openframe.nfo || echo >> /tmp/openframe.nfo
+	echo "/openframe" >> /tmp/openframe.nfo
+}
+
+outputsystemuid() {
+	UUID=$(cat /etc/fstab | grep 'UUID' | grep ' / ' | awk -F\= '{print $2}' | awk -F\  '{print $1}')
+	echo "$UUID" > /tmp/openframe.uid
+}
+
+if [ -e /boot/openframe.ver ]; then
+
+	OPENFRAME=$(cat /boot/openframe.ver | cut -b1)
+	MMCSIZE=""
+	echo "Specified as OpenFrame $OPENFRAME via override file."
+
+else
+
+	MMC=$(ls -1 /dev/mmcblk* 2>/dev/null | grep -v "p")
+
+	if [ "$MMC" != "" ]; then
+
+		MMCCOUNT=$(echo "$MMC" | wc -l)
+
+		if [ $MMCCOUNT -le 1 ];  then
+			# If only one /dev/mmcblk appears, we can use it to identify the unit.
+
+			MMCNUM=$(echo "${MMC: -1}")
+			MMCSIZE=$(fdisk -l /dev/mmcblk$MMCNUM | grep -m1 mmcblk$MMCNUM: | awk -F\  {'print $5'})
+
+			[ $MMCSIZE -gt 1028128768 ] && OPENFRAME=2 || OPENFRAME=1
+			[ ! $MMCSIZE -gt 0 ] && echo "Could not identify MMC capacity. Assuming OpenFrame 1."
+				
+		else
+			# If we get more than one, we can't guarantee which is the internal one.
+			
+			echo "Multiple MMC devices found. Assuming OpenFrame 1."
+
+		fi
+
+	else
+
+		echo "Could not identify an MMC device. Assuming OpenFrame 1."
+
+	fi
+
+fi
+
+[ ! $OPENFRAME ] || [ $OPENFRAME -lt 1 ] || [ $OPENFRAME -gt 2 ] && echo "Not a known device." && exit 1
+
+echo $OPENFRAME > /tmp/openframe.ver
+
+if [ ! "$OPENFRAME" -eq 1 ] && [ ! "$OPENFRAME" -eq 2 ]; then
+	# We had some patches to do in earlier versions and this is where we did them.
+
+	echo "Unable to identify this device. Is it an OpenFrame?"
+	exit 1
+
+fi
+
+if [ -f /etc/firstboot ]; then
+
+	# Apply a new UUID to the root partition and rename boot and root to avoid conflicts.
+	CODEPRE=${VERSION_CODENAME:0:3}
+	BOOTLOC=$(blkid | grep ${CODEPRE^^}-BOOT | awk -F\: {'print $1'})
+	ROOTLOC=$(blkid | grep ${CODEPRE^^}-ROOT | awk -F\: {'print $1'})
+	NEWUUID=$(uuid)
+	NEWUUIDSHORT="${NEWUUID:0:4}"
+
+	if [[ "$BOOTLOC" != "" ]]; then
+		sed -i 's/LABEL='${CODEPRE^^}'-BOOT/LABEL='BOOT${NEWUUIDSHORT^^}'/g' /etc/fstab
+		dosfslabel $BOOTLOC "BOOT${NEWUUIDSHORT^^}" >/dev/null 2>&1
+	else
+		echo "Change of label aborted. Cannot find the boot partition labelled '${CODEPRE^^}-BOOT'."
+	fi
+
+	if [[ "$ROOTLOC" != "" ]]; then
+		tune2fs $ROOTLOC -U $NEWUUID >/dev/null
+		sed -i 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
+		sed -i 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /etc/fstab
+		e2label $ROOTLOC "ROOT${NEWUUIDSHORT^^}"
+	else
+		echo "Change of UUID aborted. Cannot find the root partition labelled '${CODEPRE^^}-ROOT'."
+	fi
+
+	# Set a sensible default audio level and enable auto-mute.
+	amixer -c 0 sset 'Master' 50% unmute >/dev/null 2>&1
+	amixer -c 0 sset 'Auto-Mute Mode' 'Line Out+Speaker'
+
+	# Leave a temporary note for non-critical scripts that this was our first boot.
+	mv /etc/firstboot /tmp/firstboot
+
+fi
+
+outputsystemuid
+outputsysteminformation
+
+# Init the light sensor readings.
+readlightsensor &>/dev/null
+
+if [ -f /root/expanding ]; then
+	echo "Expanding root filesystem..."
+	cp /root/expanding /tmp/expanding
+	resize2fs $(cat /root/expanding)
+	wall "Drive resizing complete."
+	rm /root/expanding /tmp/expanding
+fi
+
+exit 0
