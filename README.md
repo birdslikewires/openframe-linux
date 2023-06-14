@@ -48,6 +48,15 @@ sudo schroot -c source:i386
 
 You can then complete the setup of your build environment.
 
+```
+rm /var/lib/dpkg/statoverride 
+rm /var/lib/dpkg/lock
+dpkg --configure -a
+apt update && apt upgrade
+apt install autoconf bc bison build-essential curl debootstrap dosfstools flex git libncurses5-dev libssl-dev lsb-release parted rsync wget 
+
+```
+
 For normal use, get in to the chroot like this:
 
 ```
