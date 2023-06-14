@@ -368,7 +368,7 @@ trap cleanup INT
 # Make the image file.
 echo "Creating "$TSIZE"MB image file..."
 if [ "$BYTESSIZE" != "0" ]; then
-	BYTESSIZE = $BYTESSIZE / 8
+	BYTESSIZE=$BYTESSIZE / 8
 	dd if=/dev/zero of="$FILENAME" bs=$BYTESSIZE count=8
 else
 	dd if=/dev/zero of="$FILENAME" bs=1MB count=$TSIZE
