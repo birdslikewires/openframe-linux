@@ -269,7 +269,7 @@ loop_create()
 
 loop_delete()
 {
-  /sbin/losetup -d /dev/of-loop$1
+  losetup -d /dev/of-loop$1
 }
 
 loop_mount()
