@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofcnc.sh v1.21 (2nd March 2022)
+# of-cnc.sh v1.21 (2nd March 2022)
 #  Used to clean 'n' copy a Joggler OS from a storage device.
 
 #set -x
