@@ -54,13 +54,12 @@ rm /var/lib/dpkg/lock
 dpkg --configure -a
 apt update && apt upgrade
 apt install autoconf bc bison build-essential curl debootstrap dosfstools flex git libncurses5-dev libssl-dev lsb-release parted rsync wget 
-
 ```
 
-For normal use, get in to the chroot like this:
+The build server runs a command like this from its crontab:
 
 ```
-schroot -c i386
+1 1 * * * schroot -c i386 -u root -- bash -c "cd /home/debian/build ; /home/debian/openframe-linux/of-builder.sh 'debian' 'bookworm' 'http://deb.debian.org/debian' '6.1' '/home/debian/www' &> /home/debian/www/logs/bookworm-6.1_`date +'\%Y-\%m-\%d-\%H\%M'`.txt"
 ```
 
 
@@ -83,18 +82,14 @@ of-imgmnt.sh
 
 Used to mount image files for minor tweaks, meaning we don't need to rebuild things every time. Now with variable partition support!
 
+
+of-serverclean.sh
+-----------------
+
+Basic build server cleaning script. Give it directories to clean line-by-line in a text file and once server drive space drops below 5 GB it removes any directories (and obviously their contents) that are older than 12 months.
+
+
 Overlays
 ---------
 
-The overlay files provide modifications to the vanilla system to provide some necessary and some nice-to-have features, including automatically configured GRUB, network settings from the `/boot` volume (ideal for preconfiguring), sensible system defaults, minimal firmware files and helpful scripts.
-
-With regard to this last element, all OpenFrame related scripts are named `of-*` and live in `/usr/local/sbin`. There is one script, `of-update`, which polls a support server each day to check for script updates. For this reason, please don't edit `of-*` scripts directly, as anything with this prefix in this location may be overwritten.
-
-If this is not to your liking you may disable the update service as follows:
-
-```
-sudo systemctl disable of-update
-sudo systemctl stop of-update
-```
-
-You can run `sudo of-update` to manually check for updates, or download individual scripts from this repository.
+The overlay files provide modifications to the vanilla system to provide some necessary and some nice-to-have features, including automatically configured GRUB, network settings from the `/boot` volume (ideal for preconfiguring), sensible system defaults and minimal firmware files.

@@ -31,7 +31,7 @@ remove_old_directories() {
 
 			if [[ $last_modified -lt $three_months_ago ]]; then
 			echo "Removing directory: $dir"
-			#rm -rf "$dir"
+			rm -rf "$dir"
 			fi
 			
 		fi
