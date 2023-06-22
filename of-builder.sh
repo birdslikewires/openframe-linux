@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.35 (16th June 2023)
+## of-builder.sh v1.36 (22nd June 2023)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -327,8 +327,7 @@ else
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Moving to webserver..."
 	mkdir -p $IDLPATH
 	mv ./*.img* $IDLPATH
-	#[ -L "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
-	#[ -L "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER" ] && rm "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest_$KLATESTMAJVER$KLATESTMIDVER"
+	rm "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest" 2>/dev/null
 	ln -s "$IDLPATH" "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest"
 	echo " done."
 	echo
