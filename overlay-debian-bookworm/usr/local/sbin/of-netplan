@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v1.11 (11th February 2022)
+## of-netplan v1.12 (23rd June 2023)
 ##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
@@ -37,7 +37,7 @@ done
 # If we found one, copy it into the system.
 if [ $COUNT -lt $CONFIGTIMEOUT ]; then
 	cp /boot/$NETPLANCONFIG /etc/netplan/$NETPLANCONFIG
-	chmod 644 /etc/netplan/$NETPLANCONFIG
+	chmod 600 /etc/netplan/$NETPLANCONFIG
 fi
 
 # Configure what's shown on the text login prompt.
