@@ -416,9 +416,9 @@ esac
 # Mount the image file.
 mount -t $FS -o $MOUNTOPTS /dev/loop$RLOOPNUM $MP
 mkdir $MP/boot
-umount /dev/loop0 2>/dev/null
+umount /dev/loop$((AVAILABLELOOP+0)) 2>/dev/null
 sleep 4
-mount -t vfat /dev/loop0 $MP/boot
+mount -t vfat /dev/loop$((AVAILABLELOOP+0)) $MP/boot
 
 
 # Go to work.
