@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofimgcreate v1.49 (14th June 2023)
+# ofimgcreate v1.50 (4th July 2023)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -278,9 +278,10 @@ loop_delete() {
 
 loop_mount() {
 
-	loop_create 0 1
-	loop_create 1 2
-	[[ "$SSIZE" > "0" ]] && loop_create 2 3
+	AVAILABLELOOP=$(losetup -f | awk -F\loop {'print $2'})
+	loop_create $AVAILABLELOOP 1
+	loop_create $((AVAILABLELOOP+1)) 2
+	[[ "$SSIZE" > "0" ]] && loop_create $((AVAILABLELOOP+2)) 3
 
 }
 
