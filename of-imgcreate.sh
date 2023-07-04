@@ -187,7 +187,6 @@ echo
 
 echo "Image filename will be: $FILENAME"
 echo
-sleep 1
 
 # Set up the debootstrap cache and build directory names.
 DBSLOC=$INSTALL"_dbscache"
@@ -195,6 +194,7 @@ BLDLOC=$INSTALL"-"${NAME,,}"-openframe-"$KERNVER
 
 AVAILABLELOOP=$(losetup -f | awk -F\loop {'print $2'})
 echo "First available loop device is: loop$((AVAILABLELOOP+0))"
+echo
 
 # Juggle partition numbers if we've got no swap area.
 if [[ "$SSIZE" == "0" ]]; then
@@ -415,172 +415,179 @@ esac
 # Mount the image file.
 mount -t $FS -o $MOUNTOPTS /dev/loop$RLOOPNUM $MP
 mkdir $MP/boot
-#umount /dev/loop$((AVAILABLELOOP+0)) 2>/dev/null
+umount /dev/loop$((AVAILABLELOOP+0)) 2>/dev/null
 sleep 4
 mount -t vfat /dev/loop$((AVAILABLELOOP+0)) $MP/boot
 
 
 # Go to work.
 if [[ "$INSTALL" != "" ]]; then
-  echo
-  echo "Preparing for installation..."
-
-  # Sets whether we check for errors on boot.
-  if [ "$FS" == "btrfs" ]; then
-	CHECK=0
-  else
-	## Disabled checking - this was proving more trouble than it was worth.
-	#CHECK=1
-	CHECK=0
-  fi
-
-  # If we're just copying from a .tgz.
-  if [[ "$INSTALL" =~ ".tgz" ]]; then
-	
-	  echo
-	  echo "DON'T FORGET! Check grub.cfg and fstab match your partition labels!"
-	  echo
-	echo "Copying root contents from $INSTALL to image..."
-	TARDIR=`echo $INSTALL | sed 's/\.tgz$//g'`
-	tar zxf $INSTALL -C $MP $TARDIR/root --strip-components 2
-	sleep 1
-	echo "Copying boot contents from $INSTALL to image..."
-	tar zxf $INSTALL -C $MP/boot $TARDIR/boot --strip-components 2
-	mmc_cfg
-
-  # If we're copying from genuine directory tree.
-  elif [ -d "$INSTALL" ]; then
-	
-	BOOTLABEL=`ls -1 $INSTALL | grep boot`
-	ROOTLABEL=`ls -1 $INSTALL | grep root`
 
 	echo
-	echo "DON'T FORGET! Check grub.cfg and fstab match your partition labels!"
-	echo
-	echo "Copying root contents from $INSTALL directory to image..."
-	cp -a $INSTALL/$ROOTLABEL/. $MP
-	sleep 1
-	echo "Copying boot contents from $INSTALL directory to image..."
-	cp -a $INSTALL/$BOOTLABEL/. $MP/boot
-	mmc_cfg
+	echo "Preparing for installation..."
 
-  # Otherwise, fetch, duplicate, modify and chrootitoot.
-  else
-
-	CODENAME=`echo "${INSTALL[@]^}"`
-
-	# Fetch.
-	if [ ! -d $DBSLOC ]; then
-		echo "Fetching ${DISTNAME^} $CODENAME with debootstrap from $DBSERVER..."
-		echo
-		mkdir $DBSLOC
-		debootstrap --arch i386 $INSTALL $DBSLOC $DBSERVER
-		sync
-		sync
-		sleep 2
+	# Sets whether we check for errors on boot.
+	if [ "$FS" == "btrfs" ]; then
+		CHECK=0
 	else
-		echo
-		echo "Debootstrap cache '$DBSLOC' already exists. Moving on..."
+		## Disabled checking - this was proving more trouble than it was worth.
+		#CHECK=1
+		CHECK=0
 	fi
 
-	# Duplicate.
-	if [ ! -d $BLDLOC ]; then
+	# If we're just copying from a .tgz.
+	if [[ "$INSTALL" =~ ".tgz" ]]; then
+	
 		echo
-		echo "Duplicating '$DBSLOC' into build directory '$BLDLOC'..."
-		cp -R $DBSLOC $BLDLOC
-		
+		echo "DON'T FORGET! Check grub.cfg and fstab match your partition labels!"
+		echo
+		echo "Copying root contents from $INSTALL to image..."
+		TARDIR=`echo $INSTALL | sed 's/\.tgz$//g'`
+		tar zxf $INSTALL -C $MP $TARDIR/root --strip-components 2
+		sleep 1
+		echo "Copying boot contents from $INSTALL to image..."
+		tar zxf $INSTALL -C $MP/boot $TARDIR/boot --strip-components 2
+		mmc_cfg
+
+	# If we're copying from genuine directory tree.
+	elif [ -d "$INSTALL" ]; then
+	
+		BOOTLABEL=`ls -1 $INSTALL | grep boot`
+		ROOTLABEL=`ls -1 $INSTALL | grep root`
+
+		echo
+		echo "DON'T FORGET! Check grub.cfg and fstab match your partition labels!"
+		echo
+		echo "Copying root contents from $INSTALL directory to image..."
+		cp -a $INSTALL/$ROOTLABEL/. $MP
+		sleep 1
+		echo "Copying boot contents from $INSTALL directory to image..."
+		cp -a $INSTALL/$BOOTLABEL/. $MP/boot
+		mmc_cfg
+
+	# Otherwise, fetch, duplicate, modify and chrootitoot.
+	else
+
+		CODENAME=`echo "${INSTALL[@]^}"`
+
+		# Fetch.
+		if [ ! -d $DBSLOC ]; then
+
+			echo "Fetching ${DISTNAME^} $CODENAME with debootstrap from $DBSERVER..."
+			echo
+			mkdir $DBSLOC
+			debootstrap --arch i386 $INSTALL $DBSLOC $DBSERVER
+			sync
+			sync
+			sleep 2
+			else
+			echo
+			echo "Debootstrap cache '$DBSLOC' already exists. Moving on..."
+
+		fi
+
+		# Duplicate.
+		if [ ! -d $BLDLOC ]; then
+			
+			echo
+			echo "Duplicating '$DBSLOC' into build directory '$BLDLOC'..."
+			cp -R $DBSLOC $BLDLOC
+
 		# Modify.
-	if [[ "$OVERLAY" != "" ]] && [[ "$KERNELDIR" != "" ]]; then
+		if [[ "$OVERLAY" != "" ]] && [[ "$KERNELDIR" != "" ]]; then
 
-	  echo
-	  echo "Preparing system for OpenFrame..."
-	  echo
-	  echo -n "Sanitising overlay..."
-	  find $OVERLAY -type f -name .DS_Store -delete
-	  echo " done."
-	  echo
-	  sync
-	  sleep 1
-	  echo "Copying '$OVERLAY'..."
-	  echo
-	  cp -Rv $OVERLAY/* $BLDLOC
+			echo
+			echo "Preparing system for OpenFrame..."
+			echo
+			echo -n "Sanitising overlay..."
+			find $OVERLAY -type f -name .DS_Store -delete
+			echo " done."
+			echo
+			sync
+			sleep 1
+			echo "Copying '$OVERLAY'..."
+			echo
+			cp -Rv $OVERLAY/* $BLDLOC
 
-	  # Replace the placeholders in grub.cfg
-	  if [[ "$OFVARIANT" == "of1" ]] || [[ "$OFVARIANT" == "of2" ]]; then
-		sed -i "s/KERNVERLABEL/$KERNVER (Internal)/" $BLDLOC/boot/grub.cfg
-	  else
-		sed -i "s/KERNVERLABEL/$KERNVER/" $BLDLOC/boot/grub.cfg
-	  fi
+			# Replace the placeholders in grub.cfg
+			if [[ "$OFVARIANT" == "of1" ]] || [[ "$OFVARIANT" == "of2" ]]; then
+				sed -i "s/KERNVERLABEL/$KERNVER (Internal)/" $BLDLOC/boot/grub.cfg
+			else
+				sed -i "s/KERNVERLABEL/$KERNVER/" $BLDLOC/boot/grub.cfg
+			fi
 
-	  sed -i "s/ROOTDEV/LABEL=$RNAME/" $BLDLOC/boot/grub.cfg
-	  sed -i "s/DISTNAME/${DISTNAME^}/" $BLDLOC/boot/grub.cfg
-	  sed -i "s/CODENAME/${CODENAME^}/" $BLDLOC/boot/grub.cfg
-	  sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
-	  sed -i "s/ROOTFST/$FS/" $BLDLOC/boot/grub.cfg
+			sed -i "s/ROOTDEV/LABEL=$RNAME/" $BLDLOC/boot/grub.cfg
+			sed -i "s/DISTNAME/${DISTNAME^}/" $BLDLOC/boot/grub.cfg
+			sed -i "s/CODENAME/${CODENAME^}/" $BLDLOC/boot/grub.cfg
+			sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
+			sed -i "s/ROOTFST/$FS/" $BLDLOC/boot/grub.cfg
 
-	  if [ $USEINITRD -ne 1 ]; then
-		cat $BLDLOC/boot/grub.cfg | grep -v initrd > $BLDLOC/boot/grub.cfg.noinitrd
-		mv $BLDLOC/boot/grub.cfg.noinitrd $BLDLOC/boot/grub.cfg
-	  fi
+			if [ $USEINITRD -ne 1 ]; then
+				cat $BLDLOC/boot/grub.cfg | grep -v initrd > $BLDLOC/boot/grub.cfg.noinitrd
+				mv $BLDLOC/boot/grub.cfg.noinitrd $BLDLOC/boot/grub.cfg
+			fi
 
-	  # Replace the placeholders in fstab
-	  sed -i "s/BOOTDEV/LABEL=$BNAME/" $BLDLOC/etc/fstab
-	  sed -i "s/ROOTDEV/LABEL=$RNAME/" $BLDLOC/etc/fstab
-	  sed -i "s/FS/$FS/" $BLDLOC/etc/fstab
-	  sed -i "s/MOUNTOPTS/$MOUNTOPTS/" $BLDLOC/etc/fstab
-	  sed -i "s/CHECK/$CHECK/" $BLDLOC/etc/fstab
+			# Replace the placeholders in fstab
+			sed -i "s/BOOTDEV/LABEL=$BNAME/" $BLDLOC/etc/fstab
+			sed -i "s/ROOTDEV/LABEL=$RNAME/" $BLDLOC/etc/fstab
+			sed -i "s/FS/$FS/" $BLDLOC/etc/fstab
+			sed -i "s/MOUNTOPTS/$MOUNTOPTS/" $BLDLOC/etc/fstab
+			sed -i "s/CHECK/$CHECK/" $BLDLOC/etc/fstab
 
-	  if [[ "$SSIZE" > "0" ]]; then
-		sed -i "s/SNAME/$SNAME/" $BLDLOC/etc/fstab
-	  else
-		cat $BLDLOC/etc/fstab | grep -v swap > $BLDLOC/etc/fstab.noswap
-		mv $BLDLOC/etc/fstab.noswap $BLDLOC/etc/fstab
-	  fi
+			if [[ "$SSIZE" > "0" ]]; then
+				sed -i "s/SNAME/$SNAME/" $BLDLOC/etc/fstab
+			else
+				cat $BLDLOC/etc/fstab | grep -v swap > $BLDLOC/etc/fstab.noswap
+				mv $BLDLOC/etc/fstab.noswap $BLDLOC/etc/fstab
+			fi
 
-	  #if [ "$FS" != "btrfs" ]; then
-	  #  rm $BLDLOC/etc/cron.d/btrfs_balance
-	  #  rm $BLDLOC/usr/local/bin/balancecheck
-	  #fi
+			#if [ "$FS" != "btrfs" ]; then
+			#  rm $BLDLOC/etc/cron.d/btrfs_balance
+			#  rm $BLDLOC/usr/local/bin/balancecheck
+			#fi
 
-	  # Replace the placeholders used for apt
-	  sed -i "s=DBSERVER=$DBSERVER=" $BLDLOC/etc/apt/sources.list
-	  sed -i "s/CODENAME/$INSTALL/" $BLDLOC/etc/apt/sources.list
+			# Replace the placeholders used for apt
+			sed -i "s=DBSERVER=$DBSERVER=" $BLDLOC/etc/apt/sources.list
+			sed -i "s/CODENAME/$INSTALL/" $BLDLOC/etc/apt/sources.list
 
-	  mount --bind /dev $BLDLOC/dev
-	  mount --bind /dev/pts $BLDLOC/dev/pts
-	  mount --bind /proc $BLDLOC/proc
-	  mount --bind /sys $BLDLOC/sys
-	  mount --bind /tmp $BLDLOC/tmp
-	  mount --bind $KERNELDIR $BLDLOC/mnt
+			mount --bind /dev $BLDLOC/dev
+			mount --bind /dev/pts $BLDLOC/dev/pts
+			mount --bind /proc $BLDLOC/proc
+			mount --bind /sys $BLDLOC/sys
+			mount --bind /tmp $BLDLOC/tmp
+			mount --bind $KERNELDIR $BLDLOC/mnt
 
-	  # Chrootitoot.
-	  sync
+			# Chrootitoot.
+			sync
 
-	  if [ -d $BLDLOC/run_on_build ]; then
-		for f in `ls $BLDLOC/run_on_build`; do
-		  echo
-		  echo "Running $f in chroot..."
-		  chmod +x $BLDLOC/run_on_build/$f
-		  chroot $BLDLOC /run_on_build/$f
-		  sync
-		done
-		rm -rf $BLDLOC/run_on_build
-	  fi
+			if [ -d $BLDLOC/run_on_build ]; then
 
-	  sync
-	  sleep 2
-	  sync
+				for f in `ls $BLDLOC/run_on_build`; do
+					echo
+					echo "Running $f in chroot..."
+					chmod +x $BLDLOC/run_on_build/$f
+					chroot $BLDLOC /run_on_build/$f
+					sync
+				done
 
-		  umount $BLDLOC/mnt
-		  umount $BLDLOC/tmp
-		  umount $BLDLOC/sys
-		  umount -l $BLDLOC/proc
-		  umount $BLDLOC/dev/pts
-		  umount -l $BLDLOC/dev
+				rm -rf $BLDLOC/run_on_build
+				
+			fi
 
-		  rm -rf $BLDLOC/tmp/*
-		  rm -rf $BLDLOC/var/log/*
-		  rm -rf $BLDLOC/var/tmp/*
+			sync
+			sleep 2
+			sync
+
+			umount $BLDLOC/mnt
+			umount $BLDLOC/tmp
+			umount $BLDLOC/sys
+			umount -l $BLDLOC/proc
+			umount $BLDLOC/dev/pts
+			umount -l $BLDLOC/dev
+
+			rm -rf $BLDLOC/tmp/*
+			rm -rf $BLDLOC/var/log/*
+			rm -rf $BLDLOC/var/tmp/*
 
 		fi
 		
