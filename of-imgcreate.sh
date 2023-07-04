@@ -47,6 +47,8 @@ if [ "$DBPRESENT" == "" ]; then
   exit 0
 fi
 
+AVAILABLELOOP=$(losetup -f | awk -F\loop {'print $2'})
+
 NAME="${1^^}"
 FS="${2}"
 if [ "$FS" == "ext3" ] || [ "$FS" == "ext3" ]; then
@@ -262,7 +264,6 @@ loop_create() {
 	#  mknod /dev/of-loop2 b 7 202
 	#fi
 
-	loop_delete $1
 	OFFSET=$(get_part_byte_offset $2 1)
 	SIZE=$(get_part_byte_offset $2 3)
 	#losetup /dev/of-loop$1 --offset $OFFSET --sizelimit $SIZE "$FILENAME"
@@ -278,8 +279,7 @@ loop_delete() {
 
 loop_mount() {
 
-	AVAILABLELOOP=$(losetup -f | awk -F\loop {'print $2'})
-	loop_create $AVAILABLELOOP 1
+	loop_create $((AVAILABLELOOP+0)) 1
 	loop_create $((AVAILABLELOOP+1)) 2
 	[[ "$SSIZE" > "0" ]] && loop_create $((AVAILABLELOOP+2)) 3
 
@@ -287,13 +287,13 @@ loop_mount() {
 
 filesystems_create() {
 
-	mkfs.vfat -F 16 -n "$BNAME" /dev/loop0
+	mkfs.vfat -F 16 -n "$BNAME" /dev/loop$((AVAILABLELOOP+0))
 
 	if [[ "$SSIZE" > "0" ]]; then
-	mkswap -L "$SNAME" /dev/loop1
-	ROOTLOOP="/dev/loop2"
+		mkswap -L "$SNAME" /dev/loop$((AVAILABLELOOP+1))
+		ROOTLOOP="/dev/loop$((AVAILABLELOOP+2))"
 	else
-	ROOTLOOP="/dev/loop1"
+		ROOTLOOP="/dev/loop$((AVAILABLELOOP+1))"
 	fi
 
 	case $1 in
@@ -362,9 +362,9 @@ cleanup() {
   fi
   umount $MP
   rmdir $MP
-  loop_delete 0 2>/dev/null
-  loop_delete 1 2>/dev/null
-  loop_delete 2 2>/dev/null
+  loop_delete $((AVAILABLELOOP+0)) 2>/dev/null
+  loop_delete $((AVAILABLELOOP+1)) 2>/dev/null
+  loop_delete $((AVAILABLELOOP+2)) 2>/dev/null
   echo
   echo "Creation of $FILENAME is complete."
   echo
