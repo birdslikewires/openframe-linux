@@ -47,9 +47,6 @@ if [ "$DBPRESENT" == "" ]; then
   exit 0
 fi
 
-AVAILABLELOOP=$(losetup -f | awk -F\loop {'print $2'})
-echo "First available loop device is: loop$((AVAILABLELOOP+0))"
-
 NAME="${1^^}"
 FS="${2}"
 if [ "$FS" == "ext3" ] || [ "$FS" == "ext3" ]; then
@@ -196,13 +193,14 @@ sleep 1
 DBSLOC=$INSTALL"_dbscache"
 BLDLOC=$INSTALL"-"${NAME,,}"-openframe-"$KERNVER
 
+AVAILABLELOOP=$(losetup -f | awk -F\loop {'print $2'})
+echo "First available loop device is: loop$((AVAILABLELOOP+0))"
+
 # Juggle partition numbers if we've got no swap area.
 if [[ "$SSIZE" == "0" ]]; then
-  RPARTNUM=2
-  RLOOPNUM=1
+  RLOOPNUM=$((AVAILABLELOOP+1))
 else
-  RPARTNUM=3
-  RLOOPNUM=2
+  RLOOPNUM=$((AVAILABLELOOP+2))
 fi
 
 # Impose name character limit. Too long and the label will be truncated.
