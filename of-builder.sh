@@ -81,8 +81,6 @@ KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER.$K
 if [[ $KCONFIGFILE == "" ]]; then
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Build failed, no config file found for this kernel."
-	cd ..
-	cleanup
 	exit 1
 fi
 
