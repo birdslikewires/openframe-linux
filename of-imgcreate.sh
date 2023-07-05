@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofimgcreate v1.51 (5th July 2023)
+# ofimgcreate v1.52 (5th July 2023)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -17,13 +17,14 @@ countdown() {
 }
 
 if [[ "$#" -lt 6 ]]; then
-  echo "Usage: $0 <name> <filesystem> <initramfs> <totalMB> <bootMB> <source> [overlay] [kerneldir]"
+  echo "Usage: $0 <name> <filesystem> <initramfs> <totalMB> <bootMB> <swapMB> <source> [overlay] [kerneldir]"
   echo
   echo "  name:            System name. Will be used for filename and partition prefix."
   echo "  filesystem:      Choose from ext2 or btrfs."
   echo "  initramfs        Enter '1' to use an initrd, or '0' to boot without it."
   echo "  totalMB:         The total size of the image file; specify 'of1' or 'of2' for respective internal MMC."
   echo "  bootMB:          The size of the FAT16 boot volume (8 MB minimum with no initrd, otherwise 32 MB minimum)."
+  echo "  swapMB:          The size of the swap partition. Enter 0 for no swap."
   echo "  source:          Source of operating system, MUST BE QUOTED. You have two options here:"
   echo "                      1) Give an official distro name and code name, eg. 'ubuntu bionic'."
   echo "                      2) Point to a local .tgz file containing boot and root structures."
@@ -107,15 +108,16 @@ else
 
 fi
 
-INSTALL="${6}"
+SSIZE="${6}"
+INSTALL="${7}"
 DISTNAME=$(echo "$INSTALL" | awk -F\  {'print $1'})
 CODENAME=$(echo "$INSTALL" | awk -F\  {'print $2'})
 INSTALL="$CODENAME"
-OVERLAY="${7}"
-KERNELDIR="${8}"
-DBSERVER="${9}"
+OVERLAY="${8}"
+KERNELDIR="${9}"
+DBSERVER="${10}"
 OFF=0
-RSIZE=$(($TSIZE-$BSIZE))
+RSIZE=$(($TSIZE-$BSIZE-$SSIZE))
 
 if [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$DBSERVER" == "" ]]; then
   echo "You have not provided a download server or a .tgz to work from."
@@ -191,6 +193,15 @@ sleep 1
 DBSLOC=$INSTALL"_dbscache"
 BLDLOC=$INSTALL"-"${NAME,,}"-openframe-"$KERNVER
 
+# Juggle partition numbers if we've got no swap area.
+if [[ "$SSIZE" == "0" ]]; then
+  RPARTNUM=2
+  RLOOPNUM=1
+else
+  RPARTNUM=3
+  RLOOPNUM=2
+fi
+
 # Impose name character limit. Too long and the label will be truncated.
 if [[ ${#NAME} > 5 ]]; then
   echo "Name prefix must be 5 characters or fewer."
@@ -198,25 +209,39 @@ if [[ ${#NAME} > 5 ]]; then
 else
   RNAME="$NAME"-ROOT
   BNAME="$NAME"-BOOT
+  SNAME="$NAME"-SWAP
   echo "Partitions will be:"
   echo "  boot: $BNAME"
   echo "        ("$BSIZE"MB)"
+  [[ "$SSIZE" > "0" ]] && echo "  swap: $SNAME"
+  [[ "$SSIZE" > "0" ]] && echo "  ("$SSIZE"MB)"
   echo "  root: $RNAME"
   echo "        ("$RSIZE"MB)"
   echo
   sleep 4
 fi
 
-OURLOOPS=()
+
+
 
 partitions_create()
 {
   BOOTEND=$(($OFF+$BSIZE))
-  parted -s "$FILENAME" -- \
-    mklabel msdos \
-    mkpart primary fat16 $OFF $(($OFF+$BSIZE)) \
-    set 1 boot on \
-    mkpart primary $BOOTEND -1
+  if [[ "$SSIZE" > "0" ]]; then
+    SWAPEND=$(($OFF+$BSIZE+$SSIZE))
+    parted -s "$FILENAME" -- \
+      mklabel msdos \
+      mkpart primary fat16 $OFF $BOOTEND \
+      set 1 boot on \
+      mkpart primary "$NAME"swap $BOOTEND $SWAPEND \
+      mkpart primary $SWAPEND -1
+  else
+    parted -s "$FILENAME" -- \
+      mklabel msdos \
+      mkpart primary fat16 $OFF $(($OFF+$BSIZE)) \
+      set 1 boot on \
+      mkpart primary $BOOTEND -1
+  fi
   sync
   sleep 2
 }
@@ -228,25 +253,42 @@ get_part_byte_offset()
   parted -m "$FILENAME" unit b print | grep "^$PART" | cut -d: -f $OFF | sed -e "s/\([0-9]\+\)B/\1/g"
 }
 
-# partition number in image as argument 
+# loop#, partition
 loop_create()
 {
-  OFFSET=$(get_part_byte_offset $1 1)
-  SIZE=$(get_part_byte_offset $1 3)
-  OURLOOPS+=($(losetup -f --show --offset $OFFSET --sizelimit $SIZE "$FILENAME"))
+  # Create our own loop devices so we're not in competition with anyone.
+  if [ ! -e /dev/of-loop0 ]; then
+    /bin/mknod /dev/of-loop0 b 7 200
+    /bin/mknod /dev/of-loop1 b 7 201
+    /bin/mknod /dev/of-loop2 b 7 202
+  fi
+  OFFSET=$(get_part_byte_offset $2 1)
+  SIZE=$(get_part_byte_offset $2 3)
+  /sbin/losetup /dev/of-loop$1 --offset $OFFSET --sizelimit $SIZE "$FILENAME"
 }
 
 loop_delete()
 {
-	for l in "${OURLOOPS[@]}"; do
-		losetup -d $i
-	done
+  /sbin/losetup -d /dev/of-loop$1
+}
+
+loop_mount()
+{
+  loop_create 0 1
+  loop_create 1 2
+  [[ "$SSIZE" > "0" ]] && loop_create 2 3
 }
 
 filesystems_create()
 {
+  mkfs.vfat -F 16 -n "$BNAME" /dev/of-loop0
 
-  mkfs.vfat -F 16 -n "$BNAME" "${OURLOOPS[0]}"
+  if [[ "$SSIZE" > "0" ]]; then
+    mkswap -L "$SNAME" /dev/of-loop1
+    ROOTLOOP="/dev/of-loop2"
+  else
+    ROOTLOOP="/dev/of-loop1"
+  fi
 
   case $1 in
     btrfs)
@@ -258,25 +300,24 @@ filesystems_create()
     ext2)
       echo "ext2 configuration."
       MKFS="mkfs.ext2"
-      TUNEFS="tune2fs -i 0 ${OURLOOPS[1]}"
-      FSCK="e2fsck -f ${OURLOOPS[1]}"
+      TUNEFS="tune2fs -i 0 $ROOTLOOP"
+      FSCK="e2fsck -f $ROOTLOOP"
     ;;
     ext4)
       echo "ext4 (without journal) configuration."
       MKFS="mkfs.ext4 -O ^has_journal"
-      TUNEFS="tune2fs -i 0 ${OURLOOPS[1]}"
-      FSCK="e2fsck -f ${OURLOOPS[1]}"
+      TUNEFS="tune2fs -i 0 $ROOTLOOP"
+      FSCK="e2fsck -f $ROOTLOOP"
     ;;
   esac
 
-  $MKFS -L "$RNAME" ${OURLOOPS[1]}
+  $MKFS -L "$RNAME" $ROOTLOOP
   $TUNEFS
   sync
   sleep 2
   $FSCK
   sync
   sleep 2
-
 }
 
 mmc_cfg() {
@@ -327,8 +368,7 @@ trap cleanup INT
 # Make the image file.
 echo "Creating "$TSIZE"MB image file..."
 if [ "$BYTESSIZE" != "0" ]; then
-	BYTESSIZE=$(($BYTESSIZE/8))
-	dd if=/dev/zero of="$FILENAME" bs=$BYTESSIZE count=8
+	dd if=/dev/zero of="$FILENAME" bs=$BYTESSIZE count=1
 else
 	dd if=/dev/zero of="$FILENAME" bs=1MB count=$TSIZE
 fi
@@ -341,9 +381,7 @@ echo "Creating partitions..."
 partitions_create $FS
 echo
 echo "Creating filesystems..."
-loop_create 1
-loop_create 2
-echo "Our loops are: ${OURLOOPS[*]}"
+loop_mount
 filesystems_create $FS
 
 # Create mount points.
@@ -365,10 +403,11 @@ case $FS in
 esac
 
 # Mount the image file.
-mount -t $FS -o $MOUNTOPTS ${OURLOOPS[1]} $MP
+mount -t $FS -o $MOUNTOPTS /dev/of-loop$RLOOPNUM $MP
 mkdir $MP/boot
+umount /dev/of-loop0 2>/dev/null
 sleep 4
-mount -t vfat ${OURLOOPS[0]} $MP/boot
+mount -t vfat /dev/of-loop0 $MP/boot
 
 
 # Go to work.
@@ -481,9 +520,24 @@ if [[ "$INSTALL" != "" ]]; then
       sed -i "s/MOUNTOPTS/$MOUNTOPTS/" $BLDLOC/etc/fstab
       sed -i "s/CHECK/$CHECK/" $BLDLOC/etc/fstab
 
+      if [[ "$SSIZE" > "0" ]]; then
+        sed -i "s/SNAME/$SNAME/" $BLDLOC/etc/fstab
+      else
+        cat $BLDLOC/etc/fstab | grep -v swap > $BLDLOC/etc/fstab.noswap
+        mv $BLDLOC/etc/fstab.noswap $BLDLOC/etc/fstab
+      fi
+
+      #if [ "$FS" != "btrfs" ]; then
+      #  rm $BLDLOC/etc/cron.d/btrfs_balance
+      #  rm $BLDLOC/usr/local/bin/balancecheck
+      #fi
+
       # Replace the placeholders used for apt
       sed -i "s=DBSERVER=$DBSERVER=" $BLDLOC/etc/apt/sources.list
       sed -i "s/CODENAME/$INSTALL/" $BLDLOC/etc/apt/sources.list
+
+      # Make sure that the console font isn't changed. I'm not keen on that.
+#      sed -i "s/FONTFACE=\"Fixed\"/FONTFACE=\"VGA\"/" $BLDLOC/etc/default/console-setup
 
       mount --bind /dev $BLDLOC/dev
       mount --bind /dev/pts $BLDLOC/dev/pts
