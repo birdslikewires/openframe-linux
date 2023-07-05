@@ -13,4 +13,3 @@ tmpfs    /var/log             tmpfs   noatime,size=16M      0    0
 
 ROOTDEV   /       FS    MOUNTOPTS   0    CHECK
 BOOTDEV   /boot   vfat    defaults                          0    0
-SOOTDEV   none    swap    sw                                0    0
