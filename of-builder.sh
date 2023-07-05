@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.37 (5th July 2023)
+## of-builder.sh v1.38 (5th July 2023)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -76,6 +76,15 @@ KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
 
 KDLPATH="$OUTPUTPATH/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $KDLPATH ] && [ $GITKERNELUPDATED -eq 0 ] && KBUILDIT=0 || KBUILDIT=1
+
+KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
+if [[ $KCONFIGFILE == "" ]]; then
+	echo
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Build failed, no config file found for this kernel."
+	cd ..
+	cleanup
+	exit 1
+fi
 
 if [[ "$KBUILDIT" == 0 ]]; then
 	KSTALE=$(find "$KDLPATH" -maxdepth 0 -mtime +30)
@@ -165,7 +174,6 @@ else
 	echo " done."
 
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Updating config file with new defaults..."
-	KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
 	cp "$THISSCRIPTPATH/../$GITREPOKER/configs/$KCONFIGFILE" "$KOURBUILD/.config"
 	cd "$KOURBUILD"
 	make olddefconfig
