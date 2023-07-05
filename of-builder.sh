@@ -80,7 +80,7 @@ KDLPATH="$OUTPUTPATH/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
 if [[ $KCONFIGFILE == "" ]]; then
 	echo
-	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Build failed, no config file found for this kernel."
+	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Build aborted, no config file found for this kernel."
 	exit 1
 fi
 
