@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.40 (5th July 2023)
+## of-builder.sh v1.41 (5th July 2023)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -22,6 +22,7 @@ GITREPOURL="https://github.com/birdslikewires"
 GITREPOKER="openframe-kernel"
 GITREPOLIN="openframe-linux"
 COREDIVIDER=1
+WEBUSER="www-data"
 
 ## Everything Else
 
@@ -333,6 +334,8 @@ else
 	echo -n "`date  +'%Y-%m-%d %H:%M:%S'`: Moving to webserver..."
 	mkdir -p $IDLPATH
 	mv ./*.img* $IDLPATH
+	chown -R $WEBUSER: $IDLPATH
+	chmod -R 755 $IDLPATH
 	rm "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest" 2>/dev/null
 	ln -s "$IDLPATH" "$OUTPUTPATH/openframe/images/${IDISTNAME,,}/${ICODENAME,,}/latest"
 	echo " done."
