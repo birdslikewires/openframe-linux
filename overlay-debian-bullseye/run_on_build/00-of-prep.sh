@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.11 (6th September 2022)
+# 00-of-prep.sh v1.12 (7th July 2023)
 #  Set up the basics.
 
 #set -x
 
-DLSERVER="https://birdslikewires.net/download"
+DLSERVER="https://openbeak.net"
 
 OPENFRAMEUSER="of"
 
