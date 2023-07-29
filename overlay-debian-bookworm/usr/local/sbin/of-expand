@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-expand v1.09 (1st March 2022)
+## of-expand v1.10 (30th July 2023)
 ##  Expands the root partition to fill the drive.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -29,7 +29,7 @@ echo "process while there is drive activity and the /tmp/expanding file still ex
 echo
 echo "WARNING! Resizing the root partition risks potential data loss!"
 echo
-countdown "Cancel with <CTRL-C> otherwise resizing" 10
+countdown "Cancel with <CTRL-C> otherwise resizing" 5
 echo
 
 ROOTISON=$(mount | grep "on / " | awk -F\  {'print $1'})
@@ -68,7 +68,7 @@ echo "This will take a few minutes, depending upon the size of the new partition
 echo
 echo "Do not power off the system until the file /tmp/expanding has disappeared."
 echo
-countdown "The system will reboot" 10
+countdown "The system will reboot" 5
 reboot
 
 exit 0
