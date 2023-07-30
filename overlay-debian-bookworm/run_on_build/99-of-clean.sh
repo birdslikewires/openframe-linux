@@ -71,6 +71,8 @@ echo "Relinking systemd resolved..."
 ln -sv /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 echo "Correcting permissions..."
+chown :crontab /usr/bin/crontab
+chmod 2755 /usr/bin/crontab
 chown :crontab /var/spool/cron/crontabs
 chmod 1730 /var/spool/cron/crontabs
 

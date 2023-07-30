@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 
-## of-install v1.19 (29th July 2022)
-## Simple installers for software on OpenFrames.
+## of-install v1.20 (30th July 2023)
+##  Simple installers for software on OpenFrames.
 
 usage() {
 	echo "Usage: $0 <option> [options]"
 	echo
 	echo "  build        :  Installs kernel headers and essential build components."
 	echo "  mplayer      :  Installs mplayer with OpenFrame settings."
-	echo "  plex         :  Installs Plex Media Player."
 	echo "  squeezeplay  :  Installs SqueezePlay and the X.Org Server."
 	echo "  xserver      :  Installs the X.Org Server."
 	echo
@@ -80,64 +79,6 @@ mplayer () {
 
 	sync
 	echo "Installation of mplayer completed."
-
-}
-
-
-plex() {
-
-	VERSION="2.57.0-1"
-
-	wget -P /tmp https://openbeak.net/openframe/plex/plexmediaplayer_"$VERSION"_i386.deb
-	wget -P /tmp https://openbeak.net/openframe/plex/plexmediaplayer_"$VERSION"_i386.deb.md5
-
-	DEBHASH=$(cat "/tmp/plexmediaplayer_"$VERSION"_i386.deb.md5" | awk -F' ' {'print $1'})
-	OURHASH=$(md5sum "/tmp/plexmediaplayer_"$VERSION"_i386.deb" | awk -F' ' {'print $1'})
-
-	echo $DEBHASH
-	echo $OURHASH
-	echo
-
-	if [[ "$DEBHASH" == "" ]] || [[ "$OURHASH" == "" ]]; then
-
-		echo "No checksums! Looks like the download failed."
-		rm /tmp/plexmediaplayer_*
-		exit 1
-
-	fi
-
-	if [[ ! "$OURHASH" == "$DEBHASH" ]]; then
-
-		echo "Checksum mismatch. Bailing!"
-		rm /tmp/plexmediaplayer_*
-		exit 1
-
-	else
-
-		echo "Checksums match, continuing..."
-
-		# Create a standard user 'plex' with no configured password.
-		id -u plex &>/dev/null || useradd -s /bin/sh --create-home plex
-		adduser plex audio &>/dev/null
-		adduser plex users &>/dev/null
-		adduser plex video &>/dev/null
-
-		# Install it.
-		dpkg -i /tmp/plexmediaplayer_"$VERSION"_i386.deb 2>/dev/null
-		apt update
-		apt -y --fix-broken install
-
-		# Configure the system to run SqueezePlay without requiring login.
-		of-settings autostartx plex
-		of-settings autoxrun plex "/opt/plexmediaplayer/bin/plexmediaplayer --fullscreen"
-
-		# Tidy up.
-		rm /tmp/plexmediaplayer_*
-
-		sync
-		echo "Installation of Plex Media Player completed."
-
-	fi
 
 }
 
@@ -242,11 +183,6 @@ elif [[ "${1}" == "mplayer" ]]; then
 
 	[ ! -x /usr/bin/startx ] && apt update && xserver
 	mplayer
-
-elif [[ "${1}" == "plex" ]]; then
-
-	[ ! -x /usr/bin/startx ] && apt update && xserver
-	plex
 
 elif [[ "${1}" == "squeezeplay" ]]; then
 

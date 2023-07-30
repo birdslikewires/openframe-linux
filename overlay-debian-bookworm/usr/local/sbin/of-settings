@@ -6,7 +6,6 @@
 usage() {
 	echo "Usage: $0 <option> [options]"
 	echo
-	#    "####################################################################################################"
 	echo "  autologin [user]            :  Enables or disables automatic login on tty1."
 	echo "  autostartx [user]           :  Enables or disables running Xserver at boot as <user> with systemd."
 	echo "  autoxrun <user> <cmd>       :  Command run when Xserver started as <user> (~/.xinitrc)."

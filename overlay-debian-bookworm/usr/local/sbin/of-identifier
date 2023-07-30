@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v2.36 (2nd March 2022)
+## of-identifier v2.37 (30th July 2023)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -114,6 +114,12 @@ if [ -f /etc/firstboot ]; then
 	# Set a sensible default audio level and enable auto-mute.
 	amixer -c 0 sset 'Master' 50% unmute >/dev/null 2>&1
 	amixer -c 0 sset 'Auto-Mute Mode' 'Line Out+Speaker'
+
+	# Repair the weird crontab permissions error.
+	chown :crontab /usr/bin/crontab
+	chmod 2755 /usr/bin/crontab
+	chown :crontab /var/spool/cron/crontabs
+	chmod 1730 /var/spool/cron/crontabs
 
 	# Leave a temporary note for non-critical scripts that this was our first boot.
 	mv /etc/firstboot /tmp/firstboot
