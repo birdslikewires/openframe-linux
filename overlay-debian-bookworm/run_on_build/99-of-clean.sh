@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 99-of-clean.sh v1.24 (10th February 2022)
+# 99-of-clean.sh v1.25 (30th July 2023)
 #  Used to clean an OpenFrame.
 
 OPTIONS=""
@@ -45,11 +45,9 @@ if [[ "$@" == "dev" ]] || [[ "$OPTIONS" =~ "dev" ]]; then
   depmod -a $KERNEL
 fi
 
-if [[ "$@" == "ssh" ]] || [[ "$OPTIONS" =~ "ssh" ]]; then
-  echo
-  echo "Removing SSH server keys..."
-  rm -v /etc/ssh/ssh_host*
-fi
+echo
+echo "Removing SSH server keys..."
+rm -v /etc/ssh/ssh_host*
 
 echo
 echo "Tidying the package manager..."
@@ -71,6 +69,10 @@ rm -rvf /etc/sqpbeta
 
 echo "Relinking systemd resolved..."
 ln -sv /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+
+echo "Correcting permissions..."
+chown :crontab /var/spool/cron/crontabs
+chmod 1730 /var/spool/cron/crontabs
 
 echo
 echo "Sweeping out the root account..."
