@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 99-of-clean.sh v1.25 (30th July 2023)
+# 99-of-clean.sh v1.26 (31st July 2023)
 #  Used to clean an OpenFrame.
 
 OPTIONS=""
@@ -45,9 +45,12 @@ if [[ "$@" == "dev" ]] || [[ "$OPTIONS" =~ "dev" ]]; then
   depmod -a $KERNEL
 fi
 
-echo
-echo "Removing SSH server keys..."
-rm -v /etc/ssh/ssh_host*
+# We don't remove the keys by default for a better out-of-the-box experience, but users really should.
+if [[ "$@" == "ssh" ]] || [[ "$OPTIONS" =~ "ssh" ]]; then
+  echo
+  echo "Removing SSH server keys..."
+  rm -v /etc/ssh/ssh_host*
+fi
 
 echo
 echo "Tidying the package manager..."
