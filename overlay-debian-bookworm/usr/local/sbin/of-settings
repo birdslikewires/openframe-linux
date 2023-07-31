@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-settings v1.13 (7th September 2022)
+## of-settings v1.14 (31st July 2023)
 ##  Bundles a bunch of handy settings into one place.
 
 usage() {
@@ -100,20 +100,18 @@ ExecStart=/usr/bin/startx -- :0
 WantedBy=getty.target"
 
 		# Install service if user and Xserver exist.
-		echo -n "Enabling Xserver start as '${2}' by systemd..."
+		echo "Enabling Xserver start as '${2}' by systemd..."
 		echo "$AUTOSTARTXSERVICE" > /lib/systemd/system/startx.service
 		systemctl enable startx.service
-		echo " done."
 		exit 0
 
 	else
 
 		if [ -f /lib/systemd/system/startx.service ]; then
 
-			echo -n "Disabling Xserver start by systemd...'"
+			echo "Disabling Xserver start by systemd...'"
 			systemctl disable startx.service
 			rm /lib/systemd/system/startx.service
-			echo " done."
 
 		fi
 

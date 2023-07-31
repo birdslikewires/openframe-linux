@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-install v1.19 (29th July 2022)
+## of-install v1.20 (31st July 2023)
 ## Simple installers for software on OpenFrames.
 
 usage() {
@@ -193,10 +193,6 @@ squeezeplay() {
 		# Configure the system to run SqueezePlay without requiring login.
 		of-settings autostartx squeezeplay
 		of-settings autoxrun squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
-
-		# Configure the system to autologin and run SqueezePlay on startup.
-		#of-settings autologin squeezeplay
-		#of-settings autoxrun squeezeplay "/opt/squeezeplay/bin/squeezeplay.sh"
 
 		# Configure splash screens.
 		if [ -d /usr/share/plymouth/themes ]; then
