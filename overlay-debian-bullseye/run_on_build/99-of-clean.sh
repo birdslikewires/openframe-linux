@@ -56,20 +56,21 @@ echo
 echo "Tidying the package manager..."
 apt-get -y autoremove
 apt-get -y clean
-echo
 
+echo
 echo "Deleting caches..."
 rm -rvf /opt/squeezeplay/bin/gmon.out
 rm -rvf /temp
 rm -rf /var/cache/apt/*.bin
 rm -rf /var/lib/apt/lists
 mkdir -p /var/lib/apt/lists/partial
-echo
 
+echo
 echo "Cleaning /etc..."
 rm -rvf /etc/resolv.conf
 rm -rvf /etc/sqpbeta
 
+echo
 echo "Relinking systemd resolved..."
 ln -sv /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
@@ -80,9 +81,7 @@ rm -rfv /root/.bash_history
 rm -rfv /root/.cache
 rm -rfv /root/.debtags
 rm -rfv /root/.local
-echo
 
-echo
 [[ "$CHROOTKERN" == "" ]] && df -h
 echo
 echo
