@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-install v1.21 (31st July 2023)
+## of-install v1.22 (17th October 2023)
 ##  Simple installers for software on OpenFrames.
 
 usage() {
@@ -125,6 +125,22 @@ squeezeplay() {
 		adduser squeezeplay audio &>/dev/null
 		adduser squeezeplay users &>/dev/null
 		adduser squeezeplay video &>/dev/null
+
+		# Allow squeezeplay user to do power off and reboot and stuff.
+		SQPPOLKIT="polkit.addRule(function(action, subject) {
+    if (subject.user == "squeezeplay") {
+        // permit reboot/etc actions for squeezeplay user (jive UI)
+        if (action.id == "org.freedesktop.login1.power-off" ||
+            action.id == "org.freedesktop.login1.reboot" ||
+            action.id == "org.freedesktop.login1.set-wall-message" ||
+            action.id == "org.freedesktop.login1.power-off-multiple-sessions" ||
+            action.id == "org.freedesktop.login1.reboot-multiple-sessions") {
+            return polkit.Result.YES;
+        }
+    }
+});"
+		echo "$SQPPOLKIT" > /etc/polkit-1/rules.d/60-squeezeplay.rules
+		chown root: /etc/polkit-1/rules.d/60-squeezeplay.rules
 
 		# Install SqueezePlay with 'squeezeplay' user permissions.
 		mkdir /opt/squeezeplay
