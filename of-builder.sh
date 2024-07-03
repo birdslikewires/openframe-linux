@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.42 (5th July 2023)
+## of-builder.sh v1.43 (3rd July 2024)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -45,7 +45,7 @@ if [[ "$KBRANCH" =~ "https://" ]]; then
 	KDOWNLOAD="$KBRANCH"
 else
 	KARCHIVES=`curl --silent https://www.kernel.org/index.html`
-	KDOWNLOAD=`echo "$KARCHIVES" | grep -m 1 "linux-$KBRANCH" | grep ".xz" | awk -F\" {'print $2'}`
+	KDOWNLOAD=`echo "$KARCHIVES" | grep -v "*-rc*" | grep ".xz" | grep -m 1 "linux-$KBRANCH" | awk -F\" {'print $2'}`
 fi
 
 if [[ "$KDOWNLOAD" = "" ]]; then
