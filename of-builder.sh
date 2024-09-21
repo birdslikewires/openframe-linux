@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.43 (3rd July 2024)
+## of-builder.sh v1.44 (21st September 2024)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -31,7 +31,7 @@ STARTTIME=`date +'%Y-%m-%d-%H%M'`
 IDISTNAME="$1"
 ICODENAME="$2"
 IDOWNLURL="$3"
-KBRANCH="$4"
+KBRANCH="$4\."
 OUTPUTPATH="$5"
 GITKERNELOWNER=$(stat -c '%U' $THISSCRIPTPATH/../$GITREPOKER)
 GITLINUXOOWNER=$(stat -c '%U' $THISSCRIPTPATH/../$GITREPOLIN)
