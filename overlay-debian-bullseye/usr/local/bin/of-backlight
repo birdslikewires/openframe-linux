@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-backlight v1.12 (1st March 2022) by Andrew Davison
+## of-backlight v1.13 (4th February 2025) by Andrew Davison
 ##  Automatic backlight control with fading for OpenFrame.
 
 usage() {
@@ -21,6 +21,12 @@ RE='^[0-9]+$'
 if [[ ! "${1}" =~ $RE ]] && [ $# -gt 0 ]; then
 	usage
 fi
+
+## See if we can control backlight power to turn off the screen.
+XSET=0
+XSETBIN=$(which xset)
+DPMSSTATUS=$($XSETBIN q 2>&1)
+[[ "$DPMSSTATUS" =~ "DPMS is Enabled" ]] && XSET=1
 
 
 ## Feed this ($1) Preferred Backlight ($2) Debug
@@ -47,8 +53,13 @@ setbl() {
 		echo "$STEPMSG"
 	fi
 
-	if [ $STEP -eq 0 ]; then
-		return
+	[ $PREFBL > 0 ] && [ $XSET -eq 1 ] && $($XSETBIN -display :0.0 dpms force on)
+
+	if [ $PREFBL == 0 ] && [ $XSET -eq 1 ] && [ $STEP -eq 0 ]; then
+			$($XSETBIN -display :0.0 dpms force off)
+			return
+	elif [ $STEP -eq 0 ]; then
+			return
 	fi
 
 	for b in $(seq $CRNTBL $STEP $PREFBL);
@@ -62,12 +73,15 @@ setbl() {
 		$SLEEP
 
 	done
+
+	[ $PREFBL == 0 ] && [ $XSET -eq 1 ] && $($XSETBIN -display :0.0 dpms force off)
 	
 }
 
 getbl() {
 	
 	CRNTBL=$(($(cat $BLIF)*3*100/96))
+	[ $CRNTBL = 0 ] && [ $XSET -eq 0 ] && CRNTBL=1
 
 }
 

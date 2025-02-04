@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.14 (21st June 2023)
+# 00-of-prep.sh v1.15 (4th February 2025)
 #  Set up the basics.
 
 #set -x
@@ -104,7 +104,7 @@ echo "Enable systemd services..."
 /bin/systemctl enable systemd-timesyncd.service
 chmod +x /usr/local/sbin/of-*
 chmod +x /usr/sbin/*
-for f in `ls -1 /lib/systemd/system | grep 'of-' | grep '.service'`; do
+for f in `ls -1 /etc/systemd/system | grep 'of-' | grep '.service'`; do
   SERVICE=`echo $f | awk -F\.service {'print $1'}`
   /bin/systemctl enable $SERVICE
   echo "Enabled $SERVICE"
