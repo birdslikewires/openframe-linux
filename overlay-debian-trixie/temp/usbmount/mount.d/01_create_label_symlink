@@ -1,0 +1,27 @@
+#!/bin/sh
+# This script creates the volume label symlink in /var/run/usbmount/by-label.
+# Copyright (C) 2014 Andrew Davison
+#
+# This file is free software; the copyright holder gives unlimited
+# permission to copy and/or distribute it, with or without
+# modifications, as long as this notice is preserved.
+#
+# This file is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY, to the extent permitted by law; without
+# even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE.
+#
+set -e
+ 
+# Exit if device or mountpoint is empty.
+test -z "$UM_DEVICE" && test -z "$UM_MOUNTPOINT" && exit 0
+ 
+# Get volume label name.
+label=`blkid -o udev $UM_DEVICE | grep ID_FS_LABEL= | cut -d'=' -f2`
+ 
+# If the symlink does not yet exist, create it.
+test -d "/var/run/usbmount/by-label" || mkdir "/var/run/usbmount/by-label"
+test -e "/media/usb-by-label" || ln -s "/var/run/usbmount/by-label" "/media/usb-by-label"
+test -e "/var/run/usbmount/by-label/$label" || ln -sf "$UM_MOUNTPOINT" "/var/run/usbmount/by-label/$label"
+ 
+exit 0

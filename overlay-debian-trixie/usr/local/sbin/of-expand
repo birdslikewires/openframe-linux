@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+## of-expand v1.11 (9th August 2023)
+##  Expands the root partition to fill the drive.
+
+if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo $0'."
+	exit 1
+fi
+
+countdown() {
+	MSG="$1"
+	SEC=$2
+	tput civis
+	while [ $SEC -gt 0 ]; do
+		echo -ne "$MSG in $SEC\033[0K\r"
+		sleep 1
+		: $((SEC--))
+	done
+	echo -e "$MSG now..."
+	tput cnorm
+}
+
+echo
+echo "This will expand the root filesystem to use any unallocated space on this drive."
+echo
+echo "The system will reboot immediately to begin resizing. Please DO NOT interrupt the"
+echo "process while there is drive activity and the /tmp/expanding file still exists."
+echo
+echo "WARNING! Resizing the root partition risks potential data loss!"
+echo
+countdown "Cancel with <CTRL-C> otherwise resizing" 5
+echo
+
+ROOTISON=$(mount | grep "on / " | awk -F\  {'print $1'})
+ROOTPARTNO=$(echo "${ROOTISON: -1}")
+[[ "$ROOTISON" =~ "mmc" ]] && TRIM=2 || TRIM=1
+ROOTISON=$(echo "${ROOTISON:: -$TRIM}")
+ROOTSTART=$(fdisk -l | grep $ROOTISON$ROOTPARTNO | awk -F\  {'print $2'})
+
+echo "Found / on $ROOTISON partition $ROOTPARTNO starting at $ROOTSTART."
+
+fdisk $ROOTISON <<EOF
+p
+d
+$ROOTPARTNO
+n
+p
+$ROOTPARTNO
+$ROOTSTART
+
+n
+w
+EOF
+
+echo "$ROOTISON$ROOTPARTNO" > /root/expanding
+
+# Remove memory caching of apt lists and /tmp from /etc/fstab
+sed -i '/\/var\/cache\/apt/d' /etc/fstab
+sed -i '\/var\/lib\/apt\/lists/d' /etc/fstab
+sed -i '\/\/tmp/d' /etc/fstab
+
+fdisk -l $ROOTISON
+
+echo
+echo
+echo "The table for $ROOTISON$ROOTPARTNO has been extended and the partition must now be resized."
+echo "This will take a few minutes, depending upon the size of the new partition."
+echo
+echo "Do not power off the system until the file /tmp/expanding has disappeared."
+echo
+countdown "The system will reboot" 5
+reboot
+
+exit 0
