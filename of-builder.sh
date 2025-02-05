@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.45 (5th February 2025)
+## of-builder.sh v1.46 (5th February 2025)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -181,10 +181,10 @@ else
 	echo "Go! Go! Go!"
 	echo
 
-	if [ $KLATESTMIDVER -lt 3 ]; then
-		make -j$((`nproc`/$COREDIVIDER)) deb-pkg
-	else
+	if [ $KLATESTMIDVER -gt 5 ] && [ $KLATESTMIDVER -gt 2 ]; then
 		make -j$((`nproc`/$COREDIVIDER)) bindeb-pkg
+	else
+		make -j$((`nproc`/$COREDIVIDER)) deb-pkg
 	fi
 
 	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
