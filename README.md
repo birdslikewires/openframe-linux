@@ -53,7 +53,7 @@ rm /var/lib/dpkg/statoverride
 rm /var/lib/dpkg/lock
 dpkg --configure -a
 apt update && apt upgrade
-apt install autoconf bc bison build-essential curl debootstrap dosfstools flex git libncurses5-dev libssl-dev lsb-release parted rsync wget 
+apt install autoconf bc bison build-essential curl debhelper debootstrap dosfstools flex git libelf-dev libncurses5-dev libssl-dev lsb-release parted rsync wget 
 ```
 
 The build server runs a command like this from its crontab:
