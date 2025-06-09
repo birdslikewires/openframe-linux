@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.16 (13th February 2025)
+# 00-of-prep.sh v1.17 (9th June 2025)
 #  Set up the basics.
 
 #set -x
@@ -20,7 +20,7 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 
 # Additions
-APT_SYSTEM="acpi bash-completion bc ca-certificates curl dosfstools e2fsck-static e2fsprogs firmware-realtek htop i2c-tools initramfs-tools inotify-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango-1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 lockfile-progs lsb-release nano net-tools netplan.io ntpdate openssl patch pciutils plymouth psmisc rsync sudo systemd-resolved systemd-timesyncd tcpd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-regdb wireless-tools x11-xserver-utils xauth xinput zstd"
+APT_SYSTEM="acpi bash-completion bc ca-certificates curl dosfstools e2fsck-static e2fsprogs firmware-realtek htop i2c-tools initramfs-tools inotify-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango-1.0-0 libwrap0 libx11-6 libx11-data libxau6 libxcb1 libxdmcp6 libxext6 libxmuu1 lockfile-progs lsb-release nano net-tools netplan.io ntpsec-ntpdate openssl patch pciutils plymouth psmisc rsync sudo systemd-resolved systemd-timesyncd tcpd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-regdb wireless-tools x11-xserver-utils xauth xinput zstd"
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
 
