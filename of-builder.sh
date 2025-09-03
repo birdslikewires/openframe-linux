@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.46 (5th February 2025)
+## of-builder.sh v1.47 (3rd September 2025)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -314,7 +314,7 @@ else
 
 	rm -rf ./*.img*
 
-	$THISSCRIPTPATH/of-imgcreate.sh "$(echo ${ICODENAME,,} | head -c 3)" ext2 1 uni 43 "${IDISTNAME,,} ${ICODENAME,,}" "$THISSCRIPTPATH/../$GITREPOLIN/overlay-${IDISTNAME,,}-${ICODENAME,,}" "$KDLPATH" "$IDOWNLURL"
+	$THISSCRIPTPATH/of-imgcreate.sh "$(echo ${ICODENAME,,} | head -c 3)" ext2 1 uni 46 "${IDISTNAME,,} ${ICODENAME,,}" "$THISSCRIPTPATH/../$GITREPOLIN/overlay-${IDISTNAME,,}-${ICODENAME,,}" "$KDLPATH" "$IDOWNLURL"
 
 	# This checks through the exit codes so far and kills us if any have been greater than zero.
 	RCS=${PIPESTATUS[*]}; RC=0; for i in ${RCS}; do RC=$(($i > $RC ? $i : $RC)); done
