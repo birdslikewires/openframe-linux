@@ -6,10 +6,10 @@
 ##  If there's a /boot/network.yaml file, we copy and use that.
 ##  Then we copy the MAC from WLAN to LAN, but with the local bit set.
 ##  If no WLAN interface is available, we generate a MAC for the LAN interface.
-##  
+##
 ##  Finally, we put the modified file back into /boot.
 ##
-##  We're also responsible for /etc/issue 
+##  We're also responsible for /etc/issue
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."

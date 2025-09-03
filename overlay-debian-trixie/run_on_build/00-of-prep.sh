@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.17 (9th June 2025)
+# 00-of-prep.sh v1.18 (3rd September 2025)
 #  Set up the basics.
 
 #set -x
@@ -83,6 +83,9 @@ done
 
 # Sets the chassis type.
 /usr/bin/hostnamectl chassis embedded
+
+# Allows clearing of tty1 when IP address is updated.
+sed -i 's/\-\-noreset \-\-noclear //g' /usr/lib/systemd/system/getty@.service
 
 echo
 
