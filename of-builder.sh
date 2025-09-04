@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.47 (3rd September 2025)
+## of-builder.sh v1.48 (4th September 2025)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -78,7 +78,7 @@ KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
 KDLPATH="$OUTPUTPATH/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $KDLPATH ] && [ $GITKERNELUPDATED -eq 0 ] && KBUILDIT=0 || KBUILDIT=1
 
-KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER"`
+KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER\.$KLATESTMIDVER\."`
 if [[ $KCONFIGFILE == "" ]]; then
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Build aborted, no config file found for this kernel."
