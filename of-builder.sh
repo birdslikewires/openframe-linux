@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v1.49 (7th September 2025)
+## of-builder.sh v1.50 (7th September 2025)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -45,7 +45,7 @@ if [[ "$KBRANCH" =~ "https://" ]]; then
 	KDOWNLOAD="$KBRANCH"
 else
 	KARCHIVES=`curl --silent https://www.kernel.org/index.html`
-	KDOWNLOAD=`echo "$KARCHIVES" | grep -v "*-rc*" | grep ".xz" | grep -m 1 "linux-$KBRANCH" | awk -F\" {'print $2'}`
+	KDOWNLOAD=`echo "$KARCHIVES" | grep -v "*-rc*" | grep ".xz" | grep -m 1 "linux-$KBRANCH\." | awk -F\" {'print $2'}`
 fi
 
 if [[ "$KDOWNLOAD" = "" ]]; then
@@ -78,7 +78,7 @@ KOURBUILD="linux-$KLATESTMAJVER.$KLATESTMIDVER.$KLATESTMINVER"
 KDLPATH="$OUTPUTPATH/openframe/kernel/$KLATESTMAJVER.$KLATESTMIDVER/$KOURNAME"
 [ -d $KDLPATH ] && [ $GITKERNELUPDATED -eq 0 ] && KBUILDIT=0 || KBUILDIT=1
 
-KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER\.$KLATESTMIDVER\."`
+KCONFIGFILE=`ls $THISSCRIPTPATH/../$GITREPOKER/configs | grep "$KLATESTMAJVER.$KLATESTMIDVER."`
 if [[ $KCONFIGFILE == "" ]]; then
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Build aborted, no config file found for this kernel."
