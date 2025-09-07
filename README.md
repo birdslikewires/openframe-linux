@@ -93,3 +93,5 @@ Overlays
 ---------
 
 The overlay files provide modifications to the vanilla system to provide some necessary and some nice-to-have features, including automatically configured GRUB, network settings from the `/boot` volume (ideal for preconfiguring), sensible system defaults and minimal firmware files.
+
+The Intel microcode you need is `06-1c-02` from [their repository](https://github.com/intel/Intel-Linux-Processor-Microcode-Data-Files/tree/main/intel-ucode), should you be bothered about applying that.
