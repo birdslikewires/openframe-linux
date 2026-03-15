@@ -13,7 +13,7 @@ So you want to automatically build images for OpenFrame devices on your server? 
 
 The OpenFrame devices are all 32-bit, so you're going to need a i386 environment.
 
-Our solution is to create a 32-bit chroot on a 64-bit system. For Debian Bullseye it can be achieved like this:
+Our solution is to create a 32-bit chroot on a 64-bit system. For Debian Trixie it can be achieved like this:
 
 ```
 sudo apt install debootstrap schroot
@@ -37,7 +37,7 @@ Then install the base system with debootstrap:
 
 ```
 sudo mkdir -p /var/lib/schroot/chroots/i386
-sudo debootstrap --arch=i386 bullseye /var/lib/schroot/chroots/i386 http://deb.debian.org/debian
+sudo debootstrap --arch=i386 trixie /var/lib/schroot/chroots/i386 http://deb.debian.org/debian
 ```
 
 Hop in to the chrooted environment like this:
