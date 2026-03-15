@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-backlight v1.13 (4th February 2025) by Andrew Davison
+## of-backlight v1.14 (15th March 2026) by Andrew Davison
 ##  Automatic backlight control with fading for OpenFrame.
 
 usage() {
@@ -24,21 +24,21 @@ fi
 
 ## See if we can control backlight power to turn off the screen.
 XSET=0
-XSETBIN=$(which xset)
+XSETBIN=$(command -v xset)
 DPMSSTATUS=$($XSETBIN q 2>&1)
 [[ "$DPMSSTATUS" =~ "DPMS is Enabled" ]] && XSET=1
 
 
 ## Feed this ($1) Preferred Backlight ($2) Debug
 setbl() {
-	
+
 	getbl
 	PREFBL="$1"
 
-	if [ $PREFBL -gt $CRNTBL ]; then
+	if [ "$PREFBL" -gt "$CRNTBL" ]; then
 		STEP="1"
 		STEPMSG="Brightening backlight..."
-	elif [ $PREFBL -lt $CRNTBL ]; then
+	elif [ "$PREFBL" -lt "$CRNTBL" ]; then
 		STEP="-1"
 		STEPMSG="Dimming backlight..."
 	else
@@ -53,20 +53,23 @@ setbl() {
 		echo "$STEPMSG"
 	fi
 
-	[ $PREFBL > 0 ] && [ $XSET -eq 1 ] && $($XSETBIN -display :0.0 dpms force on)
+	## Wake the display if we're turning the backlight up.
+	[ "$PREFBL" -gt 0 ] && [ "$XSET" -eq 1 ] && $XSETBIN -display :0.0 dpms force on
 
-	if [ $PREFBL == 0 ] && [ $XSET -eq 1 ] && [ $STEP -eq 0 ]; then
-			$($XSETBIN -display :0.0 dpms force off)
-			return
-	elif [ $STEP -eq 0 ]; then
-			return
+	if [ "$PREFBL" -eq 0 ] && [ "$XSET" -eq 1 ] && [ "$STEP" -eq 0 ]; then
+		$XSETBIN -display :0.0 dpms force off
+		return
+	elif [ "$STEP" -eq 0 ]; then
+		return
 	fi
 
-	for b in $(seq $CRNTBL $STEP $PREFBL);
+	## Fade the backlight in steps.
+	## Note: values are divided by 3 to map to the hardware's 0-32 brightness range.
+	for b in $(seq "$CRNTBL" "$STEP" "$PREFBL");
 	do
 
 		b=$(($b/3))
-		
+
 		[ "$2" != "debug" ] || echo $b
 
 		echo "$b" > $BLIF 2>/dev/null
@@ -74,22 +77,22 @@ setbl() {
 
 	done
 
-	[ $PREFBL == 0 ] && [ $XSET -eq 1 ] && $($XSETBIN -display :0.0 dpms force off)
-	
+	[ "$PREFBL" -eq 0 ] && [ "$XSET" -eq 1 ] && $XSETBIN -display :0.0 dpms force off
+
 }
 
 getbl() {
-	
-	CRNTBL=$(($(cat $BLIF)*3*100/96))
-	[ $CRNTBL = 0 ] && [ $XSET -eq 0 ] && CRNTBL=1
+
+	CRNTBL=$(($(<$BLIF)*3*100/96))
+	[ "$CRNTBL" -eq 0 ] && [ "$XSET" -eq 0 ] && CRNTBL=1
 
 }
 
 
 ## Check whether we can access the backlight.
-if [ -e $BLIF ]; then
+if [ -e "$BLIF" ]; then
 	SLEEP="sleep 0.001"
-	if [ ! -w $BLIF ]; then
+	if [ ! -w "$BLIF" ]; then
 		echo "Permissions do not currently allow you to set the backlight level."
 		echo "You can allow this by creating a udev rule."
 	fi
@@ -101,7 +104,7 @@ fi
 
 ## Kill any other running instances first.
 if [ "$1" != "888" ]; then
-	BLPIDS=$(ps aux | grep -v grep | grep -v $$ | grep $0 | awk -F\  '{print $2}')
+	BLPIDS=$(ps aux | grep -v grep | grep -v $$ | grep "$0" | awk -F\  '{print $2}')
 	kill $(echo $BLPIDS) 2>/dev/null
 fi
 
@@ -110,23 +113,23 @@ fi
 getbl
 
 if [ ! "$1" ]; then
-	
+
 	echo $CRNTBL
 
 else
-	
+
 	## If we're in automatic mode, run a monitoring loop.
-	if [ "$1" -eq "999" ]; then
-		
+	if [ "$1" -eq 999 ]; then
+
 		getbl
 		LASTBL="$CRNTBL"
-		
+
 		while true
 		do
 
 			TIME=$(date +%H)
 			LIGHT=$(readlightsensor)
-			
+
 			# Here we deal with 'night and day' variations.
 			if [ "$TIME" -ge 22 ] || [ "$TIME" -lt 6 ]; then
 				MODE="Night"
@@ -139,14 +142,14 @@ else
 				HYSUP="-3"
 				HYSDOWN="3"
 				# Artificially increase the read light level a bit.
-				if [ ! "$LIGHT" -le "5" ]; then
+				if [ ! "$LIGHT" -le 5 ]; then
 					LIGHT=$(($LIGHT+10))
 				fi
 			fi
-			
-			PREFBL=$(($LIGHT))			
+
+			PREFBL=$(($LIGHT))
 			DELTABL=$(($LASTBL-$PREFBL))
-			
+
 			if [ "$2" = "debug" 2>/dev/null ]; then
 				echo "Current Mode is:       $MODE"
 				echo "Light sensor reads:    $LIGHT"
@@ -155,8 +158,8 @@ else
 				echo "Backlight delta %:     $DELTABL"
 				echo
 			fi
-			
-			if [ "$DELTABL" -le $HYSUP ] || [ "$DELTABL" -gt $HYSDOWN ]; then
+
+			if [ "$DELTABL" -le "$HYSUP" ] || [ "$DELTABL" -gt "$HYSDOWN" ]; then
 				if [ "$2" = "debug" 2>/dev/null ]; then
 					echo "Altering to: $PREFBL"
 					echo
@@ -164,22 +167,22 @@ else
 				else
 					setbl $PREFBL
 				fi
-				
+
 			fi
-						
+
 			LASTBL="$PREFBL"
 			sleep 2
 
 		done
-	
-	## If we're given an '888', write out the current backlight value.
-	elif [ "$1" -eq "888" ]; then
 
-		echo $(cat $BLIF) > /tmp/backlight.prv
-		
+	## If we're given an '888', write out the current backlight value.
+	elif [ "$1" -eq 888 ]; then
+
+		echo $(<$BLIF) > /tmp/backlight.prv
+
 	else
 
-		setbl $1 $2
+		setbl "$1" "$2"
 
 	fi
 
