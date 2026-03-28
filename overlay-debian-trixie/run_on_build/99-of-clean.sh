@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 99-of-clean.sh v1.26 (31st July 2023)
+# 99-of-clean.sh v1.27 (28th March 2026)
 #  Used to clean an OpenFrame.
 
 OPTIONS=""
@@ -26,7 +26,13 @@ sleep 2
 # Disable unwanted services.
 /bin/systemctl disable e2scrub_reap.service
 
-# This bit removes the development packages, source code and man files.
+# Remove documentation.
+echo
+echo "Removing documentation and man pages..."
+rm -rf /usr/share/doc /usr/share/man /usr/share/doc-base
+echo
+
+# This bit removes the development packages and source code.
 if [[ "$@" == "dev" ]] || [[ "$OPTIONS" =~ "dev" ]]; then
   echo
   if [ -d /lib/modules/$KERNEL/updates/dkms ]; then
@@ -40,8 +46,8 @@ if [[ "$@" == "dev" ]] || [[ "$OPTIONS" =~ "dev" ]]; then
     echo "Restoring previously installed DKMS kernel modules..."
     mv /lib/modules/$KERNEL/updates/dkms.bak /lib/modules/$KERNEL/updates/dkms
   fi
-  echo "Removing man files and example code..."
-  rm -rf /usr/src /usr/share/doc /usr/share/man /usr/share/doc-base /usr/share/sounds/alsa/* /var/lib/dkms/*
+  echo "Removing source code..."
+  rm -rf /usr/src /var/lib/dkms/*
   depmod -a $KERNEL
 fi
 
