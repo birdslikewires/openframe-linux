@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# openframe-grub-update v1.00 (28th March 2026)
+#  Updates /boot/grub.cfg with the new kernel version after each kernel upgrade.
+
+VERSION="$1"
+GRUB_CFG="/boot/grub.cfg"
+
+[ -f "${GRUB_CFG}" ] || exit 0
+
+sed -i \
+  -e "s|vmlinuz-[^ ]*|vmlinuz-${VERSION}|" \
+  -e "s|initrd\.img-[^ ]*|initrd.img-${VERSION}|" \
+  -e "s|Debian Trixie - [^ ]*\( (Internal)\)\?\"|Debian Trixie - ${VERSION}\1\"|" \
+  "${GRUB_CFG}"

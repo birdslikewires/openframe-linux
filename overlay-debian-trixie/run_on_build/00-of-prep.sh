@@ -105,6 +105,7 @@ chown root:root /usr/local/sbin/*
 chmod 755 /usr/local/bin/*
 chmod 755 /usr/local/sbin/*
 chmod 644 /usr/local/sbin/*.ver
+chmod +x /etc/kernel/postinst.d/openframe-grub-update
 echo
 
 echo "Enable systemd services..."
