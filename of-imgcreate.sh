@@ -35,9 +35,9 @@ if [[ "$#" -lt 6 ]]; then
 	exit 0
 fi
 
-if [ "$USER" != "root" ]; then
+if [ "$(id -u)" != "0" ]; then
 	echo "You need to run this with superuser privileges."
-	exit 0
+	exit 1
 fi
 
 DBPRESENT=$(which debootstrap)
