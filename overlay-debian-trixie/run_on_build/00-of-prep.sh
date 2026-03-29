@@ -16,11 +16,6 @@ echo "=== Packages ========================================"
 echo
 sleep 2
 
-echo "Fetching OpenFrame kernel repository key..."
-mkdir -p /etc/apt/keyrings
-curl -fsSL https://kernel.openbeak.net/key.gpg -o /etc/apt/keyrings/openframe-kernel.gpg
-echo
-
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 
@@ -135,6 +130,12 @@ echo
 echo "=== Kernel Installation ============================="
 echo
 sleep 2
+
+echo "Fetching OpenFrame kernel repository key..."
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://kernel.openbeak.net/key.gpg -o /etc/apt/keyrings/openframe-kernel.gpg
+echo
+apt-get update
 
 echo "Installing OpenFrame kernel..."
 apt-get install -y 'linux-image-*-openframe'
