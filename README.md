@@ -1,6 +1,6 @@
 # Linux for OpenFrame
 
-These are the overlays and scripts used to create system images for OpenFrame devices; notably the *OpenFrame 1,* sold in the UK as the **O2 Joggler**, and *OpenFrame 2,* which were used for energy monitoring, home automation, and telephony purposes.
+These are overlays and scripts used to create system images for OpenFrame devices; notably the *OpenFrame 1,* sold in the UK as the **O2 Joggler**, and *OpenFrame 2,* which were used for energy monitoring, home automation, and telephony purposes.
 
 In addition, this repository also builds Debian Trixie system images for these devices, which are available on the [Releases](https://github.com/birdslikewires/openframe-linux/releases) page. Some older versions based on Bullseye and Bookworm are still available on [openbeak.net](https://openbeak.net/openframe/images/).
 
