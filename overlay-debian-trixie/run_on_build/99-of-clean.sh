@@ -5,18 +5,13 @@
 
 OPTIONS=""
 
-if [ "$USER" != "root" ]; then
+if [ "$(id -u)" != "0" ]; then
   echo "Must be run as root."
-  exit
+  exit 1
 fi
 
 # Get the kernel version.
-CHROOTKERN=`ls /mnt/ | grep linux-image`
-if [ "$CHROOTKERN" != "" ]; then
-  KERNEL=`ls /mnt/ | grep linux-image | awk -F\- '{print $3}' | awk -F\_ '{print $1}'`
-else
-  KERNEL=`uname -r`
-fi
+KERNEL=`uname -r`
 
 echo
 echo "=== Wind Down ======================================="
