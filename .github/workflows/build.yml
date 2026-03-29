@@ -41,6 +41,10 @@ jobs:
             echo "version=${{ github.event.inputs.kernel_version }}" >> $GITHUB_OUTPUT
           else
             version=$(gh release list --repo birdslikewires/openframe-kernel --limit 1 --json tagName --jq '.[0].tagName')
+            if [ -z "$version" ]; then
+              echo "Failed to get kernel version from openframe-kernel releases."
+              exit 1
+            fi
             echo "version=$version" >> $GITHUB_OUTPUT
           fi
         env:
@@ -53,7 +57,9 @@ jobs:
             http://deb.debian.org/debian
 
       - name: Add kernel version to image filename
-        run: mv of-ext2-1028-46-trixie.img of-ext2-1028-46-trixie-${{ steps.kernel.outputs.version }}.img
+        run: |
+          img=$(ls *.img)
+          mv "$img" "${img%.img}-${{ steps.kernel.outputs.version }}.img"
 
       - name: Compress and checksum
         run: |

@@ -73,7 +73,7 @@ rm -rvf /etc/sqpbeta
 
 echo
 echo "Relinking systemd resolved..."
-ln -sv /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 echo
 echo "Correcting permissions..."
@@ -90,7 +90,7 @@ rm -rfv /root/.cache
 rm -rfv /root/.debtags
 rm -rfv /root/.local
 
-[[ "$CHROOTKERN" == "" ]] && df -h
+df -h
 echo
 echo
 echo "Cleaning complete."

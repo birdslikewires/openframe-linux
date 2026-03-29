@@ -19,6 +19,10 @@ jobs:
         id: kernel
         run: |
           tag=$(gh release list --repo birdslikewires/openframe-kernel --limit 1 --json tagName --jq '.[0].tagName')
+          if [ -z "$tag" ]; then
+            echo "Failed to get latest kernel release tag."
+            exit 1
+          fi
           echo "tag=$tag" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

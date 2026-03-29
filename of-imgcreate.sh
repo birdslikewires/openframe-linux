@@ -43,7 +43,7 @@ fi
 DBPRESENT=$(which debootstrap)
 if [ "$DBPRESENT" == "" ]; then
 	echo "You need to install debootstrap for this to work."
-	exit 0
+	exit 1
 fi
 
 NAME="${1^^}"
