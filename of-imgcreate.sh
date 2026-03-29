@@ -438,7 +438,7 @@ if [[ "$INSTALL" != "" ]]; then
 			cp -R $DBSLOC $BLDLOC
 
 			# Modify.
-			if [[ "$OVERLAY" != "" ]] && [[ "$KERNELDIR" != "" ]]; then
+			if [[ "$OVERLAY" != "" ]]; then
 
 				echo
 				echo "Preparing system for OpenFrame..."
