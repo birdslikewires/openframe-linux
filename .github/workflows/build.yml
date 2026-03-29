@@ -1,0 +1,66 @@
+name: image-build-publish
+run-name: image build and publish ${{ inputs.kernel_version }}
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      kernel_version:
+        description: 'Kernel release tag to build for (e.g. 6.1.166). If set, a GitHub Release will be created.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-image
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:trixie
+      options: --privileged
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y debootstrap dosfstools e2fsprogs gh parted rsync
+
+      - name: Build image
+        run: |
+          ./of-imgcreate.sh of ext2 1 uni 46 "debian trixie" \
+            ./overlay-debian-trixie "" \
+            http://deb.debian.org/debian
+
+      - name: Compress and checksum
+        run: |
+          img=$(ls *.img)
+          gzip "$img"
+          md5sum "${img}.gz" > "${img}.gz.md5"
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openframe-trixie
+          path: |
+            *.img.gz
+            *.md5
+          retention-days: 90
+
+      - name: Create GitHub Release
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.kernel_version != ''
+        run: |
+          gh release create "${{ github.event.inputs.kernel_version }}" \
+            --title "OpenFrame Trixie ${{ github.event.inputs.kernel_version }}" \
+            --notes "Debian Trixie image built with kernel ${{ github.event.inputs.kernel_version }}." \
+            *.img.gz *.md5
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

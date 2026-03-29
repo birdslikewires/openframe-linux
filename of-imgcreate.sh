@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofimgcreate v1.53 (5th July 2023)
+# ofimgcreate v1.54 (29th March 2026)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -127,8 +127,8 @@ if [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$DBSERVER" == "" ]]; then
 	exit 1
 fi
 
-if [[ "$INSTALL" != "" ]] && [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$#" -lt 8 ]] && [ ! -d "$INSTALL" ]; then
-	echo "Overlay and kernel files are required for a working system."
+if [[ "$INSTALL" != "" ]] && [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$#" -lt 7 ]] && [ ! -d "$INSTALL" ]; then
+	echo "An overlay is required for a working system."
 	echo "You will have a raw debootstrap system with no kernel and"
 	echo "no OpenFrame customisations."
 	echo
@@ -151,6 +151,8 @@ fi
 if [[ "$INSTALL" != "" ]] && [[ "$KERNELDIR" != "" ]]; then
 	KERNVER=$(ls $KERNELDIR | grep linux-image | awk -F\- '{print $3}' | awk -F\_ '{print $1}')
 	FILENAME="${NAME,,}-$FS-$TSIZE-$BSIZE-$INSTALL-$KERNVER.img"
+elif [[ "$INSTALL" != "" ]] && [[ ! "$INSTALL" =~ "tgz" ]] && [[ ! -d "$INSTALL" ]]; then
+	FILENAME="${NAME,,}-$FS-$TSIZE-$BSIZE-$INSTALL.img"
 else
 	if [[ "$INSTALL" =~ "tgz" ]]; then
 		CLONENAME=$(echo $INSTALL | awk -F\. {'print $1'})
@@ -485,7 +487,7 @@ if [[ "$INSTALL" != "" ]]; then
 				mount --bind /proc $BLDLOC/proc
 				mount --bind /sys $BLDLOC/sys
 				mount --bind /tmp $BLDLOC/tmp
-				mount --bind $KERNELDIR $BLDLOC/mnt
+				[[ "$KERNELDIR" != "" ]] && mount --bind $KERNELDIR $BLDLOC/mnt
 
 				# Chrootitoot.
 				sync
@@ -508,7 +510,7 @@ if [[ "$INSTALL" != "" ]]; then
 				sync
 				sync
 
-				umount $BLDLOC/mnt
+				[[ "$KERNELDIR" != "" ]] && umount $BLDLOC/mnt
 				umount $BLDLOC/tmp
 				umount $BLDLOC/sys
 				umount -l $BLDLOC/proc

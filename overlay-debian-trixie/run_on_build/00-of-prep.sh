@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.18 (3rd September 2025)
+# 00-of-prep.sh v1.19 (29th March 2026)
 #  Set up the basics.
 
 #set -x
@@ -15,6 +15,11 @@ echo
 echo "=== Packages ========================================"
 echo
 sleep 2
+
+echo "Fetching OpenFrame kernel repository key..."
+mkdir -p /etc/apt/keyrings
+curl -fsSL https://kernel.openbeak.net/key.gpg -o /etc/apt/keyrings/openframe-kernel.gpg
+echo
 
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
@@ -131,15 +136,8 @@ echo "=== Kernel Installation ============================="
 echo
 sleep 2
 
-KERNVER=`ls /mnt/ | grep linux-image | awk -F\- '{print $3}' | awk -F\_ '{print $1}'`
-KERNMAJVER=`echo $KERNVER | awk -F\. {'print $1'}`
-KERNMIDVER=`echo $KERNVER | awk -F\. {'print $2'}`
-KERNMINVER=`echo $KERNVER | awk -F\. {'print $3'}`
-
-source /etc/os-release
-
-echo "Installing kernel $KERNVER into ${VERSION_CODENAME^} chroot..."
-dpkg -i /mnt/linux-image*.deb
+echo "Installing OpenFrame kernel..."
+apt-get install -y 'linux-image-*-openframe'
 echo
 
 exit 0

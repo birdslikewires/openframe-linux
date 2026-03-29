@@ -1,0 +1,46 @@
+name: image-check
+run-name: image check
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get latest kernel release tag
+        id: kernel
+        run: |
+          tag=$(gh release list --repo birdslikewires/openframe-kernel --limit 1 --json tagName --jq '.[0].tagName')
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if image already built for this kernel
+        id: check
+        run: |
+          if gh release view "${{ steps.kernel.outputs.tag }}" --repo ${{ github.repository }} > /dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Image already exists for kernel ${{ steps.kernel.outputs.tag }}, skipping."
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "No image found for kernel ${{ steps.kernel.outputs.tag }}, dispatching build."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dispatch image build
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          gh workflow run build.yml \
+            --repo ${{ github.repository }} \
+            -f kernel_version="${{ steps.kernel.outputs.tag }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
