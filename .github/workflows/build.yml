@@ -1,5 +1,5 @@
 name: image-build-publish
-run-name: image build and publish ${{ inputs.kernel_version }}
+run-name: image build${{ inputs.kernel_version && format(' and publish {0}', inputs.kernel_version) || '' }}
 
 on:
   push:
