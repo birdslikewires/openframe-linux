@@ -72,13 +72,14 @@ jobs:
           md5sum "${img}.gz" > "${img}.gz.md5"
 
       - name: Upload image artifact
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.kernel_version == ''
         uses: actions/upload-artifact@v4
         with:
           name: openframe-trixie
           path: |
             *.img.gz
             *.md5
-          retention-days: 90
+          retention-days: 14
 
       - name: Create GitHub Release
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.kernel_version != ''
