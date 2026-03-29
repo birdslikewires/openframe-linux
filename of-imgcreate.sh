@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofimgcreate v1.54 (29th March 2026)
+# ofimgcreate v1.55 (29th March 2026)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -422,7 +422,7 @@ if [[ "$INSTALL" != "" ]]; then
 			echo "Fetching ${DISTNAME^} $CODENAME with debootstrap from $DBSERVER..."
 			echo
 			mkdir $DBSLOC
-			debootstrap --arch i386 $INSTALL $DBSLOC $DBSERVER
+			debootstrap --arch i386 --exclude=tasksel,tasksel-data $INSTALL $DBSLOC $DBSERVER
 			sync
 			sync
 			sleep 2
@@ -534,7 +534,20 @@ if [[ "$INSTALL" != "" ]]; then
 
 		echo
 		echo "Removing large unnecessary firmwares..."
-		rm -rf $BLDLOC/lib/firmware/liquidio $BLDLOC/lib/firmware/netronome $BLDLOC/lib/firmware/amdgpu $BLDLOC/lib/firmware/radeon $BLDLOC/lib/firmware/qed $BLDLOC/lib/firmware/ti-connectivity $BLDLOC/lib/firmware/cxgb4 2>/dev/null
+		rm -rf \
+			$BLDLOC/lib/firmware/liquidio \
+			$BLDLOC/lib/firmware/netronome \
+			$BLDLOC/lib/firmware/amdgpu \
+			$BLDLOC/lib/firmware/radeon \
+			$BLDLOC/lib/firmware/qed \
+			$BLDLOC/lib/firmware/ti-connectivity \
+			$BLDLOC/lib/firmware/cxgb4 \
+			$BLDLOC/lib/firmware/mellanox \
+			$BLDLOC/lib/firmware/dpaa2 \
+			$BLDLOC/lib/firmware/mrvl \
+			$BLDLOC/lib/firmware/intel/i915 \
+			$BLDLOC/lib/firmware/iwlwifi-* \
+			2>/dev/null
 		echo
 		echo -n "Moving prepared ${DISTNAME^} ${CODENAME^} from '$BLDLOC' to image file on '$MP'..."
 		rsync -a $BLDLOC/ $MP
