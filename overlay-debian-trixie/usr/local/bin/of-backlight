@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-backlight v1.14 (15th March 2026) by Andrew Davison
+## of-backlight v1.15 (29th March 2026) by Andrew Davison
 ##  Automatic backlight control with fading for OpenFrame.
 
 usage() {
@@ -69,6 +69,7 @@ setbl() {
 	do
 
 		b=$(($b/3))
+		[ "$b" -eq 0 ] && [ "$PREFBL" -gt 0 ] && b=1
 
 		[ "$2" != "debug" ] || echo $b
 
