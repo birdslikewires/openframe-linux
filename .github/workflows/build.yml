@@ -85,6 +85,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.kernel_version != ''
         run: |
           gh release create "${{ github.event.inputs.kernel_version }}" \
+            --repo ${{ github.repository }} \
             --title "OpenFrame Trixie ${{ github.event.inputs.kernel_version }}" \
             --notes "Debian Trixie image built with kernel ${{ github.event.inputs.kernel_version }}." \
             *.img.gz *.md5
