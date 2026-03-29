@@ -85,7 +85,6 @@ setbl() {
 getbl() {
 
 	CRNTBL=$(($(<$BLIF)*3*100/96))
-	[ "$CRNTBL" -eq 0 ] && [ "$XSET" -eq 0 ] && CRNTBL=1
 
 }
 
