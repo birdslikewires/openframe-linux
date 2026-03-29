@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v1.12 (23rd June 2023)
+## of-netplan v1.13 (29th March 2026)
 ##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
@@ -49,9 +49,9 @@ fi
 echo >> /etc/issue
 
 # Try to read the LAN MAC from our new file.
-LANMAC=`yq r /etc/netplan/$NETPLANCONFIG network.ethernets.$LAN.macaddress`
+LANMAC=$(yq -r ".network.ethernets.${LAN}.macaddress // empty" /etc/netplan/$NETPLANCONFIG)
 
-if [[ "$LANMAC" == "null" ]] || [[ "$LANMAC" == "" ]]; then
+if [[ -z "$LANMAC" ]]; then
 
 	# Try to discover the WLAN interface MAC address.
 	WLANMAC=""
@@ -86,8 +86,11 @@ if [[ "$LANMAC" == "null" ]] || [[ "$LANMAC" == "" ]]; then
 
 	fi
 
-	# Write the new LAN MAC to the config file.
-	yq w -i /etc/netplan/$NETPLANCONFIG network.ethernets.$LAN.macaddress $LANMAC
+	# Write the new LAN MAC to the config file.
+	yq -y --arg mac "$LANMAC" ".network.ethernets.${LAN}.macaddress = \$mac" \
+		/etc/netplan/$NETPLANCONFIG > /tmp/$NETPLANCONFIG
+	mv /tmp/$NETPLANCONFIG /etc/netplan/$NETPLANCONFIG
+	chmod 600 /etc/netplan/$NETPLANCONFIG
 
 else
 
