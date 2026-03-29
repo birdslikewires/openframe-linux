@@ -4,6 +4,10 @@ run-name: image build and publish ${{ inputs.kernel_version }}
 on:
   push:
     branches: [main]
+    paths:
+      - 'overlay-*/**'
+      - 'of-imgcreate.sh'
+      - '.github/workflows/build.yml'
   workflow_dispatch:
     inputs:
       kernel_version:
@@ -32,7 +36,7 @@ jobs:
       - name: Install build dependencies
         run: |
           apt-get update
-          apt-get install -y debootstrap dosfstools e2fsprogs gh parted rsync
+          apt-get install -y debootstrap dosfstools e2fsprogs git gh parted rsync
 
       - name: Get kernel version
         id: kernel
