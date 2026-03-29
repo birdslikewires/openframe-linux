@@ -131,11 +131,14 @@ echo "=== Kernel Installation ============================="
 echo
 sleep 2
 
-echo "Fetching OpenFrame kernel repository key..."
+echo "Configuring OpenFrame kernel repository..."
+source /etc/os-release
 mkdir -p /etc/apt/keyrings
 curl -fsSL https://kernel.openbeak.net/key.gpg -o /etc/apt/keyrings/openframe-kernel.gpg
-echo
+echo "deb [signed-by=/etc/apt/keyrings/openframe-kernel.gpg] https://kernel.openbeak.net/ $VERSION_CODENAME main" \
+  > /etc/apt/sources.list.d/openframe-kernel.list
 apt-get update
+echo
 
 echo "Installing OpenFrame kernel..."
 apt-get install -y 'linux-image-*-openframe'

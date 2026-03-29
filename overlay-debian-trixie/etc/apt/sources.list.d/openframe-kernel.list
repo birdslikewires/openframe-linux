@@ -1,1 +1,0 @@
-deb [signed-by=/etc/apt/keyrings/openframe-kernel.gpg] https://kernel.openbeak.net/ trixie main
