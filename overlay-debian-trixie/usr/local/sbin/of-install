@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 
-## of-install v1.23 (16th March 2026)
+## of-install v1.24 (29th March 2026)
 ##  Simple installers for software on OpenFrames.
 
 usage() {
 	echo "Usage: $0 <option> [options]"
 	echo
-	echo "  build        :  Installs kernel headers and essential build components."
 	echo "  mplayer      :  Installs mplayer with OpenFrame settings."
-	echo "  squeezeplay  :  Installs SqueezePlay and the X.Org Server."
 	echo "  xserver      :  Installs the X.Org Server."
 	echo
 	exit 1
@@ -24,47 +22,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 
-### Setup
-
-KERNMAJVER=$(uname -r | awk -F. '{print $1}')
-KERNMIDVER=$(uname -r | awk -F. '{print $2}')
-
-
 ### Installers
-
-
-build() {
-
-	### Configuration #####
-	KERNELSERVER="https://openbeak.net/openframe/kernel"
-	#######################
-
-	KERNELFETCHURL="${KERNELSERVER}/${KERNMAJVER}.${KERNMIDVER}/$(uname -r)/"
-	echo "$KERNELFETCHURL"
-
-	echo -n "Downloading $(uname -r) kernel packages..."
-	mkdir -p "/tmp/$(uname -r)"
-	if wget -q -r -l1 -nd -N -np -A.deb -erobots=off -P "/tmp/$(uname -r)" "$KERNELFETCHURL"; then
-
-		echo " done."
-		echo "Installing headers..."
-		dpkg -i "/tmp/$(uname -r)/linux-headers"*.deb
-		echo "Installing build-essential..."
-		apt-get update
-		apt-get -y install autoconf build-essential git
-
-	else
-
-		echo "Download failed."
-		exit 1
-
-	fi
-
-	sync
-	echo "Installation of build environment completed."
-
-}
-
 
 mplayer() {
 
@@ -97,7 +55,7 @@ EOF
 
 xserver() {
 
-	apt-get -y install xserver-xorg xserver-xorg-legacy x11-utils xinit xterm
+	apt-get -y install xserver-xorg xserver-xorg-legacy x11-utils x11-xserver-utils xauth xinit xinput xterm
 	of-settings xdefaults
 
 	sync
@@ -113,19 +71,9 @@ echo
 
 case "${1}" in
 
-	build)
-		apt update
-		build
-	;;
-
 	mplayer)
 		[ ! -x /usr/bin/xinit ] && apt update && xserver
 		mplayer
-	;;
-
-	squeezeplay)
-		[ ! -x /usr/bin/xinit ] && apt update && xserver
-		squeezeplay
 	;;
 
 	xserver)
