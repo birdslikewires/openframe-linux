@@ -4,6 +4,7 @@ network:
   ethernets:
     eth0:
       dhcp4: true
+      dhcp-identifier: mac
   wifis:
     wlan0:
       dhcp4: true
