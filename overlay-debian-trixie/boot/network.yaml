@@ -8,6 +8,7 @@ network:
   wifis:
     wlan0:
       dhcp4: true
+      dhcp-identifier: mac
       access-points:
         YOURWIFINAME:
           password: YOURWIFIPASSWORD
