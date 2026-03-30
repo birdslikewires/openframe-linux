@@ -136,7 +136,7 @@ echo "Configuring OpenFrame kernel repository..."
 source /etc/os-release
 mkdir -p /etc/apt/keyrings
 curl -fsSL https://kernel.openbeak.net/key.gpg -o /etc/apt/keyrings/openframe-kernel.gpg
-echo "deb [signed-by=/etc/apt/keyrings/openframe-kernel.gpg] https://kernel.openbeak.net/ $VERSION_CODENAME 6.1" \
+echo "deb [signed-by=/etc/apt/keyrings/openframe-kernel.gpg] https://kernel.openbeak.net/ $VERSION_CODENAME 6.12" \
   > /etc/apt/sources.list.d/openframe-kernel.list
 apt-get update
 echo
