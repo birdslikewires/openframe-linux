@@ -42,14 +42,12 @@ echo "=== Tweaks and Permissions =========================="
 echo
 sleep 2
 
-echo "Generating en_GB.UTF-8 locale..."
+echo "Generating C.UTF-8 locale..."
 echo
-sed -i 's/^# *\(en_GB.UTF-8\)/\1/' /etc/locale.gen
-locale-gen en_GB.UTF-8
+locale-gen C.UTF-8
+update-locale LANG=C.UTF-8
 mv /etc/localtime /etc/localtime.dist
-ln -s /usr/share/zoneinfo/Europe/London /etc/localtime
-LANG=en_GB.UTF-8
-LC_MESSAGES=POSIX
+ln -s /usr/share/zoneinfo/UTC /etc/localtime
 echo
 
 if [ "$OPENFRAMEUSER" != "root" ]; then
@@ -121,8 +119,8 @@ for f in `ls -1 /etc/systemd/system | grep 'of-' | grep '.service'`; do
 done
 echo
 
-echo "Enable password authentication for root user over SSH..."
-[[ "$OPENFRAMEUSER" == "root" ]] && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
+echo "Disable SSH client locale forwarding..."
+sed -i 's/^AcceptEnv LANG LC_\*/#AcceptEnv LANG LC_*/' /etc/ssh/sshd_config
 
 
 ### Kernel Installation
