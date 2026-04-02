@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-settings v1.15 (15th March 2026)
+## of-settings v1.16 (31st March 2026)
 ##  Bundles a bunch of handy settings into one place.
 
 usage() {
@@ -10,8 +10,10 @@ usage() {
 	echo "  autoxinit [user]            :  Enables or disables running Xserver at boot as <user> with systemd."
 	echo "  autoxrun <user> <cmd>       :  Command run when Xserver started as <user> (~/.xinitrc)."
 	echo "  grubquiet <enable|disable>  :  Quiet GRUB prints nothing to the screen."
+	echo "  locale <locale>             :  Sets system locale (e.g. en_GB.UTF-8). No argument shows current."
 	echo "  rootssh <enable|disable>    :  Allows password-based authentication for root over SSH."
 	echo "  splash <name>               :  Sets splash screen theme and rebuilds initramfs. No name disables."
+	echo "  timezone <timezone>         :  Sets system timezone (e.g. Europe/London). No argument shows current."
 	echo "  xdefaults                   :  Sets OpenFrame system defaults for Xserver."
 	echo
 	exit 1
@@ -262,6 +264,61 @@ EOF
 
 		fi
 
+		echo " done."
+		exit 0
+
+	;;
+
+
+	# Sets the system locale.
+	locale)
+
+		if [[ "${2}" == "" ]]; then
+
+			echo "Current locale:"
+			localectl status | grep "System Locale"
+			exit 0
+
+		fi
+
+		LOCALE="${2}"
+
+		if ! locale -a 2>/dev/null | grep -qx "${LOCALE}"; then
+			echo -n "Generating locale '${LOCALE}'..."
+			sed -i "s/^# *\(${LOCALE}\)/\1/" /etc/locale.gen
+			locale-gen "${LOCALE}" || { echo " failed."; exit 1; }
+			echo " done."
+		fi
+
+		echo -n "Setting locale to '${LOCALE}'..."
+		update-locale LANG="${LOCALE}"
+		echo " done."
+		echo "Log out and back in for the change to take effect."
+		exit 0
+
+	;;
+
+
+	# Sets the system timezone.
+	timezone)
+
+		if [[ "${2}" == "" ]]; then
+
+			echo "Current timezone:"
+			timedatectl status | grep "Time zone"
+			exit 0
+
+		fi
+
+		TIMEZONE="${2}"
+
+		if [ ! -f "/usr/share/zoneinfo/${TIMEZONE}" ]; then
+			echo "Timezone '${TIMEZONE}' not found. Check /usr/share/zoneinfo/ for valid options."
+			exit 1
+		fi
+
+		echo -n "Setting timezone to '${TIMEZONE}'..."
+		timedatectl set-timezone "${TIMEZONE}"
 		echo " done."
 		exit 0
 

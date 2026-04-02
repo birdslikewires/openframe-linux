@@ -2,8 +2,10 @@ name: image-check
 run-name: image check
 
 on:
+  repository_dispatch:
+    types: [kernel-released]
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '0 6 * * *'
   workflow_dispatch:
 
 permissions:
