@@ -55,6 +55,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
+        env:
+          KERNEL_VERSION: ${{ steps.kernel.outputs.version }}
         run: |
           ./of-imgcreate.sh of ext2 1 uni 46 "debian trixie" \
             ./overlay-debian-trixie "" \

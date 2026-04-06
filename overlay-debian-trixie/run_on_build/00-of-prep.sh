@@ -140,7 +140,11 @@ apt-get update
 echo
 
 echo "Installing OpenFrame kernel..."
-apt-get install -y 'linux-image-*-openframe'
+if [ -n "$KERNEL_VERSION" ]; then
+	apt-get install -y "linux-image-${KERNEL_VERSION}-openframe"
+else
+	apt-get install -y 'linux-image-*-openframe'
+fi
 echo
 
 exit 0
