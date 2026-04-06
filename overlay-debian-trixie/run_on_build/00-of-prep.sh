@@ -141,7 +141,7 @@ echo
 
 echo "Installing OpenFrame kernel..."
 if [ -n "$KERNEL_VERSION" ]; then
-	apt-get install -y "linux-image-${KERNEL_VERSION}-openframe"
+	apt-get install -y "linux-image-${KERNEL_VERSION#v}-openframe"
 else
 	apt-get install -y 'linux-image-*-openframe'
 fi
