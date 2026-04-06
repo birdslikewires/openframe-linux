@@ -12,14 +12,10 @@ show_status() {
 	{
 		printf "\033[2J\033[H\n"
 		printf "  ┌────────────────────────────────────────────┐\n"
-		printf "  │                                            │\n"
-		printf "  │          OpenFrame · First Boot            │\n"
-		printf "  │                                            │\n"
 		printf "  │  %-40s  │\n" "$1"
-		printf "  │                                            │\n"
 		printf "  │  Please do not power off.                  │\n"
-		printf "  │                                            │\n"
 		printf "  └────────────────────────────────────────────┘\n"
+		printf "\n"
 	} > /dev/tty1
 }
 
@@ -49,7 +45,7 @@ fi
 
 if ! [[ "$ROOTDEV" =~ "mmc" ]]; then
 	show_status "Creating swapfile..."
-	fallocate -l 1G /swapfile
+	dd if=/dev/zero of=/swapfile bs=1M count=1024
 	chmod 600 /swapfile
 	mkswap /swapfile > /dev/null
 	swapon /swapfile
