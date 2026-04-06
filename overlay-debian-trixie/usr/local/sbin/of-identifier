@@ -132,12 +132,4 @@ outputsysteminformation
 # Init the light sensor readings.
 readlightsensor &>/dev/null
 
-if [ -f /root/expanding ]; then
-	echo "Expanding root filesystem..."
-	cp /root/expanding /tmp/expanding
-	resize2fs $(cat /root/expanding)
-	wall "Drive resizing complete."
-	rm /root/expanding /tmp/expanding
-fi
-
 exit 0
