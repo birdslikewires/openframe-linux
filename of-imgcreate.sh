@@ -498,7 +498,7 @@ if [[ "$INSTALL" != "" ]]; then
 						echo
 						echo "Running $f in chroot..."
 						chmod +x $BLDLOC/run_on_build/$f
-						chroot $BLDLOC /run_on_build/$f
+						chroot $BLDLOC /run_on_build/$f || { echo "Error: $f failed in chroot. Aborting."; exit 1; }
 						sync
 					done
 					rm -rf $BLDLOC/run_on_build

@@ -4,6 +4,7 @@
 #  Set up the basics.
 
 #set -x
+set -e
 
 
 OPENFRAMEUSER="of"

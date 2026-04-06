@@ -3,6 +3,8 @@
 # 99-of-clean.sh v1.27 (28th March 2026)
 #  Used to clean an OpenFrame.
 
+set -e
+
 OPTIONS=""
 
 if [ "$(id -u)" != "0" ]; then
