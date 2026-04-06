@@ -81,7 +81,7 @@ for f in `find / -iname *bashrc 2>/dev/null`; do
 done
 
 # Sets the chassis type.
-/usr/bin/hostnamectl chassis embedded || true
+echo "CHASSIS=embedded" > /etc/machine-info
 
 # Allows clearing of tty1 when IP address is updated.
 sed -i 's/\-\-noreset \-\-noclear //g' /usr/lib/systemd/system/getty@.service
