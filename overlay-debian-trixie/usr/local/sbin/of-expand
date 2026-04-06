@@ -1,12 +1,27 @@
 #!/usr/bin/env bash
 
-## of-expand v2.00 (6th April 2026)
+## of-expand v2.01 (6th April 2026)
 ##  Expands the root partition and filesystem to fill the drive.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."
 	exit 1
 fi
+
+show_status() {
+	{
+		printf "\033[2J\033[H\n"
+		printf "  ┌────────────────────────────────────────────┐\n"
+		printf "  │                                            │\n"
+		printf "  │          OpenFrame · First Boot            │\n"
+		printf "  │                                            │\n"
+		printf "  │  %-40s  │\n" "$1"
+		printf "  │                                            │\n"
+		printf "  │  Please do not power off.                  │\n"
+		printf "  │                                            │\n"
+		printf "  └────────────────────────────────────────────┘\n"
+	} > /dev/tty1
+}
 
 ROOTDEV=$(findmnt -n -o SOURCE /)
 ROOTPARTNO="${ROOTDEV: -1}"
@@ -19,12 +34,12 @@ sed -i '/\/var\/cache\/apt/d' /etc/fstab
 sed -i '/\/var\/lib\/apt\/lists/d' /etc/fstab
 sed -i '/\/tmp/d' /etc/fstab
 
-echo "Expanding partition..."
-growpart $DISKDEV $ROOTPARTNO
+show_status "Expanding partition..."
+growpart $DISKDEV $ROOTPARTNO > /dev/null
 GPRET=$?
 if [ $GPRET -eq 0 ]; then
-	echo "Expanding filesystem..."
-	resize2fs $ROOTDEV
+	show_status "Expanding filesystem..."
+	resize2fs $ROOTDEV > /dev/null
 elif [ $GPRET -eq 1 ]; then
 	echo "Partition already at maximum size."
 else
@@ -33,10 +48,10 @@ else
 fi
 
 if ! [[ "$ROOTDEV" =~ "mmc" ]]; then
-	echo "Creating swapfile..."
+	show_status "Creating swapfile..."
 	fallocate -l 1G /swapfile
 	chmod 600 /swapfile
-	mkswap /swapfile
+	mkswap /swapfile > /dev/null
 	swapon /swapfile
 	echo '/swapfile none swap sw 0 0' >> /etc/fstab
 else
