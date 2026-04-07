@@ -45,7 +45,7 @@ fi
 
 if ! [[ "$ROOTDEV" =~ "mmc" ]]; then
 	show_status "Creating swapfile..."
-	dd if=/dev/zero of=/swapfile bs=1M count=1024
+	dd if=/dev/zero of=/swapfile bs=1M count=980
 	chmod 600 /swapfile
 	mkswap /swapfile > /dev/null
 	swapon /swapfile
