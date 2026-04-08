@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.20 (29th March 2026)
+# 00-of-prep.sh v1.21 (8th April 2026)
 #  Set up the basics.
 
 #set -x
@@ -143,9 +143,10 @@ echo
 
 echo "Installing OpenFrame kernel..."
 if [ -n "$KERNEL_VERSION" ]; then
-	apt-get install -y "linux-image-${KERNEL_VERSION#v}-openframe"
+	KBRANCH=$(echo "${KERNEL_VERSION#v}" | cut -d. -f1-2)
+	apt-get install -y "linux-image-${KERNEL_VERSION#v}-openframe" "linux-image-openframe-${KBRANCH}"
 else
-	apt-get install -y 'linux-image-*-openframe'
+	apt-get install -y 'linux-image-openframe-*'
 fi
 echo
 
