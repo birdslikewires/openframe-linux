@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-expand v2.02 (20th April 2026)
+## of-expand v2.03 (20th April 2026)
 ##  Expands the root partition and filesystem to fill the drive.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -30,10 +30,8 @@ sed -i '/\/var\/cache\/apt/d' /etc/fstab
 sed -i '/\/var\/lib\/apt\/lists/d' /etc/fstab
 sed -i '/\/tmp/d' /etc/fstab
 
-mkdir -p /tmp
-
 show_status "Expanding partition..."
-growpart $DISKDEV $ROOTPARTNO > /dev/null
+TMPDIR=/run growpart $DISKDEV $ROOTPARTNO > /dev/null
 GPRET=$?
 if [ $GPRET -eq 1 ]; then
 	echo "Partition already at maximum size."
