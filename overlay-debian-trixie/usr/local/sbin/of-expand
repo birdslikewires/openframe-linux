@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-expand v2.01 (6th April 2026)
+## of-expand v2.02 (20th April 2026)
 ##  Expands the root partition and filesystem to fill the drive.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -30,26 +30,34 @@ sed -i '/\/var\/cache\/apt/d' /etc/fstab
 sed -i '/\/var\/lib\/apt\/lists/d' /etc/fstab
 sed -i '/\/tmp/d' /etc/fstab
 
+mkdir -p /tmp
+
 show_status "Expanding partition..."
 growpart $DISKDEV $ROOTPARTNO > /dev/null
 GPRET=$?
-if [ $GPRET -eq 0 ]; then
-	show_status "Expanding filesystem..."
-	resize2fs $ROOTDEV > /dev/null
-elif [ $GPRET -eq 1 ]; then
+if [ $GPRET -eq 1 ]; then
 	echo "Partition already at maximum size."
-else
+elif [ $GPRET -ne 0 ]; then
 	echo "growpart failed (exit $GPRET). Skipping filesystem resize."
 	exit 1
 fi
 
+show_status "Expanding filesystem..."
+resize2fs $ROOTDEV > /dev/null
+
 if ! [[ "$ROOTDEV" =~ "mmc" ]]; then
-	show_status "Creating swapfile..."
-	dd if=/dev/zero of=/swapfile bs=1M count=980
-	chmod 600 /swapfile
-	mkswap /swapfile > /dev/null
-	swapon /swapfile
-	echo '/swapfile none swap sw 0 0' >> /etc/fstab
+	SWAPFILE_MB=490
+	AVAIL_MB=$(( $(df -k --output=avail / | tail -1) / 1024 ))
+	if [ $AVAIL_MB -lt $(( SWAPFILE_MB + 2048 )) ]; then
+		echo "Insufficient space for swapfile (${AVAIL_MB}MB available, $(( SWAPFILE_MB + 2048 ))MB required). Skipping."
+	else
+		show_status "Creating swapfile..."
+		dd if=/dev/zero of=/swapfile bs=1M count=$SWAPFILE_MB
+		chmod 600 /swapfile
+		mkswap /swapfile > /dev/null
+		swapon /swapfile
+		echo '/swapfile none swap sw 0 0' >> /etc/fstab
+	fi
 else
 	echo "Internal flash detected — skipping swapfile."
 fi
