@@ -1,8 +1,24 @@
 # Linux for OpenFrame
 
-These are overlays and scripts used to create system images for OpenFrame devices; notably the *OpenFrame 1,* sold in the UK as the **O2 Joggler**, and *OpenFrame 2,* which were used for energy monitoring, home automation, and telephony purposes.
+This repository builds Debian Trixie images with modern kernels for OpenFrame devices; notably the *OpenFrame 1,* which was sold in the UK as the **O2 Joggler**, and the *OpenFrame 2,* which were used under various guises for energy monitoring, home automation, and telephony purposes.
 
-In addition, this repository also builds Debian Trixie system images for these devices, which are available on the [Releases](https://github.com/birdslikewires/openframe-linux/releases) page. Some older versions based on Bullseye and Bookworm are still available on [openbeak.net](https://openbeak.net/openframe/images/).
+Image files are available on the [Releases](https://github.com/birdslikewires/openframe-linux/releases) page. Some older versions based on Bullseye and Bookworm are still available on [openbeak.net](https://openbeak.net/openframe/images/), alongside other resources, such as the original firmware images and EFI files.
+
+All of the overlays and scripts used to create the image files are in this repo, with deprecated versions for earlier versions of Debian if we wander back through the commits.
+
+
+## Configuration
+
+### Locale and Timezone
+
+Images default to the `C.UTF-8` locale and UTC timezone. To configure for your local environment:
+
+```
+sudo dpkg-reconfigure locales
+sudo dpkg-reconfigure tzdata
+```
+
+Running `dpkg-reconfigure locales` will present a menu to generate and select a locale (e.g. `en_GB.UTF-8` for the UK), while `dpkg-reconfigure tzdata` lets you select your timezone (e.g. Europe/London).
 
 
 ## Overlays
