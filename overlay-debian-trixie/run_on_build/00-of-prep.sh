@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.22 (1st May 2026)
+# 00-of-prep.sh v1.23 (1st May 2026)
 #  Set up the basics.
 
 #set -x
@@ -53,6 +53,7 @@ echo
 
 echo "Configuring Zram swap..."
 sed -i 's/^#\?ALGO=.*/ALGO=lz4/' /etc/default/zramswap
+sed -i 's/^#\?PERCENT=.*/PERCENT=100/' /etc/default/zramswap
 echo
 
 if [ "$OPENFRAMEUSER" != "root" ]; then
