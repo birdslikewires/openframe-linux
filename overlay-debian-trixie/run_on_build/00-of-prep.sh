@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.23 (1st May 2026)
+# 00-of-prep.sh v1.24 (1st May 2026)
 #  Set up the basics.
 
 #set -x
@@ -52,7 +52,7 @@ ln -s /usr/share/zoneinfo/UTC /etc/localtime
 echo
 
 echo "Configuring Zram swap..."
-sed -i 's/^#\?ALGO=.*/ALGO=lz4/' /etc/default/zramswap
+sed -i 's/^#\?ALGO=.*/ALGO=lzo-rle/' /etc/default/zramswap
 sed -i 's/^#\?PERCENT=.*/PERCENT=100/' /etc/default/zramswap
 echo
 
