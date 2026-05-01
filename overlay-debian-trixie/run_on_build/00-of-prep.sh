@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.21 (8th April 2026)
+# 00-of-prep.sh v1.22 (1st May 2026)
 #  Set up the basics.
 
 #set -x
@@ -21,7 +21,7 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 
 # Additions
-APT_SYSTEM="acpi bash-completion bc ca-certificates cloud-guest-utils curl dosfstools e2fsck-static e2fsprogs firmware-realtek htop i2c-tools initramfs-tools inotify-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango-1.0-0 lockfile-progs lsb-release nano net-tools netplan.io ntpsec-ntpdate openssl pciutils plymouth psmisc sudo systemd-resolved systemd-timesyncd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-regdb wireless-tools yq zstd"
+APT_SYSTEM="acpi bash-completion bc ca-certificates cloud-guest-utils curl dosfstools e2fsck-static e2fsprogs firmware-realtek htop i2c-tools initramfs-tools inotify-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango-1.0-0 lockfile-progs lsb-release nano net-tools netplan.io ntpsec-ntpdate openssl pciutils plymouth psmisc sudo systemd-resolved systemd-timesyncd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-regdb wireless-tools yq zram-tools zstd"
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 APT_SSH="ssh openssh-server"
 
@@ -49,6 +49,10 @@ locale-gen C.UTF-8
 update-locale LANG=C.UTF-8
 mv /etc/localtime /etc/localtime.dist
 ln -s /usr/share/zoneinfo/UTC /etc/localtime
+echo
+
+echo "Configuring Zram swap..."
+sed -i 's/^#\?ALGO=.*/ALGO=lz4/' /etc/default/zramswap
 echo
 
 if [ "$OPENFRAMEUSER" != "root" ]; then
@@ -111,6 +115,7 @@ echo
 echo "Enable systemd services..."
 /bin/systemctl enable systemd-resolved.service
 /bin/systemctl enable systemd-timesyncd.service
+/bin/systemctl enable zramswap.service
 chmod +x /usr/local/sbin/of-*
 chmod +x /usr/sbin/*
 for f in `ls -1 /etc/systemd/system | grep 'of-' | grep '.service'`; do

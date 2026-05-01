@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-expand v2.03 (20th April 2026)
+## of-expand v2.04 (28th April 2026)
 ##  Expands the root partition and filesystem to fill the drive.
 
 if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
@@ -42,23 +42,6 @@ fi
 
 show_status "Expanding filesystem..."
 resize2fs $ROOTDEV > /dev/null
-
-if ! [[ "$ROOTDEV" =~ "mmc" ]]; then
-	SWAPFILE_MB=490
-	AVAIL_MB=$(( $(df -k --output=avail / | tail -1) / 1024 ))
-	if [ $AVAIL_MB -lt $(( SWAPFILE_MB + 2048 )) ]; then
-		echo "Insufficient space for swapfile (${AVAIL_MB}MB available, $(( SWAPFILE_MB + 2048 ))MB required). Skipping."
-	else
-		show_status "Creating swapfile..."
-		dd if=/dev/zero of=/swapfile bs=1M count=$SWAPFILE_MB
-		chmod 600 /swapfile
-		mkswap /swapfile > /dev/null
-		swapon /swapfile
-		echo '/swapfile none swap sw 0 0' >> /etc/fstab
-	fi
-else
-	echo "Internal flash detected — skipping swapfile."
-fi
 
 echo "Done."
 
