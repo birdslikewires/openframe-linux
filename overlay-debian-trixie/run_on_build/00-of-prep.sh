@@ -156,4 +156,24 @@ else
 fi
 echo
 
+
+### OpenFrame Scripts
+
+echo
+echo "=== OpenFrame Scripts ================================"
+echo
+sleep 2
+
+echo "Configuring OpenFrame scripts repository..."
+curl -fsSL https://linux.openbeak.net/key.gpg \
+  -o /etc/apt/keyrings/openframe-linux.gpg
+echo "deb [signed-by=/etc/apt/keyrings/openframe-linux.gpg] https://linux.openbeak.net/ $VERSION_CODENAME main" \
+  > /etc/apt/sources.list.d/openframe-linux.list
+apt-get update
+echo
+
+echo "Installing OpenFrame scripts..."
+apt-get install -y openframe-scripts
+echo
+
 exit 0
