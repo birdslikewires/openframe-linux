@@ -150,7 +150,7 @@ echo
 echo "Installing OpenFrame kernel..."
 if [ -n "$KERNEL_VERSION" ]; then
 	KBRANCH=$(echo "${KERNEL_VERSION#v}" | cut -d. -f1-2)
-	apt-get install -y "linux-image-${KERNEL_VERSION#v}-openframe" "linux-image-openframe-${KBRANCH}"
+	apt-get install -y "linux-image-openframe-${KBRANCH}"
 else
 	apt-get install -y 'linux-image-openframe-*'
 fi
