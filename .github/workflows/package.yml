@@ -17,6 +17,9 @@ concurrency:
   group: build-package
   cancel-in-progress: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
