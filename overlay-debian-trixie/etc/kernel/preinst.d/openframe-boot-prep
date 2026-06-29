@@ -1,11 +1,14 @@
 #!/bin/sh
 # openframe-boot-prep
-#  Removes existing kernel files from /boot before installation.
+#  Removes kernel files from /boot before installation.
 #  Required because /boot is FAT16, which does not support hard links,
 #  causing dpkg's backup mechanism to fail on reinstall.
+#  Also removes old openframe kernel files to prevent /boot from filling up.
 
 VERSION="$1"
+RUNNING=$(uname -r)
 
+# Remove /boot files for the version being installed (reinstall case)
 for f in \
   /boot/vmlinuz-$VERSION \
   /boot/System.map-$VERSION \
@@ -13,6 +16,19 @@ for f in \
   /boot/initrd.img-$VERSION
 do
   [ -f "$f" ] && rm -f "$f"
+done
+
+# Remove /boot files for old openframe kernels, preserving only the running kernel
+for vmlinuz in /boot/vmlinuz-*-openframe; do
+  [ -f "$vmlinuz" ] || continue
+  kver="${vmlinuz#/boot/vmlinuz-}"
+  [ "$kver" = "$VERSION" ] && continue
+  [ "$kver" = "$RUNNING" ] && continue
+  rm -f \
+    "/boot/vmlinuz-${kver}" \
+    "/boot/System.map-${kver}" \
+    "/boot/config-${kver}" \
+    "/boot/initrd.img-${kver}"
 done
 
 exit 0
