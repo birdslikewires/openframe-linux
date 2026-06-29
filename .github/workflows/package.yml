@@ -17,16 +17,13 @@ concurrency:
   group: build-package
   cancel-in-progress: false
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install tools
         run: sudo apt-get install -y apt-utils dpkg-dev
@@ -37,7 +34,7 @@ jobs:
             git push origin HEAD:repo
 
       - name: Checkout repo branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: repo
           path: apt-repo

@@ -22,9 +22,6 @@ concurrency:
   group: build-image
   cancel-in-progress: false
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,7 +31,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install build dependencies
         run: |
@@ -78,7 +75,7 @@ jobs:
 
       - name: Upload image artifact
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.kernel_version == ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openframe-trixie
           path: |
