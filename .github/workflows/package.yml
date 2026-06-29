@@ -1,0 +1,95 @@
+name: package-build-publish
+run-name: package build and publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'overlay-*/usr/local/bin/of-*'
+      - 'overlay-*/usr/local/sbin/of-*'
+      - '.github/workflows/package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-package
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get install -y apt-utils dpkg-dev
+
+      - name: Import GPG signing key
+        run: echo "${{ secrets.APT_SIGNING_KEY }}" | gpg --batch --import
+
+      - name: Build packages and apt repository
+        run: |
+          for overlay_dir in overlay-*/; do
+            codename=$(basename "${overlay_dir}" | sed 's/overlay-[^-]*-//')
+
+            v=$(git log -1 --format=%cd --date=format:%Y%m%d -- \
+              "${overlay_dir}usr/local/bin/of-*" \
+              "${overlay_dir}usr/local/sbin/of-*")
+            version="${v}-1"
+            PKG="openframe-scripts_${version}_all"
+
+            mkdir -p "${PKG}/DEBIAN" "${PKG}/usr/local/bin" "${PKG}/usr/local/sbin"
+            cp "${overlay_dir}usr/local/bin/of-"* "${PKG}/usr/local/bin/" 2>/dev/null || true
+            cp "${overlay_dir}usr/local/sbin/of-"* "${PKG}/usr/local/sbin/" 2>/dev/null || true
+            chmod 755 "${PKG}/usr/local/bin/"of-* "${PKG}/usr/local/sbin/"of-*
+
+            printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
+              "${version}" > "${PKG}/DEBIAN/control"
+
+            dpkg-deb --build --root-owner-group "${PKG}"
+
+            mkdir -p "apt-repo/pool/${codename}"
+            cp "${PKG}.deb" "apt-repo/pool/${codename}/"
+
+            mkdir -p "apt-repo/dists/${codename}/main/binary-i386"
+            cd apt-repo
+            dpkg-scanpackages "pool/${codename}" > "dists/${codename}/main/binary-i386/Packages"
+            gzip -kf "dists/${codename}/main/binary-i386/Packages"
+
+            apt-ftparchive \
+              -o APT::FTPArchive::Release::Origin="OpenFrame" \
+              -o APT::FTPArchive::Release::Label="OpenFrame Linux" \
+              -o APT::FTPArchive::Release::Suite="${codename}" \
+              -o APT::FTPArchive::Release::Codename="${codename}" \
+              -o APT::FTPArchive::Release::Architectures="all i386" \
+              -o APT::FTPArchive::Release::Components="main" \
+              -o APT::FTPArchive::Release::Description="OpenFrame Linux packages" \
+              release "dists/${codename}" > "dists/${codename}/Release"
+
+            GPG_KEY_ID=$(gpg --list-keys --with-colons | awk -F: '/^pub/{print $5; exit}')
+            gpg --batch --yes --default-key "${GPG_KEY_ID}" \
+              --detach-sign --armor -o "dists/${codename}/Release.gpg" "dists/${codename}/Release"
+            gpg --batch --yes --default-key "${GPG_KEY_ID}" \
+              --clearsign -o "dists/${codename}/InRelease" "dists/${codename}/Release"
+            cd ..
+
+            rm -rf "${PKG}"
+          done
+
+          cd apt-repo
+          gpg --export > key.gpg
+
+      - name: Publish to repo branch
+        run: |
+          cd apt-repo
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "apt: openframe-scripts ${{ steps.ver.outputs.version }}"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          git push origin HEAD:repo --force
