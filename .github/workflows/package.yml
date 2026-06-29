@@ -83,6 +83,44 @@ jobs:
           cd apt-repo
           gpg --export > key.gpg
 
+      - name: Generate directory listing
+        run: |
+          cd apt-repo
+          {
+            printf '<!DOCTYPE html>\n<html>\n'
+            printf '<head><title>Index of /</title></head>\n'
+            printf '<body>\n<h1>Index of /</h1><hr><pre>'
+
+            human_size() {
+              local size=$1
+              if [ "$size" -ge 1073741824 ]; then
+                echo "$((size / 1073741824))G"
+              elif [ "$size" -ge 1048576 ]; then
+                echo "$((size / 1048576))M"
+              elif [ "$size" -ge 1024 ]; then
+                echo "$((size / 1024))K"
+              else
+                echo "$size"
+              fi
+            }
+
+            for f in pool/*/*.deb; do
+              [ -f "$f" ] || continue
+              fname=$(basename "$f")
+              fsize=$(stat -c '%s' "$f")
+              fdate=$(date -d "@$(stat -c '%Y' "$f")" '+%d-%b-%Y %H:%M')
+              hsize=$(human_size "$fsize")
+              namelen=${#fname}
+              padlen=$((51 - namelen))
+              [ ${padlen} -lt 1 ] && padlen=1
+              padding=$(printf '%*s' ${padlen} '')
+              printf '\n<a href="%s">%s</a>%s%s  %8s' \
+                "${f}" "${fname}" "${padding}" "${fdate}" "${hsize}"
+            done
+
+            printf '\n</pre><hr></body>\n</html>\n'
+          } > index.html
+
       - name: Publish to repo branch
         run: |
           cd apt-repo
