@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.24 (1st May 2026)
+# 00-of-prep.sh v1.25 (29th June 2026)
 #  Set up the basics.
 
 #set -x
@@ -108,7 +108,6 @@ chown root:root /usr/local/bin/*
 chown root:root /usr/local/sbin/*
 chmod 755 /usr/local/bin/*
 chmod 755 /usr/local/sbin/*
-chmod 644 /usr/local/sbin/*.ver
 chmod +x /etc/kernel/preinst.d/openframe-boot-prep
 chmod +x /etc/kernel/postinst.d/openframe-grub-update
 echo
