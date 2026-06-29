@@ -1,0 +1,11 @@
+// Allow apt autoremove to clean up old linux-image-*-openframe packages.
+// The default VersionedKernelPackages list includes "linux-.*", which causes
+// apt to treat all installed openframe kernel packages as protected fallbacks.
+// OpenFrame manages /boot space via the openframe-boot-prep preinst hook instead.
+#clear APT::VersionedKernelPackages;
+APT::VersionedKernelPackages {
+    "kfreebsd-.*";
+    "gnumach-.*";
+    ".*-modules";
+    ".*-kernel";
+};
