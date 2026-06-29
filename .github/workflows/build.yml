@@ -44,7 +44,7 @@ jobs:
           if [ -n "${{ github.event.inputs.kernel_version }}" ]; then
             echo "version=${{ github.event.inputs.kernel_version }}" >> $GITHUB_OUTPUT
           else
-            version=$(gh release list --repo birdslikewires/openframe-kernel --limit 1 --json tagName --jq '.[0].tagName')
+            version=$(gh release list --repo birdslikewires/openframe-kernel --limit 1 --json tagName --jq '.[0].tagName | ltrimstr("v")')
             if [ -z "$version" ]; then
               echo "Failed to get kernel version from openframe-kernel releases."
               exit 1
