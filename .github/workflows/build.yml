@@ -93,3 +93,13 @@ jobs:
             *.img.gz *.md5
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete old GitHub releases and tags
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.kernel_version != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --repo ${{ github.repository }} --limit 100 --json tagName \
+            --jq '.[3:][].tagName' | while read -r tag; do
+            gh release delete "$tag" --repo ${{ github.repository }} --yes --cleanup-tag
+          done
