@@ -28,6 +28,17 @@ jobs:
       - name: Install tools
         run: sudo apt-get install -y apt-utils dpkg-dev
 
+      - name: Ensure repo branch exists
+        run: |
+          git fetch origin repo:refs/remotes/origin/repo 2>/dev/null || \
+            git push origin HEAD:repo
+
+      - name: Checkout repo branch
+        uses: actions/checkout@v4
+        with:
+          ref: repo
+          path: apt-repo
+
       - name: Import GPG signing key
         run: echo "${{ secrets.APT_SIGNING_KEY }}" | gpg --batch --import
 
@@ -53,6 +64,7 @@ jobs:
             dpkg-deb --build --root-owner-group "${PKG}"
 
             mkdir -p "apt-repo/pool/${codename}"
+            rm -f "apt-repo/pool/${codename}/"openframe-scripts_*.deb
             cp "${PKG}.deb" "apt-repo/pool/${codename}/"
 
             mkdir -p "apt-repo/dists/${codename}/main/binary-i386"
@@ -60,6 +72,7 @@ jobs:
             dpkg-scanpackages "pool/${codename}" > "dists/${codename}/main/binary-i386/Packages"
             gzip -kf "dists/${codename}/main/binary-i386/Packages"
 
+            GPG_KEY_ID=$(gpg --list-keys --with-colons | awk -F: '/^pub/{print $5; exit}')
             apt-ftparchive \
               -o APT::FTPArchive::Release::Origin="OpenFrame" \
               -o APT::FTPArchive::Release::Label="OpenFrame Linux" \
@@ -70,7 +83,6 @@ jobs:
               -o APT::FTPArchive::Release::Description="OpenFrame Linux packages" \
               release "dists/${codename}" > "dists/${codename}/Release"
 
-            GPG_KEY_ID=$(gpg --list-keys --with-colons | awk -F: '/^pub/{print $5; exit}')
             gpg --batch --yes --default-key "${GPG_KEY_ID}" \
               --detach-sign --armor -o "dists/${codename}/Release.gpg" "dists/${codename}/Release"
             gpg --batch --yes --default-key "${GPG_KEY_ID}" \
@@ -80,8 +92,7 @@ jobs:
             rm -rf "${PKG}"
           done
 
-          cd apt-repo
-          gpg --export > key.gpg
+          gpg --export > apt-repo/key.gpg
 
       - name: Generate directory listing
         run: |
@@ -121,13 +132,12 @@ jobs:
             printf '\n</pre><hr></body>\n</html>\n'
           } > index.html
 
-      - name: Publish to repo branch
+      - name: Push apt repository
         run: |
           cd apt-repo
-          git init
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "apt: openframe-scripts ${{ steps.ver.outputs.version }}"
-          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
-          git push origin HEAD:repo --force
+          git diff --cached --quiet && echo "No changes to commit" || \
+            git commit -m "apt: openframe-scripts $(git -C .. rev-parse --short HEAD)"
+          git push origin repo
