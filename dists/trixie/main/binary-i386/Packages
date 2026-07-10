@@ -1,13 +1,13 @@
 Package: openframe-scripts
-Version: 20260629-1
+Version: 20260710-1
 Architecture: all
 Maintainer: OpenFrame <andy@dvsn.net>
 Depends: bash
-Filename: pool/trixie/openframe-scripts_20260629-1_all.deb
-Size: 13312
-MD5sum: 1f5ed7ec517be4aa21f7b126c1d1860a
-SHA1: e287a352be07135e5e38c3fde313882c11201a3c
-SHA256: 73fe3eabf52c4d21014cd126ee23f85f83acf5801c6e9a9b86407abebeaade21
+Filename: pool/trixie/openframe-scripts_20260710-1_all.deb
+Size: 14028
+MD5sum: 25a0f065963d17ac6ce2d9244d17760d
+SHA1: 30cbb832c04624be19ed0205dad9cdae66b5554c
+SHA256: 122e96866befa6b2301eadc3a68c64dd8e54e913a4746256c926f1883145edd0
 Section: admin
 Priority: optional
 Description: OpenFrame management scripts
