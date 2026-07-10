@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v1.13 (29th March 2026)
+## of-netplan v1.14 (7th July 2026)
 ##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
@@ -11,7 +11,7 @@
 ##
 ##  We're also responsible for /etc/issue
 
-if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
+if [ "$(id -u)" -ne 0 ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."
 	exit 1
 fi

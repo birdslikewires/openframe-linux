@@ -1,0 +1,14 @@
+[Unit]
+Description=OpenFrame first-boot community software provisioning
+ConditionPathExists=/boot/setup.txt
+After=of-identifier.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/of-provision
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

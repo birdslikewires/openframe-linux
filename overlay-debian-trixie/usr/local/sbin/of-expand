@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-## of-expand v2.04 (28th April 2026)
+## of-expand v2.05 (7th July 2026)
 ##  Expands the root partition and filesystem to fill the drive.
 
-if [ "$USER" != "root" ] && [ "$USER" != "" ]; then
+if [ "$(id -u)" -ne 0 ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."
 	exit 1
 fi

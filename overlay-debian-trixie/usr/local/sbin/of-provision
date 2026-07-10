@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+
+## of-provision v1.00 (10th July 2026)
+##  Checks for a file on /boot pointing to a hosted install.sh. If present,
+##  downloads and runs that install.sh as the normal user. Lets community
+##  repos provide their own install.sh without us having to bake every
+##  combination of software into an image.
+##
+##  Runs once: the service disables itself as soon as it fires, regardless
+##  of outcome. Re-enable with 'systemctl enable of-provision.service'.
+
+if [ "$(id -u)" -ne 0 ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo $0'."
+	exit 1
+fi
+
+SETUPFILE="/boot/setup.txt"
+LOGFILE="/var/log/setup.log"
+WORKDIR="/tmp/of-provision"
+OPENFRAMEUSER="of"
+
+log() {
+	echo "$1" | tee -a "$LOGFILE"
+}
+
+[ -f "$SETUPFILE" ] || exit 0
+
+# One-shot: disable ourselves now, before doing anything else, so we don't
+# run again on next boot regardless of how this attempt turns out.
+systemctl disable of-provision.service >/dev/null 2>&1
+
+URL="$(head -n1 "$SETUPFILE" | tr -d '[:space:]')"
+
+: > "$LOGFILE"
+log "of-provision: starting at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+log "of-provision: requested source: $URL"
+
+if [[ "$URL" =~ install\.sh$ ]]; then
+	INSTALLER_URL="$URL"
+else
+	log "of-provision: setup.txt must contain a direct link to an install.sh. Aborting."
+	mv "$SETUPFILE" "${SETUPFILE}.rejected"
+	exit 1
+fi
+
+log "of-provision: fetching ${INSTALLER_URL}"
+
+mkdir -p "$WORKDIR"
+INSTALLER_PATH="${WORKDIR}/install.sh"
+
+if ! curl -fsSL -o "$INSTALLER_PATH" "$INSTALLER_URL"; then
+	log "of-provision: failed to download install.sh. Aborting."
+	mv "$SETUPFILE" "${SETUPFILE}.failed"
+	exit 1
+fi
+
+chmod +x "$INSTALLER_PATH"
+chown "$OPENFRAMEUSER:$OPENFRAMEUSER" "$INSTALLER_PATH"
+
+log "of-provision: running installer as '${OPENFRAMEUSER}'..."
+echo >> "$LOGFILE"
+
+if su - "$OPENFRAMEUSER" -c "$INSTALLER_PATH" >>"$LOGFILE" 2>&1; then
+	echo >> "$LOGFILE"
+	log "of-provision: installer completed successfully."
+	rm "$SETUPFILE"
+else
+	echo >> "$LOGFILE"
+	log "of-provision: installer exited with an error. See above."
+	mv "$SETUPFILE" "${SETUPFILE}.failed"
+fi
+
+rm -rf "$WORKDIR"
+
+log "of-provision: rebooting..."
+sync
+systemctl reboot
+
+exit 0
