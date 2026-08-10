@@ -1,14 +1,19 @@
 [Unit]
-Description=OpenFrame first-boot community software provisioning
+Description=OpenFrame first-boot software provisioning
 ConditionPathExists=/boot/setup.txt
-After=of-identifier.service network-online.target
-Wants=network-online.target
+After=of-identifier.service network-online.target time-sync.target getty@tty1.service
+Wants=network-online.target time-sync.target
+Conflicts=getty@tty1.service
 
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/of-provision
-StandardOutput=journal
-StandardError=journal
+StandardInput=tty
+StandardOutput=tty
+StandardError=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
 
 [Install]
 WantedBy=multi-user.target

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-## of-provision v1.00 (10th July 2026)
-##  Checks for a file on /boot pointing to a hosted install.sh. If present,
-##  downloads and runs that install.sh as the normal user. Lets community
-##  repos provide their own install.sh without us having to bake every
-##  combination of software into an image.
+## of-provision v1.01 (10th August 2026)
+##  Checks for a file on /boot pointing to a hosted project or install.sh.
+##  If present, downloads and runs that install.sh as the normal user. Lets
+##  community repos provide their own install.sh without us having to bake
+##  every combination of software into an image.
 ##
 ##  Runs once: the service disables itself as soon as it fires, regardless
 ##  of outcome. Re-enable with 'systemctl enable of-provision.service'.
@@ -33,26 +33,56 @@ URL="$(head -n1 "$SETUPFILE" | tr -d '[:space:]')"
 
 : > "$LOGFILE"
 log "of-provision: starting at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+if [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" != "yes" ]; then
+	log "of-provision: warning, system clock is not NTP-synchronised; HTTPS downloads below may fail on certificate checks."
+fi
 log "of-provision: requested source: $URL"
 
-if [[ "$URL" =~ install\.sh$ ]]; then
-	INSTALLER_URL="$URL"
-else
-	log "of-provision: setup.txt must contain a direct link to an install.sh. Aborting."
+if [[ -z "$URL" ]]; then
+	log "of-provision: setup.txt is empty. Aborting."
 	mv "$SETUPFILE" "${SETUPFILE}.rejected"
 	exit 1
+elif [[ "$URL" =~ install\.sh$ ]]; then
+	# Direct link, use as given.
+	CANDIDATES=("$URL")
+elif [[ "$URL" =~ ^https?://github\.com/([^/]+)/([^/]+) ]]; then
+	# GitHub project URL: look for install.sh on the default branch, trying
+	# 'main' then falling back to the older 'master' convention.
+	OWNER="${BASH_REMATCH[1]}"
+	REPO="${BASH_REMATCH[2]%.git}"
+	CANDIDATES=(
+		"https://raw.githubusercontent.com/${OWNER}/${REPO}/refs/heads/main/install.sh"
+		"https://raw.githubusercontent.com/${OWNER}/${REPO}/refs/heads/master/install.sh"
+	)
+else
+	# Some other project URL: look for install.sh at its root.
+	CANDIDATES=("${URL%/}/install.sh")
 fi
-
-log "of-provision: fetching ${INSTALLER_URL}"
 
 mkdir -p "$WORKDIR"
 INSTALLER_PATH="${WORKDIR}/install.sh"
 
-if ! curl -fsSL -o "$INSTALLER_PATH" "$INSTALLER_URL"; then
+# network-online.target only means whatever brought it up thinks it's done;
+# DHCP/DNS can still lag behind that for a few seconds, particularly over
+# Wi-Fi, so retry each candidate a few times before giving up on it.
+INSTALLER_URL=""
+for CANDIDATE in "${CANDIDATES[@]}"; do
+	log "of-provision: trying ${CANDIDATE}"
+	for ATTEMPT in 1 2 3 4 5; do
+		CURL_ERROR="$(curl -fSL -o "$INSTALLER_PATH" "$CANDIDATE" 2>&1 >/dev/null)" && { INSTALLER_URL="$CANDIDATE"; break; }
+		log "of-provision: attempt ${ATTEMPT} failed: ${CURL_ERROR}"
+		sleep 5
+	done
+	[ -n "$INSTALLER_URL" ] && break
+done
+
+if [ -z "$INSTALLER_URL" ]; then
 	log "of-provision: failed to download install.sh. Aborting."
 	mv "$SETUPFILE" "${SETUPFILE}.failed"
 	exit 1
 fi
+
+log "of-provision: fetched ${INSTALLER_URL}"
 
 chmod +x "$INSTALLER_PATH"
 chown "$OPENFRAMEUSER:$OPENFRAMEUSER" "$INSTALLER_PATH"
@@ -60,7 +90,10 @@ chown "$OPENFRAMEUSER:$OPENFRAMEUSER" "$INSTALLER_PATH"
 log "of-provision: running installer as '${OPENFRAMEUSER}'..."
 echo >> "$LOGFILE"
 
-if su - "$OPENFRAMEUSER" -c "$INSTALLER_PATH" >>"$LOGFILE" 2>&1; then
+su - "$OPENFRAMEUSER" -c "$INSTALLER_PATH" 2>&1 | tee -a "$LOGFILE"
+INSTALLER_RESULT="${PIPESTATUS[0]}"
+
+if [ "$INSTALLER_RESULT" -eq 0 ]; then
 	echo >> "$LOGFILE"
 	log "of-provision: installer completed successfully."
 	rm "$SETUPFILE"

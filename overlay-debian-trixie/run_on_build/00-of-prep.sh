@@ -115,6 +115,7 @@ echo
 echo "Enable systemd services..."
 /bin/systemctl enable systemd-resolved.service
 /bin/systemctl enable systemd-timesyncd.service
+/bin/systemctl enable systemd-time-wait-sync.service
 /bin/systemctl enable zramswap.service
 chmod +x /usr/local/sbin/of-*
 chmod +x /usr/sbin/*

@@ -7,6 +7,31 @@ Image files are available on the [Releases](https://github.com/birdslikewires/op
 All of the overlays and scripts used to create the image files are in this repo, with deprecated versions for earlier versions of Debian if we wander back through the commits.
 
 
+## First-Boot Provisioning
+
+Images include `of-provision`, a first-boot mechanism for installing software without baking every combination of packages into the image itself.
+
+To use it, place a `setup.txt` file in the `OF-BOOT` volume before first boot, containing a single line: the URL of the project you want installed, e.g.
+
+```
+https://github.com/birdslikewires/openframe-hamclock
+```
+
+For a GitHub project URL like this, `of-provision` works out the raw `install.sh` URL itself, trying the `main` branch and then falling back to `master`. For anything hosted elsewhere, it looks for `install.sh` at the root of the given URL, e.g. `https://example.com/my-openframe-app/` is expected to have an installer at `https://example.com/my-openframe-app/install.sh`.
+
+On first boot, the `of-provision.service` systemd unit checks for `/boot/setup.txt`. If it's present, it downloads the resulting `install.sh` and runs it as the `of` user, logging output to `/var/log/setup.log`. The device then reboots automatically.
+
+The service disables itself immediately upon firing, regardless of whether the installer succeeds, so it will not run again on subsequent boots. Depending on the outcome, `setup.txt` is either removed (success), renamed to `setup.txt.failed` (installer error or download failure), or renamed to `setup.txt.rejected` (file was empty).
+
+To provision another install after first run, re-enable the service and restore `setup.txt`:
+
+```
+sudo systemctl enable of-provision.service
+sudo mv /boot/setup.txt.failed /boot/setup.txt   # or recreate it with a new URL
+sudo reboot
+```
+
+
 ## Configuration
 
 ### Locale and Timezone
