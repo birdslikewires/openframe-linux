@@ -36,7 +36,7 @@ jobs:
       - name: Install build dependencies
         run: |
           apt-get update
-          apt-get install -y debootstrap dosfstools e2fsprogs git gh parted rsync
+          apt-get install -y ca-certificates curl debootstrap dosfstools e2fsprogs git gh parted rsync
 
       - name: Get kernel version
         id: kernel
@@ -53,6 +53,28 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The kernel release is published before GitHub Pages has finished deploying
+      # the apt repository. This requests the same URL as apt, so it also waits out
+      # any stale CDN cache.
+      - name: Wait for kernel in apt repository
+        env:
+          KERNEL_VERSION: ${{ steps.kernel.outputs.version }}
+        run: |
+          version="${KERNEL_VERSION#v}"
+          branch=$(echo "$version" | cut -d. -f1-2)
+          url="https://kernel.openbeak.net/dists/trixie/${branch}/binary-i386/Packages"
+          for attempt in $(seq 1 90); do
+            if curl -fsSL "$url" | awk -v pkg="linux-image-openframe-${branch}" -v ver="$version" \
+              '$1 == "Package:" { p = $2 } $1 == "Version:" && p == pkg && $2 == ver { found = 1 } END { exit !found }'; then
+              echo "Kernel ${version} is available from the apt repository."
+              exit 0
+            fi
+            echo "Waiting for kernel ${version} in the apt repository (attempt ${attempt}/90)..."
+            sleep 30
+          done
+          echo "Kernel ${version} did not appear in the apt repository after 45 minutes."
+          exit 1
 
       - name: Build image
         env:

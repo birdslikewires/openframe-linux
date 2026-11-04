@@ -3,7 +3,6 @@ Description=OpenFrame first-boot software provisioning
 ConditionPathExists=/boot/setup.txt
 After=of-identifier.service network-online.target time-sync.target getty@tty1.service
 Wants=network-online.target time-sync.target
-Conflicts=getty@tty1.service
 
 [Service]
 Type=oneshot
