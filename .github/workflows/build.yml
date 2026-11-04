@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       kernel_version:
-        description: 'Kernel release tag to build for (e.g. 6.1.166). If set, a GitHub Release will be created.'
+        description: 'Kernel release tag to build for (e.g. v6.18.60, the v is optional). If set, a GitHub Release will be created.'
         required: false
         default: ''
 
@@ -42,7 +42,9 @@ jobs:
         id: kernel
         run: |
           if [ -n "${{ github.event.inputs.kernel_version }}" ]; then
-            echo "version=${{ github.event.inputs.kernel_version }}" >> $GITHUB_OUTPUT
+            # Release tags need the v, as the check workflows look for them by that name.
+            version="${{ github.event.inputs.kernel_version }}"
+            echo "version=v${version#v}" >> $GITHUB_OUTPUT
           else
             version=$(gh release list --repo birdslikewires/openframe-kernel --limit 1 --json tagName --jq '.[0].tagName | ltrimstr("v")')
             if [ -z "$version" ]; then
@@ -108,10 +110,10 @@ jobs:
       - name: Create GitHub Release
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.kernel_version != ''
         run: |
-          gh release create "${{ github.event.inputs.kernel_version }}" \
+          gh release create "${{ steps.kernel.outputs.version }}" \
             --repo ${{ github.repository }} \
-            --title "OpenFrame Trixie ${{ github.event.inputs.kernel_version }}" \
-            --notes "Debian Trixie image built with kernel ${{ github.event.inputs.kernel_version }}." \
+            --title "OpenFrame Trixie ${{ steps.kernel.outputs.version }}" \
+            --notes "Debian Trixie image built with kernel ${{ steps.kernel.outputs.version }}." \
             *.img.gz *.md5
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
