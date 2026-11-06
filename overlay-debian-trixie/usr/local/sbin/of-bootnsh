@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.1 (6th November 2026)
+## of-bootnsh v26.11.2 (6th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on.
 ##
 ##  In 'stub' mode the shell starts the kernel directly through its EFI stub. The
@@ -12,6 +12,11 @@
 ##  no room for a second copy of the kernel, so in 'stub' mode the kernel is
 ##  renamed to vmlinuz.efi and grub.cfg points at it too. 'grub' mode puts the
 ##  usual vmlinuz-<version> name back.
+##
+##  An empty vmlinuz-<version> is left in place of the renamed kernel. It takes no
+##  space on FAT, and it lets update-initramfs and linux-version find the kernel,
+##  since they look for vmlinuz-<version> files. Only a non-empty file is ever
+##  treated as a kernel, so the placeholder never replaces vmlinuz.efi.
 ##
 ##  The initrd and kernel arguments are read from grub.cfg, so anything that
 ##  edits grub.cfg, or installs a kernel, should run this afterwards.
@@ -79,12 +84,19 @@ grub_kernel() {
 
 if [[ "$MODE" == "stub" ]]; then
 
-	# A freshly installed kernel replaces the previous vmlinuz.efi.
-	if [[ "$VERSION" != "" ]] && [ -f "$BOOTDIR/vmlinuz-$VERSION" ]; then
+	# A freshly installed kernel replaces the previous vmlinuz.efi. -s, not -f: an
+	# empty file is our placeholder, and moving it would leave nothing to boot.
+	if [[ "$VERSION" != "" ]] && [ -s "$BOOTDIR/vmlinuz-$VERSION" ]; then
 		mv -f "$BOOTDIR/vmlinuz-$VERSION" "$BOOTDIR/$KERNELEFI"
 	fi
 
-	[ -f "$BOOTDIR/$KERNELEFI" ] || echo "Warning: no $BOOTDIR/$KERNELEFI yet; it appears when a kernel is installed."
+	if [ -s "$BOOTDIR/$KERNELEFI" ]; then
+		if [[ "$VERSION" != "" ]] && [ ! -e "$BOOTDIR/vmlinuz-$VERSION" ]; then
+			: > "$BOOTDIR/vmlinuz-$VERSION"
+		fi
+	else
+		echo "Warning: no $BOOTDIR/$KERNELEFI yet; it appears when a kernel is installed."
+	fi
 	grub_kernel "$KERNELEFI"
 
 	read -r _ _ ARGS <<< "$(grep -m1 -E '^[[:space:]]*linux[[:space:]]' "$GRUBCFG")"
@@ -99,7 +111,13 @@ else
 
 	if [ -f "$BOOTDIR/$KERNELEFI" ]; then
 		[[ "$VERSION" == "" ]] && VERSION=$(uname -r)
-		mv -f "$BOOTDIR/$KERNELEFI" "$BOOTDIR/vmlinuz-$VERSION"
+		if [ -s "$BOOTDIR/vmlinuz-$VERSION" ]; then
+			# A real kernel is already under its own name, so vmlinuz.efi is stale.
+			rm -f "$BOOTDIR/$KERNELEFI"
+		else
+			# Replaces the placeholder, if there is one.
+			mv -f "$BOOTDIR/$KERNELEFI" "$BOOTDIR/vmlinuz-$VERSION"
+		fi
 		grub_kernel "vmlinuz-$VERSION"
 	fi
 

@@ -7,6 +7,8 @@
 #  Then, once per system, the kernel is switched to booting directly through its EFI
 #  stub, which saves around ten seconds per boot. Anyone who later runs
 #  'of-settings efistub disable' keeps GRUB, because the marker stops this repeating.
+#
+#  Every update then tidies the boot volume so the next initrd rebuild fits.
 
 set -e
 
@@ -25,6 +27,15 @@ case "$1" in
 			else
 				echo "Could not switch to EFI stub boot; GRUB boot is unchanged."
 			fi
+		fi
+
+		# Refresh the boot volume on every update, keeping the current mode. This gives
+		# systems already in stub mode the empty vmlinuz-<version> that lets
+		# update-initramfs find the kernel. It also clears what blocks a rebuild:
+		# System.map, and backups left when a rebuild ran out of space.
+		if [ -f /boot/grub.cfg ] && [ -f /boot/boot.nsh ]; then
+			/usr/local/sbin/of-bootnsh >/dev/null || true
+			rm -f /boot/System.map-* /boot/initrd.img-*.dpkg-bak
 		fi
 
 	;;
