@@ -23,7 +23,8 @@ DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 # Additions
 APT_SYSTEM="acpi bash-completion bc ca-certificates cloud-guest-utils curl dosfstools e2fsck-static e2fsprogs firmware-realtek htop i2c-tools initramfs-tools inotify-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango-1.0-0 lockfile-progs lsb-release nano net-tools netplan.io ntpsec-ntpdate openssl pciutils plymouth psmisc sudo systemd-resolved systemd-timesyncd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-regdb wireless-tools yq zram-tools zstd"
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
-APT_SSH="ssh openssh-server"
+# libpam-systemd gives each login its own session, so SSH connections are closed cleanly at poweroff.
+APT_SSH="ssh openssh-server libpam-systemd"
 
 # Removals
 APT_REM_SYSTEM=""
