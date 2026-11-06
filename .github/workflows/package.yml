@@ -8,6 +8,7 @@ on:
       - 'overlay-*/usr/local/bin/of-*'
       - 'overlay-*/usr/local/sbin/of-*'
       - 'overlay-*/usr/share/kernel/**'
+      - 'overlay-*/usr/lib/firmware/updates/**'
       - 'package/**'
       - '.github/workflows/package.yml'
   workflow_dispatch:
@@ -55,7 +56,7 @@ jobs:
             # month (the third this month is 26.11.3). The 1: epoch puts it above the old
             # YYYYMMDD-1 versions.
             paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
-              "${overlay_dir}usr/share/kernel" package)
+              "${overlay_dir}usr/share/kernel" "${overlay_dir}usr/lib/firmware/updates" package)
             month=$(TZ=UTC git log -1 --format=%cd --date=format-local:%y.%m -- "${paths[@]}")
             count=$(TZ=UTC git log --format=%cd --date=format-local:%y.%m -- "${paths[@]}" | grep -cx "${month}")
             version="1:${month%.*}.$((10#${month#*.})).${count}"
@@ -71,6 +72,16 @@ jobs:
             cp "${overlay_dir}usr/share/kernel/preinst.d/"* "${PKG}/usr/share/kernel/preinst.d/"
             cp "${overlay_dir}usr/share/kernel/postinst.d/"* "${PKG}/usr/share/kernel/postinst.d/"
             chmod 755 "${PKG}/usr/share/kernel/preinst.d/"* "${PKG}/usr/share/kernel/postinst.d/"*
+
+            # Firmware the built-in drivers list but Debian doesn't ship yet. Without it,
+            # every initramfs rebuild warns "Possible missing firmware". The updates
+            # directory doesn't clash with Debian's firmware packages.
+            if [ -d "${overlay_dir}usr/lib/firmware/updates" ]; then
+              mkdir -p "${PKG}/usr/lib/firmware"
+              cp -R "${overlay_dir}usr/lib/firmware/updates" "${PKG}/usr/lib/firmware/"
+              find "${PKG}/usr/lib/firmware" -type d -exec chmod 755 {} +
+              find "${PKG}/usr/lib/firmware" -type f -exec chmod 644 {} +
+            fi
 
             install -m 755 package/postinst "${PKG}/DEBIAN/postinst"
 
