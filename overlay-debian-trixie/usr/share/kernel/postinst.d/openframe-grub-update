@@ -1,9 +1,10 @@
 #!/bin/sh
 
-# openframe-grub-update v26.11.1 (6th November 2026)
+# openframe-grub-update v26.11.2 (6th November 2026)
 #  Updates /boot/grub.cfg with the new kernel version after each kernel upgrade,
 #  then rewrites /boot/boot.nsh to match (in EFI stub mode this also renames the
-#  new kernel to vmlinuz.efi).
+#  new kernel to vmlinuz.efi). Finally it removes older kernels from /boot, so
+#  the small boot volume always has room for the next upgrade.
 
 VERSION="$1"
 GRUB_CFG="/boot/grub.cfg"
@@ -18,6 +19,25 @@ sed -i \
 
 if [ -x /usr/local/sbin/of-bootnsh ]; then
   /usr/local/sbin/of-bootnsh
+fi
+
+# Remove older kernels from /boot, including the one still running. grub.cfg and
+# boot.nsh now point only at the new kernel, and in EFI stub mode the old kernel
+# has just been overwritten by the rename, so its leftovers can't boot anything.
+# The running system needs nothing from /boot. The initramfs-tools hook runs
+# before this one, so only go ahead once it has built the new initrd.
+if [ -f "/boot/initrd.img-${VERSION}" ]; then
+  for f in /boot/config-*-openframe /boot/initrd.img-*-openframe; do
+    [ -f "$f" ] || continue
+    kver="${f#/boot/config-}"
+    kver="${kver#/boot/initrd.img-}"
+    [ "$kver" = "$VERSION" ] && continue
+    rm -f \
+      "/boot/vmlinuz-${kver}" \
+      "/boot/System.map-${kver}" \
+      "/boot/config-${kver}" \
+      "/boot/initrd.img-${kver}"
+  done
 fi
 
 exit 0
