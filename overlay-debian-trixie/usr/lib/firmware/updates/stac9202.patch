@@ -1,0 +1,41 @@
+# OpenFrame HDA codec patch, loaded by snd-hda-intel (see /etc/modprobe.d/stac9202.conf).
+#
+# OpenFrame 1: SigmaTel STAC9202, needs its pins remapped for jack sensing.
+#
+# The kernel reads the [codec] vendor ID as a signed number, and treats a negative one as
+# "any codec". 0x83847632 has its top bit set, so up to at least 6.18 this section also
+# applies to other codecs, such as the OpenFrame 2's. openframe-kernel carries a fix.
+[codec]
+0x83847632 0x100 0
+
+[pincfg]
+0x07 0x01110014
+0x08 0x01410013
+0x0a 0x02111011
+0x0d 0x02214012
+0x0c 0x01810022
+0x0b 0x01a10021
+0x10 0x01010031
+0x11 0x01310023
+0x15 0x01d10024
+
+[verb]
+0x06 0x701 0x0000
+0x07 0x70c 0x0002
+0x14 0x390 0x0000
+0x14 0x3a0 0x0000
+0x0f 0x707 0x0000
+
+[hint]
+
+# OpenFrame 2: IDT 92HD75B2X5. Its own pin settings are right, so put back the ones the
+# section above overwrote. Without this the headphone socket is treated as the speaker,
+# and the speakers never mute. This vendor ID matches exactly, so OpenFrame 1 ignores it.
+[codec]
+0x111d7608 0x100 0
+
+[pincfg]
+0x0a 0x02214030
+0x0b 0x02a19040
+0x0c 0x01a19020
+0x0d 0x01014010
