@@ -18,10 +18,12 @@ do
   [ -f "$f" ] && rm -f "$f"
 done
 
-# Remove /boot files for old openframe kernels, preserving only the running kernel
-for vmlinuz in /boot/vmlinuz-*-openframe; do
-  [ -f "$vmlinuz" ] || continue
-  kver="${vmlinuz#/boot/vmlinuz-}"
+# Remove /boot files for old openframe kernels, preserving only the running kernel.
+# Found by config file, because in EFI stub mode of-bootnsh renames the kernel itself
+# to vmlinuz.efi (which the next kernel install replaces).
+for config in /boot/config-*-openframe; do
+  [ -f "$config" ] || continue
+  kver="${config#/boot/config-}"
   [ "$kver" = "$VERSION" ] && continue
   [ "$kver" = "$RUNNING" ] && continue
   rm -f \

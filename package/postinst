@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# openframe-scripts postinst
+#  The kernel hooks now come from this package, in /usr/share/kernel. Older images put
+#  copies in /etc/kernel, which would override them, so those are removed.
+#
+#  Then, once per system, the kernel is switched to booting directly through its EFI
+#  stub, which saves around ten seconds per boot. Anyone who later runs
+#  'of-settings efistub disable' keeps GRUB, because the marker stops this repeating.
+
+set -e
+
+MARKER="/var/lib/openframe-scripts/efistub-default"
+
+case "$1" in
+	configure)
+
+		rm -f /etc/kernel/preinst.d/openframe-boot-prep /etc/kernel/postinst.d/openframe-grub-update
+
+		if [ ! -e "$MARKER" ] && [ -f /boot/grub.cfg ] && [ -f /boot/boot.nsh ]; then
+			if /usr/local/sbin/of-bootnsh stub; then
+				mkdir -p "${MARKER%/*}"
+				touch "$MARKER"
+				echo "OpenFrame now boots the kernel through its EFI stub. To go back to GRUB, run 'sudo of-settings efistub disable'."
+			else
+				echo "Could not switch to EFI stub boot; GRUB boot is unchanged."
+			fi
+		fi
+
+	;;
+esac
+
+exit 0

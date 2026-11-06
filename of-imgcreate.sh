@@ -290,8 +290,9 @@ mmc_cfg() {
 		EXISTINGBOOTLOCATION=$(cat $MP/etc/fstab | grep "/boot" | awk -F\  {'print $1'})
 		sed -i "s,$EXISTINGBOOTLOCATION,/dev/mmcblk0p1," $MP/etc/fstab
 
-		# Point /boot/grub.cfg to the internal memory.
+		# Point /boot/grub.cfg to the internal memory, and boot.nsh with it.
 		sed -i "s,$EXISTINGROOTLOCATION,/dev/mmcblk0p2," $MP/boot/grub.cfg
+		[ -f $MP/usr/local/sbin/of-bootnsh ] && bash $MP/usr/local/sbin/of-bootnsh $MP/boot >/dev/null
 
 		echo " done."
 	fi
@@ -470,6 +471,10 @@ if [[ "$INSTALL" != "" ]]; then
 					cat $BLDLOC/boot/grub.cfg | grep -v initrd >$BLDLOC/boot/grub.cfg.noinitrd
 					mv $BLDLOC/boot/grub.cfg.noinitrd $BLDLOC/boot/grub.cfg
 				fi
+
+				# Boot the kernel through its EFI stub, with GRUB as the fallback. The kernel
+				# hook runs of-bootnsh again once the kernel is installed in the chroot.
+				bash $BLDLOC/usr/local/sbin/of-bootnsh stub $BLDLOC/boot >/dev/null
 
 				# Replace the placeholders in fstab
 				sed -i "s/BOOTDEV/LABEL=$BNAME/" $BLDLOC/etc/fstab

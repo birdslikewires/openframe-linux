@@ -108,8 +108,8 @@ chown root:root /usr/local/bin/*
 chown root:root /usr/local/sbin/*
 chmod 755 /usr/local/bin/*
 chmod 755 /usr/local/sbin/*
-chmod +x /etc/kernel/preinst.d/openframe-boot-prep
-chmod +x /etc/kernel/postinst.d/openframe-grub-update
+chmod +x /usr/share/kernel/preinst.d/openframe-boot-prep
+chmod +x /usr/share/kernel/postinst.d/openframe-grub-update
 echo
 
 echo "Enable systemd services..."

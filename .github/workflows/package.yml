@@ -7,6 +7,8 @@ on:
     paths:
       - 'overlay-*/usr/local/bin/of-*'
       - 'overlay-*/usr/local/sbin/of-*'
+      - 'overlay-*/usr/share/kernel/**'
+      - 'package/**'
       - '.github/workflows/package.yml'
   workflow_dispatch:
 
@@ -24,6 +26,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0    # the version counts this month's commits
 
       - name: Install tools
         run: sudo apt-get install -y apt-utils dpkg-dev
@@ -47,16 +51,28 @@ jobs:
           for overlay_dir in overlay-*/; do
             codename=$(basename "${overlay_dir}" | sed 's/overlay-[^-]*-//')
 
-            v=$(git log -1 --format=%cd --date=format:%Y%m%d -- \
-              "${overlay_dir}usr/local/bin/of-*" \
-              "${overlay_dir}usr/local/sbin/of-*")
-            version="${v}-1"
-            PKG="openframe-scripts_${version}_all"
+            # Version is year.month.N, where N counts the commits that changed the package in that
+            # month (the third this month is 26.11.3). The 1: epoch puts it above the old
+            # YYYYMMDD-1 versions.
+            paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
+              "${overlay_dir}usr/share/kernel" package)
+            month=$(TZ=UTC git log -1 --format=%cd --date=format-local:%y.%m -- "${paths[@]}")
+            count=$(TZ=UTC git log --format=%cd --date=format-local:%y.%m -- "${paths[@]}" | grep -cx "${month}")
+            version="1:${month%.*}.$((10#${month#*.})).${count}"
+            PKG="openframe-scripts_${version#*:}_all"
 
             mkdir -p "${PKG}/DEBIAN" "${PKG}/usr/local/bin" "${PKG}/usr/local/sbin"
             cp "${overlay_dir}usr/local/bin/of-"* "${PKG}/usr/local/bin/" 2>/dev/null || true
             cp "${overlay_dir}usr/local/sbin/of-"* "${PKG}/usr/local/sbin/" 2>/dev/null || true
             chmod 755 "${PKG}/usr/local/bin/"of-* "${PKG}/usr/local/sbin/"of-*
+
+            # Kernel hooks: the kernel package runs /usr/share/kernel/*.d as well as /etc/kernel/*.d.
+            mkdir -p "${PKG}/usr/share/kernel/preinst.d" "${PKG}/usr/share/kernel/postinst.d"
+            cp "${overlay_dir}usr/share/kernel/preinst.d/"* "${PKG}/usr/share/kernel/preinst.d/"
+            cp "${overlay_dir}usr/share/kernel/postinst.d/"* "${PKG}/usr/share/kernel/postinst.d/"
+            chmod 755 "${PKG}/usr/share/kernel/preinst.d/"* "${PKG}/usr/share/kernel/postinst.d/"*
+
+            install -m 755 package/postinst "${PKG}/DEBIAN/postinst"
 
             printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
               "${version}" > "${PKG}/DEBIAN/control"

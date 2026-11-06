@@ -50,6 +50,8 @@ Running `dpkg-reconfigure locales` will present a menu to generate and select a 
 
 The overlay files modify the vanilla system to provide some necessary and some nice-to-have features, including automatically configured GRUB, network settings from the `/boot` volume (ideal for preconfiguring), sensible system defaults, and minimal firmware files.
 
+The firmware's EFI shell starts the kernel directly through its EFI stub rather than through GRUB, which loads the kernel and initrd about five times faster and saves around ten seconds per boot. GRUB stays in `boot.nsh` as the fallback. Because the shell only starts `.efi` files and the boot volume has no room for a second copy, the kernel is kept as `/boot/vmlinuz.efi`; the kernel hooks and `of-bootnsh` look after this. Systems on earlier images switch over the first time the `openframe-scripts` package updates. Run `sudo of-settings efistub disable` to go back to booting through GRUB.
+
 It should be possible to use updated microcode for the Intel Atom Z520, if that's of concern to you. The microcode you need is `06-1c-02` from [Intel's repository](https://github.com/intel/Intel-Linux-Processor-Microcode-Data-Files/tree/main/intel-ucode). If you have any luck, let me know.
 
 

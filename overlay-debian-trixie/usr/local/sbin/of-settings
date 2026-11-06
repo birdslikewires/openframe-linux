@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-settings v1.16 (31st March 2026)
+## of-settings v26.11.1 (6th November 2026)
 ##  Bundles a bunch of handy settings into one place.
 
 usage() {
@@ -9,6 +9,7 @@ usage() {
 	echo "  autologin [user]            :  Enables or disables automatic login on tty1."
 	echo "  autoxinit [user]            :  Enables or disables running Xserver at boot as <user> with systemd."
 	echo "  autoxrun <user> <cmd>       :  Command run when Xserver started as <user> (~/.xinitrc)."
+	echo "  efistub <enable|disable>    :  Boots the kernel directly through its EFI stub, skipping GRUB."
 	echo "  grubquiet <enable|disable>  :  Quiet GRUB prints nothing to the screen."
 	echo "  locale <locale>             :  Sets system locale (e.g. en_GB.UTF-8). No argument shows current."
 	echo "  rootssh <enable|disable>    :  Allows password-based authentication for root over SSH."
@@ -155,18 +156,40 @@ EOF
 	;;
 
 
+	# Boots the kernel directly through its EFI stub instead of through GRUB, which
+	# loads it about five times faster. GRUB stays as the fallback.
+	efistub)
+
+		if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
+
+			echo -n "Enabling '${1}'..."
+			/usr/local/sbin/of-bootnsh stub || exit 1
+
+		else
+
+			echo -n "Disabling '${1}'..."
+			/usr/local/sbin/of-bootnsh grub || exit 1
+
+		fi
+
+		echo " done."
+		exit 0
+
+	;;
+
+
 	# Silent GRUB prints nothing to the screen.
 	grubquiet)
 
 		if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
 
 			echo -n "Enabling '${1}'..."
-			printf 'fs1:grubq\nfs0:grubq\n' > /boot/boot.nsh
+			/usr/local/sbin/of-bootnsh quiet || exit 1
 
 		else
 
 			echo -n "Disabling '${1}'..."
-			printf 'fs1:grub\nfs0:grub\n' > /boot/boot.nsh
+			/usr/local/sbin/of-bootnsh normal || exit 1
 
 		fi
 
@@ -237,6 +260,7 @@ EOF
 
 				# Make sure we have the 'splash' option in GRUB config.
 				[[ "$GRUBCFG" =~ "splash" ]] || sed -i "s,$GRUBCFG,$GRUBCFG splash,g" /boot/grub.cfg
+				/usr/local/sbin/of-bootnsh
 
 				if [[ "$PLYMOUTHCURRENTTHEME" =~ "${2}.plymouth" ]]; then
 
@@ -261,6 +285,7 @@ EOF
 
 			echo -n "Disabling splash screens..."
 			[[ "$GRUBCFG" =~ "splash" ]] && sed -i "s, splash,,g" /boot/grub.cfg
+			/usr/local/sbin/of-bootnsh
 
 		fi
 

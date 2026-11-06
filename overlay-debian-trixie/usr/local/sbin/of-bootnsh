@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+
+## of-bootnsh v26.11.1 (6th November 2026)
+##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on.
+##
+##  In 'stub' mode the shell starts the kernel directly through its EFI stub. The
+##  firmware loads the kernel and initrd about five times faster than GRUB 1.98,
+##  which saves about ten seconds per boot. GRUB stays in the script as the
+##  fallback: if the kernel can't be started, the shell moves on to the next line.
+##
+##  The firmware's shell only starts files ending in .efi, and the boot volume has
+##  no room for a second copy of the kernel, so in 'stub' mode the kernel is
+##  renamed to vmlinuz.efi and grub.cfg points at it too. 'grub' mode puts the
+##  usual vmlinuz-<version> name back.
+##
+##  The initrd and kernel arguments are read from grub.cfg, so anything that
+##  edits grub.cfg, or installs a kernel, should run this afterwards.
+##
+##  Usage: of-bootnsh [stub|grub] [quiet|normal] [boot directory]
+##  Modes not given are kept from the existing boot.nsh.
+
+BOOTDIR="/boot"
+MODE=""
+GRUBEFI=""
+KERNELEFI="vmlinuz.efi"
+
+for arg in "$@"; do
+	case "$arg" in
+		stub|grub) MODE="$arg" ;;
+		quiet) GRUBEFI="grubq" ;;
+		normal) GRUBEFI="grub" ;;
+		-h|--help) sed -n 's/^## \{0,1\}//p' "$0"; exit 0 ;;
+		*) BOOTDIR="$arg" ;;
+	esac
+done
+
+GRUBCFG="$BOOTDIR/grub.cfg"
+BOOTNSH="$BOOTDIR/boot.nsh"
+
+if [ ! -f "$GRUBCFG" ] || ! grep -q -E '^[[:space:]]*linux[[:space:]]' "$GRUBCFG"; then
+	echo "Cannot find a 'linux' line in $GRUBCFG; boot.nsh left unchanged."
+	exit 1
+fi
+
+# Keep the current modes unless told otherwise. A missing boot.nsh means stub.
+if [[ "$MODE" == "" ]]; then
+	if [ -f "$BOOTNSH" ] && ! grep -q 'vmlinuz' "$BOOTNSH"; then
+		MODE="grub"
+	else
+		MODE="stub"
+	fi
+fi
+
+if [[ "$GRUBEFI" == "" ]]; then
+	if [ -f "$BOOTNSH" ] && grep -q 'grubq' "$BOOTNSH"; then
+		GRUBEFI="grubq"
+	else
+		GRUBEFI="grub"
+	fi
+fi
+
+read -r _ INITRD _ <<< "$(grep -m1 -E '^[[:space:]]*initrd[[:space:]]' "$GRUBCFG")"
+INITRD="${INITRD#/}"
+
+# The kernel version being booted comes from the initrd name, or, with no initrd,
+# from the newest vmlinuz-<version> on the boot volume.
+VERSION=""
+if [[ "$INITRD" =~ ^initrd\.img-(.+)$ ]]; then
+	VERSION="${BASH_REMATCH[1]}"
+else
+	NEWEST=$(ls -t "$BOOTDIR"/vmlinuz-* 2>/dev/null | head -1)
+	[[ "$NEWEST" != "" ]] && VERSION="${NEWEST##*/vmlinuz-}"
+fi
+
+# Points the 'linux' line in grub.cfg at the given kernel file.
+grub_kernel() {
+	sed -i -E "s|^([[:space:]]*linux[[:space:]]+)[^[:space:]]+|\1/$1|" "$GRUBCFG"
+}
+
+if [[ "$MODE" == "stub" ]]; then
+
+	# A freshly installed kernel replaces the previous vmlinuz.efi.
+	if [[ "$VERSION" != "" ]] && [ -f "$BOOTDIR/vmlinuz-$VERSION" ]; then
+		mv -f "$BOOTDIR/vmlinuz-$VERSION" "$BOOTDIR/$KERNELEFI"
+	fi
+
+	[ -f "$BOOTDIR/$KERNELEFI" ] || echo "Warning: no $BOOTDIR/$KERNELEFI yet; it appears when a kernel is installed."
+	grub_kernel "$KERNELEFI"
+
+	read -r _ _ ARGS <<< "$(grep -m1 -E '^[[:space:]]*linux[[:space:]]' "$GRUBCFG")"
+
+	# The EFI stub takes the initrd path from the root of the boot volume, with backslashes.
+	[[ "$INITRD" != "" ]] && ARGS="$ARGS initrd=\\${INITRD//\//\\}"
+
+	printf 'fs1:%s %s\nfs1:%s\nfs0:%s %s\nfs0:%s\n' \
+		"${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" > "$BOOTNSH.new"
+
+else
+
+	if [ -f "$BOOTDIR/$KERNELEFI" ]; then
+		[[ "$VERSION" == "" ]] && VERSION=$(uname -r)
+		mv -f "$BOOTDIR/$KERNELEFI" "$BOOTDIR/vmlinuz-$VERSION"
+		grub_kernel "vmlinuz-$VERSION"
+	fi
+
+	printf 'fs1:%s\nfs0:%s\n' "$GRUBEFI" "$GRUBEFI" > "$BOOTNSH.new"
+
+fi
+
+mv -f "$BOOTNSH.new" "$BOOTNSH"
+sync
