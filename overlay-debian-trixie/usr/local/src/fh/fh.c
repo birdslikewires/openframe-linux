@@ -32,6 +32,11 @@
 #define FH_BLOCK_SIZE		0x00010000
 #define FH_BLOCK_MASK		((FH_BLOCK_SIZE) - 1)
 
+/* Give up rather than spin forever if the chip never reports done */
+#define FH_ERASE_POLLS		67	/* x 150 ms, about 10 s (Intel) */
+#define FH_SST_ERASE_POLLS	200	/* x 5 ms, about 1 s (SST) */
+#define FH_PROGRAM_POLLS	10000	/* x 1 us, about 10 ms per byte */
+
 static struct {
 	int major;
 	int users;
@@ -57,8 +62,15 @@ static int	fh_release(struct inode *inode, struct file *file);
 static ssize_t	fh_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos);
 static ssize_t	fh_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos);
 
+/* Allow seeking anywhere within the 1 MB device, so dd seek= and skip= work */
+static loff_t fh_llseek(struct file *filp, loff_t offset, int whence)
+{
+	return fixed_size_llseek(filp, offset, whence, fh.size);
+}
+
 static struct file_operations fh_fops = {
 	.owner		= THIS_MODULE,
+	.llseek		= fh_llseek,
 	.open		= fh_open,
 	.release	= fh_release,
 	.write		= fh_write,
@@ -130,6 +142,7 @@ static int i82802_erase(unsigned long baddr)
 {
 	volatile unsigned char *fwhub = (volatile unsigned char *)fh.vdata;
 	unsigned int status;
+	int polls = 0;
 
 	fwhub[0] = 0x50;		/* Clear status register */
 	fwhub[baddr] = 0x20;		/* Block erase */
@@ -138,9 +151,15 @@ static int i82802_erase(unsigned long baddr)
 		msleep(150);
 		fwhub[0] = 0x70;	/* Read status register command */
 		status = fwhub[0];	/* Read status register value */
-	} while ((status & (1<<7)) == 0);
+	} while ((status & (1<<7)) == 0 && ++polls < FH_ERASE_POLLS);
+	if ((status & (1<<7)) == 0) {
+		printk("fh: i82802_erase timeout baddr=0x%08lx status=0x%02x\n", baddr, status);
+		fwhub[0] = 0xFF;	/* Read array command */
+		return -ETIMEDOUT;
+	}
 	if (status & 0x7f) {
 		printk("fh: i82802_erase error, status=0x%02x\n", status);
+		fwhub[0] = 0xFF;	/* Read array command */
 		return -EIO;
 	}
 	fwhub[0] = 0xFF;		/* Read array command */
@@ -152,6 +171,7 @@ static int i82802_program(unsigned long baddr, unsigned char *buffer)
 	volatile unsigned char *fwhub = (volatile unsigned char *)fh.vdata;
 	unsigned int status;
 	unsigned int boffs;
+	int polls;
 
 	for (boffs = 0; boffs < FH_BLOCK_SIZE; boffs++) {
 		/*
@@ -165,12 +185,21 @@ static int i82802_program(unsigned long baddr, unsigned char *buffer)
 		fwhub[0] = 0x50;		/* Clear status register */
 		fwhub[baddr + boffs] = 0x40;	/* Program command */
 		fwhub[baddr + boffs] = buffer[boffs];
-		do {	/* About 3 or 4 usec for Intel */
+		for (polls = 0; ; polls++) {	/* About 3 or 4 usec for Intel */
 			fwhub[0] = 0x70;	/* Read status register command */
 			status = fwhub[0];	/* Read status register value */
-		} while ((status & (1<<7)) == 0);
+			if ((status & (1<<7)) || polls >= FH_PROGRAM_POLLS)
+				break;
+			udelay(1);
+		}
+		if ((status & (1<<7)) == 0) {
+			printk("fh: i82802_program timeout at 0x%08lx status=0x%02x\n", baddr + boffs, status);
+			fwhub[0] = 0xFF;	/* Read array command */
+			return -ETIMEDOUT;
+		}
 		if (status & 0x7f) {
-			printk("fh: i82802_program error, status=0x%02x\n", status);
+			printk("fh: i82802_program error at 0x%08lx, status=0x%02x\n", baddr + boffs, status);
+			fwhub[0] = 0xFF;	/* Read array command */
 			return -EIO;
 		}
 	}
@@ -196,6 +225,7 @@ static int sst4900_present(void)
 static int sst4900_erase(unsigned long baddr)
 {
 	volatile unsigned char *fwhub = (volatile unsigned char *)fh.vdata;
+	int polls = 0;
 
 	fwhub[0x5555] = 0xAA;
 	fwhub[0x2AAA] = 0x55;
@@ -206,9 +236,14 @@ static int sst4900_erase(unsigned long baddr)
 
 	/*
 	 * Flash data bit 7 is 0 while erase is active.  It reads as 1
-	 * when the erase operation has completed.
+	 * when the erase operation has completed.  Block erase is 25 msec
+	 * at most, so give up after about 1 second.
 	 */
 	while ((fwhub[baddr] & (1<<7)) == 0) {
+		if (++polls >= FH_SST_ERASE_POLLS) {
+			printk("fh: sst4900_erase timeout baddr=0x%08lx\n", baddr);
+			return -ETIMEDOUT;
+		}
 		mdelay(5);
 	}
 	return 0;
@@ -218,6 +253,7 @@ static int sst4900_program(unsigned long baddr, unsigned char *buffer)
 {
 	volatile unsigned char *fwhub = (volatile unsigned char *)fh.vdata;
 	unsigned int boffs;
+	int polls;
 
 	for (boffs = 0; boffs < FH_BLOCK_SIZE; boffs++) {
 		/*
@@ -237,10 +273,16 @@ static int sst4900_program(unsigned long baddr, unsigned char *buffer)
 		 * When programming is active, bit 7 of the flash data reads as the
 		 * complement of bit 7 in the data written.  When programming is
 		 * completed, bit 7 of the flash data is the same value as bit 7
-		 * of the programmed byte.
+		 * of the programmed byte.  Byte program is 20 usec at most.
 		 */
-		while ((fwhub[baddr + boffs] & (1<<7)) != (buffer[boffs] & (1<<7)))
-			;
+		polls = 0;
+		while ((fwhub[baddr + boffs] & (1<<7)) != (buffer[boffs] & (1<<7))) {
+			if (++polls >= FH_PROGRAM_POLLS) {
+				printk("fh: sst4900_program timeout at 0x%08lx\n", baddr + boffs);
+				return -ETIMEDOUT;
+			}
+			udelay(1);
+		}
 	}
 	return 0;
 }
@@ -252,24 +294,23 @@ static int fh_open(struct inode *inode, struct file *file)
 	if (down_interruptible(&fh.sem)) {
 		return -ERESTARTSYS;
 	}
+	/*
+	 * Check for an existing user before touching fh.buffer, which
+	 * belongs to that user while the device is open.
+	 */
+	if (fh.users > 0) {
+		ret = -EBUSY;
+		goto out;
+	}
 	if ((fh.buffer = kmalloc(FH_BLOCK_SIZE, GFP_KERNEL)) == NULL) {
 		printk("fh_open: kmalloc fails\n");
 		ret = -ENOMEM;
-		goto fail;
-	}
-	if (fh.users > 0) {
-		ret = -EBUSY;
-		goto fail;
+		goto out;
 	}
 	fh.users++;
-	up(&fh.sem);
-	return 0;
+	ret = 0;
 
-  fail:
-	if (fh.buffer != NULL) {
-		kfree(fh.buffer);
-		fh.buffer = NULL;
-	}
+  out:
 	up(&fh.sem);
 	return ret;
 }
@@ -291,22 +332,40 @@ static int fh_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
+/*
+ * Writes must start on a 64 KB block boundary and cover whole blocks,
+ * because each block is erased before it is programmed.  Blocks whose
+ * contents already match are left alone, so rewriting a full image only
+ * erases the blocks that change.
+ *
+ * The file position advances by each block written, including on a
+ * failure part way through, so it always reflects what reached the chip.
+ */
 static ssize_t fh_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
 {
-	unsigned long foffs = (unsigned long)*f_pos;
-	size_t baddr;	/* Offset of block from start of flash */
+	unsigned long foffs;
+	unsigned long baddr;	/* Offset of block from start of flash */
 	ssize_t ret;
+
+	if (*f_pos < 0 || *f_pos >= fh.size) {
+		return count ? -ENOSPC : 0;
+	}
+	foffs = (unsigned long)*f_pos;
+	if (foffs & FH_BLOCK_MASK) {
+		printk("fh: file offset 0x%08lx not block aligned\n", foffs);
+		return -EINVAL;
+	}
+	if (count & FH_BLOCK_MASK) {
+		printk("fh: write of 0x%zx bytes is not whole blocks\n", count);
+		return -EINVAL;
+	}
+	if (count > fh.size - foffs) {
+		printk("fh: write too big (offset=0x%08lx, count=0x%zx)\n", foffs, count);
+		return -EINVAL;
+	}
 
 	if (down_interruptible(&fh.sem)) {
 		return -ERESTARTSYS;
-	}
-	if (foffs & FH_BLOCK_MASK) {
-		printk("fh: file offset 0x%08lx not block aligned\n", foffs);
-		ret = -EIO;
-	}
-	if ((foffs + count) > fh.size) {
-		printk("fh: write too big (offset=%08lx, count=%08x)\n", foffs, count);
-		ret = -EIO;
 	}
 	for (baddr = foffs; baddr < (foffs + count); baddr += FH_BLOCK_SIZE) {
 		if (copy_from_user(fh.buffer, buf, FH_BLOCK_SIZE)) {
@@ -315,19 +374,31 @@ static ssize_t fh_write(struct file *filp, const char __user *buf, size_t count,
 		}
 		buf += FH_BLOCK_SIZE;
 
+		if (!memcmp((char *)fh.vdata + baddr, fh.buffer, FH_BLOCK_SIZE)) {
+			printk("fh: block 0x%08lx unchanged, skipped\n", baddr);
+			*f_pos = baddr + FH_BLOCK_SIZE;
+			continue;
+		}
+
 		if ((ret = fh.unlock(baddr)) < 0) goto out;
-		if ((ret = fh.erase(baddr)) < 0) goto out;
-		if ((ret = fh.program(baddr, fh.buffer)) < 0) goto out;
+		ret = fh.erase(baddr);
+		if (ret == 0)
+			ret = fh.program(baddr, fh.buffer);
+		if (ret < 0) {
+			fh.lock(baddr);	/* Best effort; report the first error */
+			goto out;
+		}
 		if ((ret = fh.lock(baddr)) < 0) goto out;
 
-		printk("fh: block 0x%08x programmed\n", baddr);
+		printk("fh: block 0x%08lx programmed\n", baddr);
 
 		if (memcmp((char *)fh.vdata + baddr, fh.buffer, FH_BLOCK_SIZE)) {
-			printk("fh: block 0x%08x verify fails\n", baddr);
+			printk("fh: block 0x%08lx verify fails\n", baddr);
 			ret = -EIO;
 			goto out;
 		}
-		printk("fh: block 0x%08x verified\n", baddr);
+		printk("fh: block 0x%08lx verified\n", baddr);
+		*f_pos = baddr + FH_BLOCK_SIZE;
 	}
 	ret = count;
 
@@ -363,7 +434,7 @@ static ssize_t fh_read(struct file *filp, char __user *buf, size_t count, loff_t
 	return ret;
 }
 
-int fh_init(void)
+static int __init fh_init(void)
 {
 	int ret = -ENXIO;
 
@@ -424,6 +495,7 @@ static void __exit fh_exit(void)
 }
 
 MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("OpenFrame firmware hub (EFI flash) access");
 module_init(fh_init);
 module_exit(fh_exit);
 
