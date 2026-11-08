@@ -279,7 +279,7 @@ else
 
 	## Firmware Hub Module
 	[ -d fh ] && rm -rf fh
-	git clone https://github.com/andydvsn/fh.git
+	git clone https://github.com/birdslikewires/fh.git
 	mkdir -p lib/modules/$KOURNAME/extra
 	cd fh
 	make -C /lib/modules/$KOURNAME/build M=`pwd` modules
