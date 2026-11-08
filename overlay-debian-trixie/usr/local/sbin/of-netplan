@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.1 (6th November 2026)
+## of-netplan v26.11.2 (8th November 2026)
 ##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
@@ -11,6 +11,11 @@
 ##  the unedited template, it's left out of the live config.
 ##
 ##  We're also responsible for /etc/issue
+##
+##  If /boot/network.yaml and the live config both match what we left last boot,
+##  nothing has changed. Then we skip the rest, including 'netplan apply': the
+##  netplan generator has already configured the network from /etc/netplan, and
+##  applying again costs a daemon-reload and a second DHCP exchange on every boot.
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."
@@ -24,6 +29,16 @@ WLAN="wlan0"
 WLANTIMEOUT=15
 CONFIGTIMEOUT=10
 NETPLANCONFIG="network.yaml"
+STATEDIR="/var/lib/of-netplan"
+
+# Create /tmp/openframe.net as a quick network information reference.
+write_netinfo() {
+	MACW=$(ip link | sed -n '/wlan0/{n;p;}' | awk -F\  {'print $2'})
+	MACE=$(ip link | sed -n '/eth0/{n;p;}' | awk -F\  {'print $2'})
+	[[ "$MACW" == "" ]] && MACW="00:00:00:00:00:00"
+	[[ "$MACE" == "" ]] && MACE="00:00:00:00:00:00"
+	echo "$MACW"/"$MACE"/"$(hostname)" > /tmp/openframe.net
+}
 
 # Remove the network information file if present.
 [ -e /tmp/openframe.net ] && rm /tmp/openframe.net
@@ -35,12 +50,6 @@ while [ $COUNT -lt $CONFIGTIMEOUT -a ! -e /boot/$NETPLANCONFIG ]; do
  	sleep 1
 done
 
-# If we found one, copy it into the system.
-if [ $COUNT -lt $CONFIGTIMEOUT ]; then
-	cp /boot/$NETPLANCONFIG /etc/netplan/$NETPLANCONFIG
-	chmod 600 /etc/netplan/$NETPLANCONFIG
-fi
-
 # Configure what's shown on the text login prompt.
 if [ $(grep -c 'YOURWIFINAME:' /boot/$NETPLANCONFIG) -gt 0 ]; then
 	echo "${ID^} ${VERSION_CODENAME^} \n \l eth0:\4{eth0}" > /etc/issue
@@ -48,6 +57,36 @@ else
 	echo "${ID^} ${VERSION_CODENAME^} \n \l wlan0:\4{wlan0} eth0:\4{eth0}" > /etc/issue
 fi
 echo >> /etc/issue
+
+# Unchanged since we last ran? Then the live config is already right.
+if [ -e /boot/$NETPLANCONFIG ] && [ -s $STATEDIR/lan.mac ] \
+	&& cmp -s /boot/$NETPLANCONFIG $STATEDIR/boot.yaml \
+	&& cmp -s /etc/netplan/$NETPLANCONFIG $STATEDIR/live.yaml; then
+	echo "No changes to $NETPLANCONFIG since last boot."
+	# networkd sets the LAN MAC when it starts, which may be after us. Wait for it
+	# (up to 20 seconds), so /tmp/openframe.net records the right address.
+	LANMAC=$(cat $STATEDIR/lan.mac)
+	COUNT=0
+	while [ $COUNT -lt 100 ] && [ "$(cat /sys/class/net/$LAN/address 2>/dev/null)" != "$LANMAC" ]; do
+		COUNT=$((COUNT+1))
+		sleep 0.2
+	done
+	# The WLAN adapter may not have appeared yet either. Give it up to 8 seconds;
+	# the OpenFrame 2 has none, and its file is still written sooner than before.
+	COUNT=0
+	while [ $COUNT -lt 40 ] && [ ! -e /sys/class/net/$WLAN ]; do
+		COUNT=$((COUNT+1))
+		sleep 0.2
+	done
+	write_netinfo
+	exit 0
+fi
+
+# If we found one, copy it into the system.
+if [ -e /boot/$NETPLANCONFIG ]; then
+	cp /boot/$NETPLANCONFIG /etc/netplan/$NETPLANCONFIG
+	chmod 600 /etc/netplan/$NETPLANCONFIG
+fi
 
 # Try to read the LAN MAC from our new file.
 LANMAC=$(yq -r ".network.ethernets.${LAN}.macaddress // empty" /etc/netplan/$NETPLANCONFIG)
@@ -99,8 +138,9 @@ else
 
 fi
 
-# Copy the updated config file back to /boot for next time.
-cp /etc/netplan/$NETPLANCONFIG /boot/$NETPLANCONFIG
+# Copy the updated config file back to /boot for next time, only if it differs,
+# so an unchanged boot doesn't write to the FAT partition.
+cmp -s /etc/netplan/$NETPLANCONFIG /boot/$NETPLANCONFIG || cp /etc/netplan/$NETPLANCONFIG /boot/$NETPLANCONFIG
 
 # An unedited template still names YOURWIFINAME. Leave Wi-Fi out of the live config
 # then: netplan would start a WPA supplicant for wlan0, which waits 90 seconds for an
@@ -112,14 +152,15 @@ if grep -q 'YOURWIFINAME:' /etc/netplan/$NETPLANCONFIG; then
 	chmod 600 /etc/netplan/$NETPLANCONFIG
 fi
 
-# Go live with the changes.
-netplan apply
+# Go live with the changes, then remember what we left for next boot.
+if netplan apply; then
+	mkdir -p $STATEDIR
+	cp /boot/$NETPLANCONFIG $STATEDIR/boot.yaml
+	cp /etc/netplan/$NETPLANCONFIG $STATEDIR/live.yaml
+	echo "$LANMAC" > $STATEDIR/lan.mac
+	chmod 600 $STATEDIR/*.yaml
+fi
 
-# Create /tmp/openframe.net as a quick network information reference.
-MACW=$(ip link | sed -n '/wlan0/{n;p;}' | awk -F\  {'print $2'})
-MACE=$(ip link | sed -n '/eth0/{n;p;}' | awk -F\  {'print $2'})
-[[ "$MACW" == "" ]] && MACW="00:00:00:00:00:00"
-[[ "$MACE" == "" ]] && MACW="00:00:00:00:00:00"
-echo "$MACW"/"$MACE"/"$(hostname)" > /tmp/openframe.net
+write_netinfo
 
 exit 0
