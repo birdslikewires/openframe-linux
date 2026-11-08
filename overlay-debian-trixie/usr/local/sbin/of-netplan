@@ -40,6 +40,25 @@ write_netinfo() {
 	echo "$MACW"/"$MACE"/"$(hostname)" > /tmp/openframe.net
 }
 
+# networkd sends its first DHCP DISCOVER within milliseconds of carrier, and on
+# the OpenFrame's r8169 that first frame is lost (frames ~50 ms later get through).
+# networkd then waits about 4 seconds to retry. Once carrier has settled, restart
+# its DHCP client if there's still no IPv4 address: the lease then arrives in about
+# half a second. 'networkctl renew' doesn't help here; 'reconfigure' does.
+kick_dhcp() {
+	local COUNT=0
+	while [ $COUNT -lt 200 ] && [ "$(cat /sys/class/net/$LAN/carrier 2>/dev/null)" != 1 ]; do
+		COUNT=$((COUNT+1))
+		sleep 0.05
+	done
+	[ "$(cat /sys/class/net/$LAN/carrier 2>/dev/null)" = 1 ] || return 0
+	sleep 0.3
+	if ! ip -4 addr show $LAN | grep -q 'inet '; then
+		echo "No IPv4 address on $LAN yet, restarting its DHCP client."
+		networkctl reconfigure $LAN
+	fi
+}
+
 # Remove the network information file if present.
 [ -e /tmp/openframe.net ] && rm /tmp/openframe.net
 
@@ -79,6 +98,7 @@ if [ -e /boot/$NETPLANCONFIG ] && [ -s $STATEDIR/lan.mac ] \
 		sleep 0.2
 	done
 	write_netinfo
+	kick_dhcp
 	exit 0
 fi
 
