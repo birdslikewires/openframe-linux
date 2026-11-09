@@ -1,0 +1,4 @@
+# Bring eth0 up as soon as it appears, with the LAN MAC of-netplan settled on, so
+# the PHY's ~2 s of autonegotiation is done before systemd-networkd starts rather
+# than after it. That also lets networkd's first DHCP DISCOVER through.
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="eth0", RUN+="/usr/local/sbin/of-netplan --early"

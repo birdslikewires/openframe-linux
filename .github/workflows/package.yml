@@ -9,6 +9,7 @@ on:
       - 'overlay-*/usr/local/sbin/of-*'
       - 'overlay-*/usr/share/kernel/**'
       - 'overlay-*/usr/lib/firmware/updates/**'
+      - 'overlay-*/usr/lib/udev/rules.d/**'
       - 'package/**'
       - '.github/workflows/package.yml'
   workflow_dispatch:
@@ -56,7 +57,8 @@ jobs:
             # month (the third this month is 26.11.3). The 1: epoch puts it above the old
             # YYYYMMDD-1 versions.
             paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
-              "${overlay_dir}usr/share/kernel" "${overlay_dir}usr/lib/firmware/updates" package)
+              "${overlay_dir}usr/share/kernel" "${overlay_dir}usr/lib/firmware/updates" \
+              "${overlay_dir}usr/lib/udev/rules.d" package)
             month=$(TZ=UTC git log -1 --format=%cd --date=format-local:%y.%m -- "${paths[@]}")
             count=$(TZ=UTC git log --format=%cd --date=format-local:%y.%m -- "${paths[@]}" | grep -cx "${month}")
             version="1:${month%.*}.$((10#${month#*.})).${count}"
@@ -81,6 +83,12 @@ jobs:
               cp -R "${overlay_dir}usr/lib/firmware/updates" "${PKG}/usr/lib/firmware/"
               find "${PKG}/usr/lib/firmware" -type d -exec chmod 755 {} +
               find "${PKG}/usr/lib/firmware" -type f -exec chmod 644 {} +
+            fi
+
+            # udev rules the scripts rely on (70-of-eth0-up.rules runs of-netplan --early).
+            if [ -d "${overlay_dir}usr/lib/udev/rules.d" ]; then
+              mkdir -p "${PKG}/usr/lib/udev/rules.d"
+              install -m 644 "${overlay_dir}usr/lib/udev/rules.d/"*.rules "${PKG}/usr/lib/udev/rules.d/"
             fi
 
             install -m 755 package/postinst "${PKG}/DEBIAN/postinst"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.2 (8th November 2026)
+## of-netplan v26.11.3 (9th November 2026)
 ##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
@@ -16,6 +16,11 @@
 ##  nothing has changed. Then we skip the rest, including 'netplan apply': the
 ##  netplan generator has already configured the network from /etc/netplan, and
 ##  applying again costs a daemon-reload and a second DHCP exchange on every boot.
+##
+##  'of-netplan --early' is run by udev (70-of-eth0-up.rules) as soon as eth0
+##  appears. It sets the LAN MAC we settled on last boot and brings the link up,
+##  so the PHY's ~2 s of autonegotiation is done before networkd starts rather
+##  than after it.
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."
@@ -30,6 +35,17 @@ WLANTIMEOUT=15
 CONFIGTIMEOUT=10
 NETPLANCONFIG="network.yaml"
 STATEDIR="/var/lib/of-netplan"
+
+# Early mode, from udev: MAC first (while the link is down, so it's right from the
+# first frame and networkd has nothing to change), then link up. Nothing else.
+if [ "$1" = "--early" ]; then
+	MAC=$(cat $STATEDIR/lan.mac 2>/dev/null)
+	if [[ "$MAC" =~ ^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$ ]]; then
+		ip link set dev $LAN address "$MAC"
+	fi
+	ip link set dev $LAN up
+	exit 0
+fi
 
 # Create /tmp/openframe.net as a quick network information reference.
 write_netinfo() {
