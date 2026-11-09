@@ -10,6 +10,7 @@ on:
       - 'overlay-*/usr/share/kernel/**'
       - 'overlay-*/usr/lib/firmware/updates/**'
       - 'overlay-*/usr/lib/udev/rules.d/**'
+      - 'overlay-*/usr/lib/openframe/**'
       - 'package/**'
       - '.github/workflows/package.yml'
   workflow_dispatch:
@@ -58,7 +59,7 @@ jobs:
             # YYYYMMDD-1 versions.
             paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
               "${overlay_dir}usr/share/kernel" "${overlay_dir}usr/lib/firmware/updates" \
-              "${overlay_dir}usr/lib/udev/rules.d" package)
+              "${overlay_dir}usr/lib/udev/rules.d" "${overlay_dir}usr/lib/openframe" package)
             month=$(TZ=UTC git log -1 --format=%cd --date=format-local:%y.%m -- "${paths[@]}")
             count=$(TZ=UTC git log --format=%cd --date=format-local:%y.%m -- "${paths[@]}" | grep -cx "${month}")
             version="1:${month%.*}.$((10#${month#*.})).${count}"
@@ -89,6 +90,12 @@ jobs:
             if [ -d "${overlay_dir}usr/lib/udev/rules.d" ]; then
               mkdir -p "${PKG}/usr/lib/udev/rules.d"
               install -m 644 "${overlay_dir}usr/lib/udev/rules.d/"*.rules "${PKG}/usr/lib/udev/rules.d/"
+            fi
+
+            # BlwLanMac.efi, which of-bootnsh copies to /boot on BirdsLikeWires firmware.
+            if [ -d "${overlay_dir}usr/lib/openframe" ]; then
+              mkdir -p "${PKG}/usr/lib/openframe"
+              install -m 644 "${overlay_dir}usr/lib/openframe/"* "${PKG}/usr/lib/openframe/"
             fi
 
             install -m 755 package/postinst "${PKG}/DEBIAN/postinst"

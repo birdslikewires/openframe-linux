@@ -16,6 +16,10 @@
 ##  share a LAN MAC because they once had each other's cards. A MAC typed into
 ##  network.yaml is left alone, and deleting it there makes one from the card again.
 ##
+##  On BirdsLikeWires firmware, of-bootnsh puts lan.mac on a BlwLanMac.efi line in
+##  boot.nsh, which keeps it in NVRAM for the firmware to apply before any OS starts.
+##  We refresh that line every boot (it's only rewritten when it changes).
+##
 ##  Then we put the modified file back into /boot. If its Wi-Fi section is still
 ##  the unedited template, it's left out of the live config.
 ##
@@ -91,6 +95,13 @@ card_changed() {
 	[ -n "$1" ] && { [ "$2" = "none" ] || { is_mac "$2" && [ "$1" != "${2,,}" ]; }; }
 }
 
+# Keep boot.nsh's BlwLanMac.efi line in step with lan.mac. of-bootnsh only adds it on
+# BirdsLikeWires firmware, and only rewrites boot.nsh when it changes.
+update_bootnsh() {
+	[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh lanmac >/dev/null 2>&1
+	return 0
+}
+
 # networkd sends its first DHCP DISCOVER within milliseconds of carrier, and on
 # the OpenFrame's r8169 that first frame is lost (frames ~50 ms later get through).
 # networkd then waits about 4 seconds to retry. Once carrier has settled, restart
@@ -155,6 +166,7 @@ if [ -e /boot/$NETPLANCONFIG ] && [ -s $STATEDIR/lan.mac ] \
 		fi
 		write_netinfo
 		kick_dhcp
+		update_bootnsh
 		exit 0
 	fi
 fi
@@ -254,5 +266,6 @@ if netplan apply; then
 fi
 
 write_netinfo
+update_bootnsh
 
 exit 0

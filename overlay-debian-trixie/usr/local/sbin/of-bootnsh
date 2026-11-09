@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.2 (6th November 2026)
+## of-bootnsh v26.11.3 (9th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on.
 ##
 ##  In 'stub' mode the shell starts the kernel directly through its EFI stub. The
@@ -21,19 +21,34 @@
 ##  The initrd and kernel arguments are read from grub.cfg, so anything that
 ##  edits grub.cfg, or installs a kernel, should run this afterwards.
 ##
+##  On BirdsLikeWires firmware, boot.nsh first runs BlwLanMac.efi with the LAN MAC
+##  of-netplan settled on (/var/lib/of-netplan/lan.mac). It keeps that MAC in NVRAM,
+##  writing only when it changes, and the firmware gives it to the network chip on
+##  every boot, so any OS started on this unit sees it. Stock firmware never uses
+##  it, so it isn't added there. Nor when writing another boot directory (an image
+##  build), since the MAC belongs to the hardware this runs on.
+##  'of-bootnsh lanmac' refreshes just those lines; of-netplan runs it every boot.
+##
+##  boot.nsh is only rewritten when its contents change.
+##
 ##  Usage: of-bootnsh [stub|grub] [quiet|normal] [boot directory]
+##         of-bootnsh lanmac
 ##  Modes not given are kept from the existing boot.nsh.
 
 BOOTDIR="/boot"
 MODE=""
 GRUBEFI=""
 KERNELEFI="vmlinuz.efi"
+LANMACONLY=0
+LANMACFILE="/var/lib/of-netplan/lan.mac"
+LANMACEFI="/usr/lib/openframe/BlwLanMac.efi"
 
 for arg in "$@"; do
 	case "$arg" in
 		stub|grub) MODE="$arg" ;;
 		quiet) GRUBEFI="grubq" ;;
 		normal) GRUBEFI="grub" ;;
+		lanmac) LANMACONLY=1 ;;
 		-h|--help) sed -n 's/^## \{0,1\}//p' "$0"; exit 0 ;;
 		*) BOOTDIR="$arg" ;;
 	esac
@@ -41,6 +56,39 @@ done
 
 GRUBCFG="$BOOTDIR/grub.cfg"
 BOOTNSH="$BOOTDIR/boot.nsh"
+
+# The BlwLanMac.efi lines for boot.nsh (fs1 then fs0, like the kernel lines), or
+# nothing. Copies BlwLanMac.efi to the boot volume if it isn't there already.
+lanmac_lines() {
+	local MAC
+	[[ "$BOOTDIR" == "/boot" ]] || return 0
+	[[ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" == "BirdsLikeWires" ]] || return 0
+	[ -f "$LANMACEFI" ] || return 0
+	MAC=$(cat "$LANMACFILE" 2>/dev/null)
+	MAC="${MAC,,}"
+	[[ "$MAC" =~ ^[0-9a-f]{2}(:[0-9a-f]{2}){5}$ ]] || return 0
+	(( (16#${MAC:0:2} & 1) == 0 )) || return 0	# unicast
+	[[ "${MAC//[0:]/}" != "" ]] || return 0		# not all zero
+	cmp -s "$LANMACEFI" "$BOOTDIR/BlwLanMac.efi" || cp "$LANMACEFI" "$BOOTDIR/BlwLanMac.efi" || return 0
+	printf 'fs1:\\BlwLanMac.efi %s\nfs0:\\BlwLanMac.efi %s\n' "$MAC" "$MAC"
+}
+
+# Puts boot.nsh.new in place, unless it's the same as what's there.
+install_bootnsh() {
+	if cmp -s "$BOOTNSH.new" "$BOOTNSH"; then
+		rm -f "$BOOTNSH.new"
+	else
+		mv -f "$BOOTNSH.new" "$BOOTNSH"
+		sync
+	fi
+}
+
+if [[ $LANMACONLY -eq 1 ]]; then
+	[ -f "$BOOTNSH" ] || exit 1
+	{ lanmac_lines; grep -v 'BlwLanMac\.efi' "$BOOTNSH"; } > "$BOOTNSH.new"
+	install_bootnsh
+	exit 0
+fi
 
 if [ ! -f "$GRUBCFG" ] || ! grep -q -E '^[[:space:]]*linux[[:space:]]' "$GRUBCFG"; then
 	echo "Cannot find a 'linux' line in $GRUBCFG; boot.nsh left unchanged."
@@ -104,8 +152,11 @@ if [[ "$MODE" == "stub" ]]; then
 	# The EFI stub takes the initrd path from the root of the boot volume, with backslashes.
 	[[ "$INITRD" != "" ]] && ARGS="$ARGS initrd=\\${INITRD//\//\\}"
 
-	printf 'fs1:%s %s\nfs1:%s\nfs0:%s %s\nfs0:%s\n' \
-		"${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" > "$BOOTNSH.new"
+	{
+		lanmac_lines
+		printf 'fs1:%s %s\nfs1:%s\nfs0:%s %s\nfs0:%s\n' \
+			"${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI"
+	} > "$BOOTNSH.new"
 
 else
 
@@ -121,9 +172,11 @@ else
 		grub_kernel "vmlinuz-$VERSION"
 	fi
 
-	printf 'fs1:%s\nfs0:%s\n' "$GRUBEFI" "$GRUBEFI" > "$BOOTNSH.new"
+	{
+		lanmac_lines
+		printf 'fs1:%s\nfs0:%s\n' "$GRUBEFI" "$GRUBEFI"
+	} > "$BOOTNSH.new"
 
 fi
 
-mv -f "$BOOTNSH.new" "$BOOTNSH"
-sync
+install_bootnsh
