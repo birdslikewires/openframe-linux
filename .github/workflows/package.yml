@@ -92,7 +92,7 @@ jobs:
               install -m 644 "${overlay_dir}usr/lib/udev/rules.d/"*.rules "${PKG}/usr/lib/udev/rules.d/"
             fi
 
-            # BlwLanMac.efi, which of-bootnsh copies to /boot on BirdsLikeWires firmware.
+            # BlwMac.efi, which of-bootnsh copies to /boot on BirdsLikeWires firmware.
             if [ -d "${overlay_dir}usr/lib/openframe" ]; then
               mkdir -p "${PKG}/usr/lib/openframe"
               install -m 644 "${overlay_dir}usr/lib/openframe/"* "${PKG}/usr/lib/openframe/"

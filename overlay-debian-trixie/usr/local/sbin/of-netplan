@@ -5,20 +5,26 @@
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
 ##  The LAN MAC follows the WLAN card: 02 then the card MAC's last five octets.
-##  If no WLAN interface is available, we generate a MAC for the LAN interface.
+##  If no WLAN interface is available, we generate a MAC for the LAN interface, once.
+##  So we do if the card has no burned-in address of its own (a locally administered
+##  one may be random and change every boot).
 ##
-##  Two state files in /var/lib/of-netplan say where the LAN MAC came from:
+##  Two state files in /var/lib/of-netplan:
 ##    lan.mac   the LAN MAC we last wrote into network.yaml
-##    wlan.mac  the card MAC it was made from, 'none' if we generated it, or
-##              absent if it's someone else's (typed into network.yaml)
+##    wlan.mac  the WLAN card's MAC when we last saw one, or 'none' if we haven't
+##              and generated the LAN MAC
+##  A LAN MAC that is 02 then wlan.mac's last five octets was made from that card.
 ##  So when a different card turns up (swapped, or this stick moved to another
-##  unit), the LAN MAC is made again from the new card. Two units can then never
-##  share a LAN MAC because they once had each other's cards. A MAC typed into
+##  unit), a LAN MAC made from the old card, or generated, is made again from the
+##  new one. Two units can then never share a LAN MAC because they once had each
+##  other's cards. The kernel log (dmesg) says when that happens. A MAC typed into
 ##  network.yaml is left alone, and deleting it there makes one from the card again.
 ##
-##  On BirdsLikeWires firmware, of-bootnsh puts lan.mac on a BlwLanMac.efi line in
-##  boot.nsh, which keeps it in NVRAM for the firmware to apply before any OS starts.
-##  We refresh that line every boot (it's only rewritten when it changes).
+##  On BirdsLikeWires firmware, of-bootnsh puts the card MAC (or with no card, the
+##  generated LAN MAC) on a BlwMac.efi line in boot.nsh, which keeps it in NVRAM:
+##  the firmware applies the LAN MAC before any OS starts, and makes the system's
+##  UUID, plus for a card its serial number, from it. We refresh that line every
+##  boot (it's only rewritten when it changes).
 ##
 ##  Then we put the modified file back into /boot. If its Wi-Fi section is still
 ##  the unedited template, it's left out of the live config.
@@ -69,15 +75,22 @@ write_netinfo() {
 	echo "$MACW"/"$MACE"/"$(hostname)" > /tmp/openframe.net
 }
 
-# The WLAN card's MAC, waiting up to $1 seconds for it to appear (0: just look).
+# The WLAN card's own (burned-in) MAC, waiting up to $1 seconds for the card to appear
+# (0: just look): its permanent address if the kernel shows one (something changed the
+# current one), else its current one. A locally administered address (02 bit set:
+# randomised, or made up by a driver for a card with none stored) isn't the card's own
+# and may change from boot to boot, so it counts as no card: a LAN MAC is then
+# generated once and kept.
 card_mac() {
 	local COUNT=0 MAC
 	while [ $COUNT -lt $(($1 * 5)) ] && [ ! -e /sys/class/net/$WLAN/address ]; do
 		COUNT=$((COUNT+1))
 		sleep 0.2
 	done
-	MAC=$(cat /sys/class/net/$WLAN/address 2>/dev/null)
-	is_mac "$MAC" && [ "$MAC" != "00:00:00:00:00:00" ] && echo "${MAC,,}"
+	MAC=$(ip -d link show dev $WLAN 2>/dev/null | grep -o 'permaddr [0-9a-fA-F:]*' | cut -d' ' -f2)
+	[ -n "$MAC" ] || MAC=$(cat /sys/class/net/$WLAN/address 2>/dev/null)
+	MAC="${MAC,,}"
+	is_mac "$MAC" && [ "${MAC//[0:]/}" != "" ] && (( (16#${MAC:0:2} & 3) == 0 )) && echo "$MAC"
 }
 
 is_mac() {
@@ -89,16 +102,23 @@ from_card() {
 	echo "02:${1:3}"
 }
 
-# True if card $1 should replace the LAN MAC made from $2 (the wlan.mac contents):
-# we generated it ('none'), or it came from a different card.
+# True if card $1 should replace LAN MAC $3, given wlan.mac $2: it's a different card,
+# and the LAN MAC was generated ('none') or made from the old card.
 card_changed() {
-	[ -n "$1" ] && { [ "$2" = "none" ] || { is_mac "$2" && [ "$1" != "${2,,}" ]; }; }
+	[ -n "$1" ] && [ "$1" != "${2,,}" ] \
+		&& { [ "$2" = "none" ] || { is_mac "$2" && [ "${3,,}" = "$(from_card ${2,,})" ]; }; }
 }
 
-# Keep boot.nsh's BlwLanMac.efi line in step with lan.mac. of-bootnsh only adds it on
-# BirdsLikeWires firmware, and only rewrites boot.nsh when it changes.
+# Says $1 in the kernel log (dmesg) as well as our own.
+klog() {
+	echo "$1"
+	echo "<5>of-netplan: $1" > /dev/kmsg 2>/dev/null
+}
+
+# Keep boot.nsh's BlwMac.efi line in step with wlan.mac and lan.mac. of-bootnsh only
+# adds it on BirdsLikeWires firmware, and only rewrites boot.nsh when it changes.
 update_bootnsh() {
-	[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh lanmac >/dev/null 2>&1
+	[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh mac >/dev/null 2>&1
 	return 0
 }
 
@@ -156,12 +176,13 @@ if [ -e /boot/$NETPLANCONFIG ] && [ -s $STATEDIR/lan.mac ] \
 	# the OpenFrame 2 has none, and its file is still written sooner than before.
 	WLANMAC=$(card_mac 8)
 	OLDWLAN=$(cat $STATEDIR/wlan.mac 2>/dev/null)
-	if card_changed "$WLANMAC" "$OLDWLAN"; then
+	if card_changed "$WLANMAC" "$OLDWLAN" "$LANMAC"; then
 		# A different card (or a first one): carry on below and make the LAN MAC again.
 		CARDCHECKED=1
 	else
-		# Installed before wlan.mac existed, and the MAC is this card's: note the card.
-		if [ -z "$OLDWLAN" ] && [ -n "$WLANMAC" ] && [ "${LANMAC,,}" = "$(from_card $WLANMAC)" ]; then
+		# A card we haven't noted (installed before wlan.mac existed, or the LAN MAC
+		# is someone else's): note it, for the serial number.
+		if [ -n "$WLANMAC" ] && [ "$WLANMAC" != "${OLDWLAN,,}" ]; then
 			echo "$WLANMAC" > $STATEDIR/wlan.mac
 		fi
 		write_netinfo
@@ -194,37 +215,42 @@ if [[ -z "$YAMLMAC" ]]; then
 		echo "Found $WLANMAC as $WLAN hardware address."
 		echo "Applying $LANMAC to $LAN (local bit set)."
 	else
-		# No WLAN to mirror, so generate one.
+		# No card with an address of its own to mirror, so generate one.
 		LANMAC="02:`cat /proc/interrupts | md5sum | sed -r "s/(.{2})/\1:/g; s/^(.{14}).*/\1/"`"
 		NEWWLAN="none"
-		echo "Unable to determine $WLAN hardware address after $WLANTIMEOUT seconds."
+		echo "No burned-in $WLAN hardware address found after $WLANTIMEOUT seconds."
 		echo "Applying $LANMAC to $LAN (generated)."
 	fi
 
 elif [ -n "$OLDLAN" ] && [ "${YAMLMAC,,}" != "${OLDLAN,,}" ]; then
 
-	# Not what we wrote last time, so someone set it. It's theirs from now on.
-	NEWWLAN=""
+	# Not what we wrote last time, so someone set it. It's theirs from now on. Note the
+	# card if there is one; 'none' would let a card that turns up later replace it.
+	[ -n "$CARDCHECKED" ] || WLANMAC=$(card_mac 0)
+	if [ -n "$WLANMAC" ]; then NEWWLAN="$WLANMAC"; elif ! is_mac "$OLDWLAN"; then NEWWLAN=""; fi
 	echo "Hardware address $YAMLMAC for $LAN was set in $NETPLANCONFIG; leaving it alone."
 
 else
 
-	# Ours (or of unknown origin, from before wlan.mac). Look for the card: wait for it
-	# if the MAC came from one, otherwise just look, so an OpenFrame 2 isn't held up.
+	# Ours, someone else's from an earlier boot, or of unknown origin (from before
+	# wlan.mac). Look for the card: wait for it if we've seen one, otherwise just
+	# look, so an OpenFrame 2 isn't held up.
 	if [ -z "$CARDCHECKED" ]; then
 		if is_mac "$OLDWLAN"; then WLANMAC=$(card_mac $WLANTIMEOUT); else WLANMAC=$(card_mac 0); fi
 	fi
-	if card_changed "$WLANMAC" "$OLDWLAN"; then
+	if card_changed "$WLANMAC" "$OLDWLAN" "$YAMLMAC"; then
 		LANMAC=$(from_card $WLANMAC)
 		NEWWLAN="$WLANMAC"
-		echo "Found $WLANMAC as $WLAN hardware address (was ${OLDWLAN})."
-		echo "Applying $LANMAC to $LAN (local bit set)."
-	else
-		# Installed before wlan.mac existed: note the card if the MAC is this card's.
-		# If it isn't, we can't tell whether someone set it, so it stays as it is.
-		if [ -z "$OLDWLAN" ] && [ -n "$WLANMAC" ] && [ "${YAMLMAC,,}" = "$(from_card $WLANMAC)" ]; then
-			NEWWLAN="$WLANMAC"
+		if [ "$OLDWLAN" = "none" ]; then
+			klog "Found WLAN card $WLANMAC; $LAN MAC is now $LANMAC, made from it (was generated)."
+		else
+			klog "Hardware MAC change detected: WLAN card $WLANMAC replaces $OLDWLAN; $LAN MAC is now $LANMAC."
 		fi
+	else
+		# The LAN MAC stays as it is: made from this card, someone else's, or, from
+		# before wlan.mac, of unknown origin. (Noting the card makes a MAC made from it
+		# ours.)
+		[ -n "$WLANMAC" ] && NEWWLAN="$WLANMAC"
 		echo "Hardware address $LANMAC for $LAN is present."
 	fi
 

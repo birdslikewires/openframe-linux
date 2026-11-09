@@ -21,34 +21,39 @@
 ##  The initrd and kernel arguments are read from grub.cfg, so anything that
 ##  edits grub.cfg, or installs a kernel, should run this afterwards.
 ##
-##  On BirdsLikeWires firmware, boot.nsh first runs BlwLanMac.efi with the LAN MAC
-##  of-netplan settled on (/var/lib/of-netplan/lan.mac). It keeps that MAC in NVRAM,
-##  writing only when it changes, and the firmware gives it to the network chip on
-##  every boot, so any OS started on this unit sees it. Stock firmware never uses
-##  it, so it isn't added there. Nor when writing another boot directory (an image
-##  build), since the MAC belongs to the hardware this runs on.
-##  'of-bootnsh lanmac' refreshes just those lines; of-netplan runs it every boot.
+##  On BirdsLikeWires firmware, boot.nsh first runs BlwMac.efi with the WLAN card's
+##  MAC (/var/lib/of-netplan/wlan.mac), or with no card the LAN MAC of-netplan
+##  generated (lan.mac). It keeps that in NVRAM, writing only when it changes. On
+##  every boot the firmware gives the network chip the LAN MAC (made from the card's
+##  as of-netplan makes it, or the generated one), so any OS started on this unit
+##  sees it, and makes a UUID from the stored MAC, plus for a card the system's
+##  serial number. A LAN MAC typed into network.yaml stays Linux's business.
+##  Stock firmware never uses BlwMac.efi, so the line isn't added there. Nor when writing
+##  another boot directory (an image build), since the MACs belong to the hardware
+##  this runs on. A change to the line is noted in the kernel log (dmesg).
+##  'of-bootnsh mac' refreshes just those lines; of-netplan runs it every boot.
 ##
 ##  boot.nsh is only rewritten when its contents change.
 ##
 ##  Usage: of-bootnsh [stub|grub] [quiet|normal] [boot directory]
-##         of-bootnsh lanmac
+##         of-bootnsh mac
 ##  Modes not given are kept from the existing boot.nsh.
 
 BOOTDIR="/boot"
 MODE=""
 GRUBEFI=""
 KERNELEFI="vmlinuz.efi"
-LANMACONLY=0
+MACONLY=0
 LANMACFILE="/var/lib/of-netplan/lan.mac"
-LANMACEFI="/usr/lib/openframe/BlwLanMac.efi"
+WLANMACFILE="/var/lib/of-netplan/wlan.mac"
+MACEFI="/usr/lib/openframe/BlwMac.efi"
 
 for arg in "$@"; do
 	case "$arg" in
 		stub|grub) MODE="$arg" ;;
 		quiet) GRUBEFI="grubq" ;;
 		normal) GRUBEFI="grub" ;;
-		lanmac) LANMACONLY=1 ;;
+		mac) MACONLY=1 ;;
 		-h|--help) sed -n 's/^## \{0,1\}//p' "$0"; exit 0 ;;
 		*) BOOTDIR="$arg" ;;
 	esac
@@ -57,35 +62,69 @@ done
 GRUBCFG="$BOOTDIR/grub.cfg"
 BOOTNSH="$BOOTDIR/boot.nsh"
 
-# The BlwLanMac.efi lines for boot.nsh (fs1 then fs0, like the kernel lines), or
-# nothing. Copies BlwLanMac.efi to the boot volume if it isn't there already.
-lanmac_lines() {
+# The MAC in file $1, in lower case, if it's unicast and not all zero.
+usable_mac() {
 	local MAC
-	[[ "$BOOTDIR" == "/boot" ]] || return 0
-	[[ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" == "BirdsLikeWires" ]] || return 0
-	[ -f "$LANMACEFI" ] || return 0
-	MAC=$(cat "$LANMACFILE" 2>/dev/null)
+	MAC=$(cat "$1" 2>/dev/null)
 	MAC="${MAC,,}"
 	[[ "$MAC" =~ ^[0-9a-f]{2}(:[0-9a-f]{2}){5}$ ]] || return 0
 	(( (16#${MAC:0:2} & 1) == 0 )) || return 0	# unicast
 	[[ "${MAC//[0:]/}" != "" ]] || return 0		# not all zero
-	cmp -s "$LANMACEFI" "$BOOTDIR/BlwLanMac.efi" || cp "$LANMACEFI" "$BOOTDIR/BlwLanMac.efi" || return 0
-	printf 'fs1:\\BlwLanMac.efi %s\nfs0:\\BlwLanMac.efi %s\n' "$MAC" "$MAC"
+	echo "$MAC"
 }
 
-# Puts boot.nsh.new in place, unless it's the same as what's there.
+# True if MAC $1 is locally administered (02 bit set): generated, not a card's own.
+local_mac() {
+	(( (16#${1:0:2} & 2) != 0 ))
+}
+
+# The BlwMac.efi lines for boot.nsh (fs1 then fs0, like the kernel lines), or
+# nothing. They carry the WLAN card's MAC if it's the card's own (burned-in)
+# address: the firmware makes the LAN MAC, serial number and UUID from it. Failing
+# that, the LAN MAC if it was generated (no card): the firmware uses it as it is,
+# and for a UUID. Anything else (a typed-in LAN MAC with no card) isn't passed on,
+# since the firmware would take it for a card's. Copies BlwMac.efi to the boot
+# volume if it isn't there already.
+mac_lines() {
+	local MAC
+	[[ "$BOOTDIR" == "/boot" ]] || return 0
+	[[ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" == "BirdsLikeWires" ]] || return 0
+	[ -f "$MACEFI" ] || return 0
+	MAC=$(usable_mac "$WLANMACFILE")
+	if [[ "$MAC" == "" ]] || local_mac "$MAC"; then
+		MAC=$(usable_mac "$LANMACFILE")
+		[[ "$MAC" != "" ]] && local_mac "$MAC" || return 0
+	fi
+	cmp -s "$MACEFI" "$BOOTDIR/BlwMac.efi" || cp "$MACEFI" "$BOOTDIR/BlwMac.efi" || return 0
+	printf 'fs1:\\BlwMac.efi %s\nfs0:\\BlwMac.efi %s\n' "$MAC" "$MAC"
+}
+
+# Puts boot.nsh.new in place, unless it's the same as what's there. A changed
+# BlwMac.efi line goes in the kernel log: NVRAM follows at the next boot.
 install_bootnsh() {
+	local NEW MAC SAYS
 	if cmp -s "$BOOTNSH.new" "$BOOTNSH"; then
 		rm -f "$BOOTNSH.new"
-	else
-		mv -f "$BOOTNSH.new" "$BOOTNSH"
-		sync
+		return
 	fi
+	NEW=$(grep -m1 'BlwMac\.efi' "$BOOTNSH.new")
+	if [[ "$NEW" != "" ]] && [[ "$NEW" != "$(grep -m1 'BlwMac\.efi' "$BOOTNSH" 2>/dev/null)" ]]; then
+		read -r _ MAC <<< "$NEW"
+		if local_mac "$MAC"; then
+			SAYS="generated LAN MAC $MAC (no serial number)"
+		else
+			SAYS="WLAN card MAC $MAC (LAN MAC 02:${MAC:3}, serial number $(tr -d : <<< "${MAC^^}"))"
+		fi
+		echo "<5>of-bootnsh: NVRAM gets $SAYS at next boot." > /dev/kmsg 2>/dev/null
+	fi
+	mv -f "$BOOTNSH.new" "$BOOTNSH"
+	sync
 }
 
-if [[ $LANMACONLY -eq 1 ]]; then
+# BlwLanMac.efi was BlwMac.efi's name before firmware 26.11.20; its lines go too.
+if [[ $MACONLY -eq 1 ]]; then
 	[ -f "$BOOTNSH" ] || exit 1
-	{ lanmac_lines; grep -v 'BlwLanMac\.efi' "$BOOTNSH"; } > "$BOOTNSH.new"
+	{ mac_lines; grep -v -E 'Blw(Lan)?Mac\.efi' "$BOOTNSH"; } > "$BOOTNSH.new"
 	install_bootnsh
 	exit 0
 fi
@@ -153,7 +192,7 @@ if [[ "$MODE" == "stub" ]]; then
 	[[ "$INITRD" != "" ]] && ARGS="$ARGS initrd=\\${INITRD//\//\\}"
 
 	{
-		lanmac_lines
+		mac_lines
 		printf 'fs1:%s %s\nfs1:%s\nfs0:%s %s\nfs0:%s\n' \
 			"${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI"
 	} > "$BOOTNSH.new"
@@ -173,7 +212,7 @@ else
 	fi
 
 	{
-		lanmac_lines
+		mac_lines
 		printf 'fs1:%s\nfs0:%s\n' "$GRUBEFI" "$GRUBEFI"
 	} > "$BOOTNSH.new"
 
