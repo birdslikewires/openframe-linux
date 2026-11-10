@@ -154,8 +154,8 @@ if [ -f /etc/firstboot ]; then
 		set_bootpass 0
 		systemctl daemon-reload
 
-		# Writes disk identifier $2 (0x and 8 hex digits) into the MBR of disk $1. Our
-		# images' first partition (/boot) starts at sector 1, so the disk's first 4 KB
+		# Writes disk identifier $2 (0x and 8 hex digits) into the MBR of disk $1. Images
+		# built before November 2026 start /boot at sector 1, so the disk's first 4 KB
 		# holds the MBR and the start of /boot's FAT. sfdisk would write the MBR through
 		# the whole disk's own cache, 4 KB at a time, and that cache can hold an old copy
 		# of the FAT (/boot is written through its partition): the write puts it back

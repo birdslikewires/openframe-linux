@@ -106,7 +106,6 @@ INSTALL="$CODENAME"
 OVERLAY="${6}"
 KERNELDIR="${7}"
 DBSERVER="${8}"
-OFF=0
 RSIZE=$(($TSIZE - $BSIZE))
 
 if [[ ! "$INSTALL" =~ "tgz" ]] && [[ "$DBSERVER" == "" ]]; then
@@ -202,13 +201,18 @@ else
 fi
 
 partitions_create() {
-	BOOTEND=$(($OFF + $BSIZE))
+	# /boot starts at 1 MiB, the usual alignment for flash storage, and root where it
+	# always has: the first MiB boundary at or after $BSIZE MB. Until November 2026
+	# /boot started at sector 1, which put the partition table and the start of its
+	# FAT in the same 4 KB: writing the table on a running system could put back an
+	# old copy of the FAT (see of-identifier).
+	BOOTEND=$(( (BSIZE * 1000000 + 1048575) / 1048576 ))
 
 	parted -s "$FILENAME" -- \
 		mklabel msdos \
-		mkpart primary fat16 $OFF $(($OFF + $BSIZE)) \
+		mkpart primary fat16 1MiB ${BOOTEND}MiB \
 		set 1 boot on \
-		mkpart primary $BOOTEND -1
+		mkpart primary ${BOOTEND}MiB -1
 
 	sync
 	sleep 2
@@ -495,6 +499,11 @@ if [[ "$INSTALL" != "" ]]; then
 					done
 					rm -rf $BLDLOC/run_on_build
 				fi
+
+				# Images boot through GRUB (see above). The openframe-scripts package installed
+				# in the chroot may be one whose postinst switched to the EFI stub, so the
+				# image is put back in GRUB mode here, whichever version it got.
+				bash $BLDLOC/usr/local/sbin/of-bootnsh grub $BLDLOC/boot >/dev/null
 
 				sync
 				sync

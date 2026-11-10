@@ -2,7 +2,8 @@
 Description=OpenFrame root filesystem expansion
 DefaultDependencies=no
 ConditionPathExists=/etc/firstboot
-# After /boot is checked and mounted: growpart writes the 4 KB that its FAT starts in.
+# After /boot is checked and mounted: on older images growpart writes the 4 KB that
+# /boot's FAT starts in.
 After=systemd-remount-fs.service local-fs.target
 Before=sysinit.target
 
