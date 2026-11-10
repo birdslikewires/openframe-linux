@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v26.11.6 (10th November 2026)
+## of-identifier v26.11.7 (10th November 2026)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -154,13 +154,36 @@ if [ -f /etc/firstboot ]; then
 		set_bootpass 0
 		systemctl daemon-reload
 
+		# Writes disk identifier $2 (0x and 8 hex digits) into the MBR of disk $1. Our
+		# images' first partition (/boot) starts at sector 1, so the disk's first 4 KB
+		# holds the MBR and the start of /boot's FAT. sfdisk would write the MBR through
+		# the whole disk's own cache, 4 KB at a time, and that cache can hold an old copy
+		# of the FAT (/boot is written through its partition): the write puts it back
+		# over the real one, losing what /boot gained since (at first boot, of-netplan's
+		# network.yaml). Direct I/O reads and writes the MBR's sector alone, from and to
+		# the disk, and the kernel drops the stale cached copy.
+		set_disk_id() {
+			local SS TMP HEX="${2#0x}" RC=1
+			SS=$(blockdev --getss "$1") && TMP=$(mktemp) || return 1
+			if dd if="$1" of="$TMP" bs="$SS" count=1 iflag=direct status=none &&
+			   [ "$(od -An -tx1 -j510 -N2 "$TMP" | tr -d ' \n')" == "55aa" ]; then
+				# Stored least significant byte first, at offset 440.
+				printf "\\x${HEX:6:2}\\x${HEX:4:2}\\x${HEX:2:2}\\x${HEX:0:2}" |
+					dd of="$TMP" bs=1 seek=440 conv=notrunc status=none &&
+				dd if="$TMP" of="$1" bs="$SS" count=1 oflag=direct conv=notrunc status=none
+				RC=$?
+			fi
+			rm -f "$TMP"
+			return $RC
+		}
+
 		DISKID=""
 		until [[ "$DISKID" =~ ^0x[0-9a-f]{8}$ ]] && [[ "$DISKID" != "0x00000000" ]]; do
 			DISKID="0x$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
 		done
-		# sfdisk complains it can't re-read the table of a disk in use; the check below
-		# reads the new identifier back instead.
-		sfdisk --quiet --no-reread --disk-id "$DISK" "$DISKID" 2>/dev/null
+		# The new identifier goes straight to the disk, sector 0 alone (set_disk_id). The
+		# check below reads it back.
+		set_disk_id "$DISK" "$DISKID"
 		udevadm trigger --settle "$DISK" "$ROOTLOC" "$BOOTLOC"
 		ROOTPART=$(blkid -c /dev/null -o value -s PARTUUID "$ROOTLOC")
 		BOOTPART=$(blkid -c /dev/null -o value -s PARTUUID "$BOOTLOC")

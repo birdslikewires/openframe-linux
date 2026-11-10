@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-expand v26.11.1 (10th November 2026)
+## of-expand v26.11.2 (10th November 2026)
 ##  Expands the root partition and filesystem to fill the drive. On ext4 the
 ##  filesystem grows in about a second (the new inode tables are filled in later,
 ##  in the background), so there's no message on screen.
@@ -15,6 +15,15 @@ ROOTPARTNO="${ROOTDEV: -1}"
 [[ "$ROOTDEV" =~ "mmc" ]] && DISKDEV="${ROOTDEV::-2}" || DISKDEV="${ROOTDEV::-1}"
 
 echo "Root is on $ROOTDEV (disk: $DISKDEV, partition: $ROOTPARTNO)."
+
+# Our images' first partition (/boot) starts at sector 1, so the disk's first 4 KB
+# holds the partition table and the start of /boot's FAT. growpart writes the table
+# through the whole disk's own cache, 4 KB at a time, and an old copy of the FAT
+# there would go back over the real one. So /boot's changes go to disk first and the
+# whole disk's cached copy is dropped, making growpart read the disk afresh. (This
+# runs once /boot is checked and mounted, read-only, before anything writes to it.)
+sync
+blockdev --flushbufs $DISKDEV
 
 TMPDIR=/run growpart $DISKDEV $ROOTPARTNO > /dev/null
 GPRET=$?
