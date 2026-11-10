@@ -30,13 +30,17 @@ jobs:
       options: --privileged
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
+      # Before the checkout: without git in the container, it would download the files
+      # without the history that gives openframe-scripts its version.
       - name: Install build dependencies
         run: |
           apt-get update
           apt-get install -y ca-certificates curl debootstrap dosfstools e2fsprogs git gh parted rsync
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0    # package/version.sh counts this month's commits
 
       - name: Get kernel version
         id: kernel
@@ -77,6 +81,26 @@ jobs:
             sleep 30
           done
           echo "Kernel ${version} did not appear in the apt repository after 45 minutes."
+          exit 1
+
+      # The image installs openframe-scripts from the apt repository, over the overlay's
+      # copies of its files. A push that changes the package starts the package workflow
+      # alongside this one, so wait until the repository has this commit's version (or
+      # a later one), or the image gets the previous version's scripts.
+      - name: Wait for openframe-scripts in apt repository
+        run: |
+          version=$(bash package/version.sh overlay-debian-trixie/)
+          url="https://linux.openbeak.net/dists/trixie/main/binary-i386/Packages"
+          for attempt in $(seq 1 60); do
+            published=$(curl -fsSL "$url" | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-scripts" { print $2; exit }')
+            if [ -n "$published" ] && dpkg --compare-versions "$published" ge "$version"; then
+              echo "openframe-scripts ${published} is available from the apt repository."
+              exit 0
+            fi
+            echo "Waiting for openframe-scripts ${version} in the apt repository (it has ${published:-none}; attempt ${attempt}/60)..."
+            sleep 30
+          done
+          echo "openframe-scripts ${version} did not appear in the apt repository after 30 minutes."
           exit 1
 
       - name: Build image
