@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v26.11.3 (10th November 2026)
+## of-identifier v26.11.4 (10th November 2026)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -137,12 +137,16 @@ if [ -f /etc/firstboot ]; then
 	if [[ "$ROOTLOC" != "" ]]; then
 		tune2fs $ROOTLOC -U $NEWUUID >/dev/null
 		boot_sed 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
-		[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh
 		sed -i 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /etc/fstab
 		e2label $ROOTLOC "ROOT${NEWUUIDSHORT^^}"
 	else
 		echo "Change of UUID aborted. Cannot find the root partition labelled '${CODEPRE^^}-ROOT'."
 	fi
+
+	# Write boot.nsh for this unit. An image is built without knowing whether its
+	# kernel can boot this unit without an initrd (of-bootnsh checks the running
+	# system), so it starts out with one.
+	[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh
 
 	# Set a sensible default audio level and enable auto-mute.
 	amixer -c 0 sset 'Master' 50% unmute >/dev/null 2>&1
