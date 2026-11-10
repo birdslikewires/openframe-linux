@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
-## of-backlight v1.15 (29th March 2026) by Andrew Davison
+## of-backlight v26.11.1 (10th November 2026) by Andrew Davison
 ##  Automatic backlight control with fading for OpenFrame.
+##
+##  Setting a level returns at once: the fade carries on in the background, and a
+##  new setting cancels a fade still running. 'debug' fades in the foreground.
 
 usage() {
 	echo "Usage: $0 [0-100] | [999]"
@@ -63,18 +66,20 @@ setbl() {
 		return
 	fi
 
-	## Fade the backlight in steps.
-	## Note: values are divided by 3 to map to the hardware's 0-32 brightness range.
-	for b in $(seq "$CRNTBL" "$STEP" "$PREFBL");
+	## Fade one hardware level at a time: the hardware has 33 levels (0-32), so
+	## percentages map onto them, and a level above 0% is never fully off.
+	local b=$(( $(<$BLIF) )) target=$(( (PREFBL * 32 + 50) / 100 )) dir=1
+	[ "$target" -eq 0 ] && [ "$PREFBL" -gt 0 ] && target=1
+	[ "$target" -lt "$b" ] && dir=-1
+	while [ "$b" -ne "$target" ];
 	do
 
-		b=$(($b/3))
-		[ "$b" -eq 0 ] && [ "$PREFBL" -gt 0 ] && b=1
+		b=$(($b+$dir))
 
 		[ "$2" != "debug" ] || echo $b
 
 		echo "$b" > $BLIF 2>/dev/null
-		$SLEEP
+		pause
 
 	done
 
@@ -88,10 +93,19 @@ getbl() {
 
 }
 
+## Wait between fade steps without starting a 'sleep' each time: reading an
+## empty pipe with a timeout is built into bash. 15 ms a level makes a full
+## fade about half a second.
+pause() {
+
+	[ -n "$PAUSEFD" ] || exec {PAUSEFD}<> <(:)
+	read -r -t 0.015 -u "$PAUSEFD" || :
+
+}
+
 
 ## Check whether we can access the backlight.
 if [ -e "$BLIF" ]; then
-	SLEEP="sleep 0.001"
 	if [ ! -w "$BLIF" ]; then
 		echo "Permissions do not currently allow you to set the backlight level."
 		echo "You can allow this by creating a udev rule."
@@ -180,9 +194,15 @@ else
 
 		echo $(<$BLIF) > /tmp/backlight.prv
 
-	else
+	elif [ "$2" = "debug" ]; then
 
 		setbl "$1" "$2"
+
+	else
+
+		## Fade in the background, detached from the terminal, so we return at once.
+		setbl "$1" </dev/null >/dev/null 2>&1 &
+		disown
 
 	fi
 
