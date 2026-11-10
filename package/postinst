@@ -67,7 +67,9 @@ case "$1" in
 				echo "Adding a journal to the root filesystem (ext2 to ext4)..."
 				if tune2fs -j -J size=32 "$ROOTDEV" >/dev/null; then
 					sed -i -E '/^[^#[:space:]]+[[:space:]]+\/[[:space:]]+ext2[[:space:]]/ s/^([^[:space:]]+[[:space:]]+\/[[:space:]]+)ext2/\1ext4/' /etc/fstab
-					[ -f /boot/grub.cfg ] && sed -i 's/rootfstype=ext2/rootfstype=ext4/' /boot/grub.cfg
+					# A synced copy renamed over the old one: FAT has no journal.
+					[ -f /boot/grub.cfg ] && sed 's/rootfstype=ext2/rootfstype=ext4/' /boot/grub.cfg > /boot/grub.cfg.new &&
+						sync && mv -f /boot/grub.cfg.new /boot/grub.cfg
 					sync
 				else
 					echo "Could not add the journal; the root filesystem stays ext2."
@@ -79,10 +81,12 @@ case "$1" in
 
 		# /boot read-only (dpkg and our scripts make it writable while they write),
 		# checked at boot, and no access-time writes: a power cut can then only catch it
-		# during an update. Takes effect at the next boot. Only a /boot line still at
-		# 'defaults 0 0', so a different choice stays.
+		# during an update. dirsync puts each directory change (a new file, a rename, a
+		# removal) on disk at once, so a cut mid-update can't leave a name pointing at
+		# clusters something else has since reused. Takes effect at the next boot. Only
+		# a /boot line still at 'defaults 0 0', so a different choice stays.
 		if [ ! -e "$BOOTROMARKER" ] && [ -f /etc/fstab ]; then
-			sed -i -E '/^[^#[:space:]]+[[:space:]]+\/boot[[:space:]]+vfat[[:space:]]/ s/([[:space:]]+vfat[[:space:]]+)defaults([[:space:]]+0[[:space:]]+)0[[:space:]]*$/\1ro,noatime\22/' /etc/fstab
+			sed -i -E '/^[^#[:space:]]+[[:space:]]+\/boot[[:space:]]+vfat[[:space:]]/ s/([[:space:]]+vfat[[:space:]]+)defaults([[:space:]]+0[[:space:]]+)0[[:space:]]*$/\1ro,noatime,dirsync\22/' /etc/fstab
 			mkdir -p "${BOOTROMARKER%/*}"
 			touch "$BOOTROMARKER"
 		fi

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-provision v1.01 (10th August 2026)
+## of-provision v26.11.1 (10th November 2026)
 ##  Checks for a file on /boot pointing to a hosted project or install.sh.
 ##  If present, downloads and runs that install.sh as the normal user. Lets
 ##  community repos provide their own install.sh without us having to bake
@@ -23,6 +23,18 @@ log() {
 	echo "$1" | tee -a "$LOGFILE"
 }
 
+# /boot is mounted read-only, so a power cut can't corrupt it. This makes it writable
+# until the script exits, if it isn't already; whoever made it writable puts it back.
+# fstab's options are left out of the remount: the kernel refuses its dirsync there.
+BOOTRW=""
+boot_rw() {
+	[ -z "$BOOTRW" ] || return 0
+	BOOTRW=done
+	findmnt -n -o OPTIONS /boot 2>/dev/null | grep -qE '(^|,)ro(,|$)' || return 0
+	mount --options-mode ignore -o remount,rw /boot &&
+		trap 'sync; mount --options-mode ignore -o remount,ro /boot 2>/dev/null' EXIT
+}
+
 [ -f "$SETUPFILE" ] || exit 0
 
 # One-shot: disable ourselves now, before doing anything else, so we don't
@@ -40,6 +52,7 @@ log "of-provision: requested source: $URL"
 
 if [[ -z "$URL" ]]; then
 	log "of-provision: setup.txt is empty. Aborting."
+	boot_rw
 	mv "$SETUPFILE" "${SETUPFILE}.rejected"
 	exit 1
 elif [[ "$URL" =~ install\.sh$ ]]; then
@@ -78,6 +91,7 @@ done
 
 if [ -z "$INSTALLER_URL" ]; then
 	log "of-provision: failed to download install.sh. Aborting."
+	boot_rw
 	mv "$SETUPFILE" "${SETUPFILE}.failed"
 	exit 1
 fi
@@ -96,10 +110,12 @@ INSTALLER_RESULT="${PIPESTATUS[0]}"
 if [ "$INSTALLER_RESULT" -eq 0 ]; then
 	echo >> "$LOGFILE"
 	log "of-provision: installer completed successfully."
+	boot_rw
 	rm "$SETUPFILE"
 else
 	echo >> "$LOGFILE"
 	log "of-provision: installer exited with an error. See above."
+	boot_rw
 	mv "$SETUPFILE" "${SETUPFILE}.failed"
 fi
 

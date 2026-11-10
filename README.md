@@ -27,7 +27,8 @@ To provision another install after first run, re-enable the service and restore 
 
 ```
 sudo systemctl enable of-provision.service
-sudo mv /boot/setup.txt.failed /boot/setup.txt   # or recreate it with a new URL
+sudo mount --options-mode ignore -o remount,rw /boot   # /boot is normally read-only
+sudo mv /boot/setup.txt.failed /boot/setup.txt          # or recreate it with a new URL
 sudo reboot
 ```
 
@@ -53,6 +54,8 @@ The overlay files modify the vanilla system to provide some necessary and some n
 Firmware in `/usr/lib/firmware/updates` is part of the `openframe-scripts` package, so existing systems get changes to it too. It holds `stac9202.patch`, which sets up the audio codec's headphone and speaker pins on both the OpenFrame 1 and 2. It also holds files that the kernel's built-in drivers list but Debian doesn't ship yet, such as `rtl_nic/rtl8127a-1.fw` for r8169. The OpenFrame doesn't use those, but without them every initramfs rebuild warns "Possible missing firmware".
 
 The firmware's EFI shell starts the kernel directly through its EFI stub rather than through GRUB, which loads the kernel and initrd about five times faster and saves around ten seconds per boot. GRUB stays in `boot.nsh` as the fallback. Because the shell only starts `.efi` files and the boot volume has no room for a second copy, the kernel is kept as `/boot/vmlinuz.efi`; the kernel hooks and `of-bootnsh` look after this. An empty `vmlinuz-<version>` stays in its place so that `update-initramfs` can still find the kernel. After each kernel upgrade, older kernels and `System.map` are removed from `/boot`, so there's always room to rebuild the initrd and install the next kernel. Systems on earlier images switch over the first time the `openframe-scripts` package updates. Run `sudo of-settings efistub disable` to go back to booting through GRUB.
+
+OpenFrames often lose power without warning, so the system is built to shrug that off. The root filesystem is ext4, whose journal replays in a moment after a power cut (systems on earlier ext2 images gain a journal the first time `openframe-scripts` updates), and the kernel lets the boot-time check repair anything else without asking. `/boot` is FAT, which has no journal, so it's mounted read-only and checked at boot: package installs and the OpenFrame scripts make it writable only while they write to it, and it's mounted `dirsync`, so a cut mid-write leaves the old file or the new one. If a cut interrupts a package installation, `of-dpkg-recover` finishes it or reinstalls the package at the next boot, downloading it once the network is up if it has to. To change something on `/boot` by hand, make it writable first with `sudo mount --options-mode ignore -o remount,rw /boot`; the next boot puts it back.
 
 It should be possible to use updated microcode for the Intel Atom Z520, if that's of concern to you. The microcode you need is `06-1c-02` from [Intel's repository](https://github.com/intel/Intel-Linux-Processor-Microcode-Data-Files/tree/main/intel-ucode). If you have any luck, let me know.
 

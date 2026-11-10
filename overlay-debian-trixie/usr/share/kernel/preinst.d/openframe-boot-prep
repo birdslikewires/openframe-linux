@@ -8,12 +8,14 @@
 VERSION="$1"
 RUNNING=$(uname -r)
 
-# Remove /boot files for the version being installed (reinstall case)
+# Remove /boot files for the version being installed (reinstall case). Not its
+# initrd: the package doesn't contain one, so dpkg never backs it up, and
+# update-initramfs replaces it with a rename once the new one is complete. Removing
+# it first left nothing to boot if the power went in between.
 for f in \
   /boot/vmlinuz-$VERSION \
   /boot/System.map-$VERSION \
-  /boot/config-$VERSION \
-  /boot/initrd.img-$VERSION
+  /boot/config-$VERSION
 do
   [ -f "$f" ] && rm -f "$f"
 done
@@ -32,5 +34,11 @@ for config in /boot/config-*-openframe; do
     "/boot/config-${kver}" \
     "/boot/initrd.img-${kver}"
 done
+
+# Put the removals on disk before dpkg writes the new kernel. FAT writes its metadata
+# in no particular order, so without this a power cut could leave a removed file's
+# old directory entry pointing at clusters the new kernel has since overwritten.
+# (Mounted dirsync, as fstab now has it, removals go straight to disk anyway.)
+sync
 
 exit 0

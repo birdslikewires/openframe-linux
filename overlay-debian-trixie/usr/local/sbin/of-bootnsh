@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.4 (10th November 2026)
+## of-bootnsh v26.11.5 (10th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on.
 ##
 ##  In 'stub' mode the shell starts the kernel directly through its EFI stub. The
@@ -49,7 +49,11 @@
 ##
 ##  boot.nsh is only rewritten when its contents change. /boot is normally mounted
 ##  read-only, so a power cut can't corrupt it: this makes it writable only when
-##  something has to change, and puts it back afterwards.
+##  something has to change, and puts it back afterwards. FAT has no journal and
+##  writes its metadata in no particular order, so files on it are replaced by
+##  writing a synced copy and renaming that over the old one (see boot_put). A
+##  grub.cfg whose kernel line has no root= leaves boot.nsh as it is. Files that
+##  fsck.fat recovered after a power cut (FSCKnnnn.REC) are removed.
 ##
 ##  Usage: of-bootnsh [stub|grub] [quiet|normal] [boot directory]
 ##         of-bootnsh mac
@@ -82,7 +86,8 @@ BOOTNSH="$BOOTDIR/boot.nsh"
 
 # /boot is mounted read-only, so a power cut can't corrupt it. This makes the boot
 # directory's filesystem writable until we exit, if it isn't already; whoever made it
-# writable puts it back.
+# writable puts it back. fstab's options are left out of the remount: the kernel
+# refuses its dirsync there.
 BOOTRW=0
 RESTORE=""
 boot_rw() {
@@ -91,7 +96,16 @@ boot_rw() {
 	BOOTRW=1
 	MNT=$(findmnt -n -o TARGET --target "$BOOTDIR" 2>/dev/null)
 	[ -n "$MNT" ] && findmnt -n -o OPTIONS "$MNT" | grep -qE '(^|,)ro(,|$)' || return 0
-	mount -o remount,rw "$MNT" && RESTORE="$MNT"
+	mount --options-mode ignore -o remount,rw "$MNT" && RESTORE="$MNT"
+}
+
+# Replaces file $2 on the boot volume with a copy of $1, so that a power cut leaves
+# the old file or the new one, never a name pointing at unwritten clusters. The
+# first sync puts anything deleted earlier on disk before its space is reused.
+boot_put() {
+	boot_rw
+	sync
+	cp "$1" "$2.new" && sync && mv -f "$2.new" "$2" && sync
 }
 
 # On the way out: drop the new boot.nsh if it's still about, and put /boot back.
@@ -99,7 +113,7 @@ cleanup() {
 	[ -n "$NEWNSH" ] && rm -f "$NEWNSH"
 	if [ -n "$RESTORE" ]; then
 		sync
-		mount -o remount,ro "$RESTORE" 2>/dev/null
+		mount --options-mode ignore -o remount,ro "$RESTORE" 2>/dev/null
 	fi
 }
 trap cleanup EXIT
@@ -159,8 +173,7 @@ mac_lines() {
 install_macefi() {
 	grep -q 'BlwMac\.efi' "$1" && [ -f "$MACEFI" ] || return 0
 	cmp -s "$MACEFI" "$BOOTDIR/BlwMac.efi" && return 0
-	boot_rw
-	cp "$MACEFI" "$BOOTDIR/BlwMac.efi"
+	boot_put "$MACEFI" "$BOOTDIR/BlwMac.efi"
 }
 
 # Puts the new boot.nsh ($NEWNSH, built outside /boot) in place, unless it's the
@@ -183,13 +196,22 @@ install_bootnsh() {
 		fi
 		echo "<5>of-bootnsh: NVRAM gets $SAYS at next boot." > /dev/kmsg 2>/dev/null
 	fi
-	boot_rw
-	cp "$NEWNSH" "$BOOTNSH.new" && mv -f "$BOOTNSH.new" "$BOOTNSH"
+	boot_put "$NEWNSH" "$BOOTNSH"
 	rm -f "$NEWNSH"
-	sync
+}
+
+# fsck.fat saves clusters a power cut left allocated to no file as FSCKnnnn.REC.
+# They're only ever pieces of files that were being replaced or removed, and the
+# boot volume is small, so they go.
+remove_rec() {
+	[[ "$BOOTDIR" == "/boot" ]] || return 0
+	compgen -G "$BOOTDIR/FSCK[0-9][0-9][0-9][0-9].REC" >/dev/null || return 0
+	boot_rw
+	rm -f "$BOOTDIR"/FSCK[0-9][0-9][0-9][0-9].REC
 }
 
 NEWNSH=$(mktemp /run/of-bootnsh.XXXXXX 2>/dev/null || mktemp)
+remove_rec
 
 # BlwLanMac.efi was BlwMac.efi's name before firmware 26.11.20; its lines go too.
 if [[ $MACONLY -eq 1 ]]; then
@@ -235,14 +257,18 @@ else
 fi
 
 # The root partition's UUID if the kernel can boot without its initrd (see the
-# notes at the top), or nothing. $1 is the kernel arguments from grub.cfg.
+# notes at the top), or nothing. $1 is the kernel arguments from grub.cfg. With $2
+# 'anyway', the kernel's config isn't checked: for when there's no initrd to boot
+# with, and our kernels' built-in drivers are the only chance.
 direct_root() {
 	local CFG SPEC SRC FSTYPE
 	[[ "$BOOTDIR" == "/boot" ]] || return 0
-	[ -e "$KEEPINITRD" ] && return 0
 	CFG="$BOOTDIR/config-$VERSION"
-	[[ "$VERSION" != "" ]] && [ -f "$CFG" ] || return 0
-	grep -q '^CONFIG_USB_STORAGE=y' "$CFG" && grep -q '^CONFIG_BLK_DEV_SD=y' "$CFG" || return 0
+	if [[ "$2" != "anyway" ]]; then
+		[ -e "$KEEPINITRD" ] && return 0
+		[[ "$VERSION" != "" ]] && [ -f "$CFG" ] || return 0
+		grep -q '^CONFIG_USB_STORAGE=y' "$CFG" && grep -q '^CONFIG_BLK_DEV_SD=y' "$CFG" || return 0
+	fi
 	SRC=$(findmnt -n -o SOURCE / 2>/dev/null)
 	[ -b "$SRC" ] || return 0
 	# The mounted root must be the device grub.cfg names (in a chroot it isn't).
@@ -256,11 +282,13 @@ direct_root() {
 	esac
 	# The kernel must have the root filesystem's driver built in.
 	FSTYPE=$(findmnt -n -o FSTYPE /)
+	[[ "$2" == "anyway" ]] && FSTYPE="checked"
 	case "$FSTYPE" in
 		ext2) grep -q '^CONFIG_EXT2_FS=y' "$CFG" || { grep -q '^CONFIG_EXT4_FS=y' "$CFG" &&
 			grep -q '^CONFIG_EXT4_USE_FOR_EXT2=y' "$CFG"; } || return 0 ;;
 		ext3|ext4) grep -q '^CONFIG_EXT4_FS=y' "$CFG" || return 0 ;;
 		btrfs) grep -q '^CONFIG_BTRFS_FS=y' "$CFG" || return 0 ;;
+		checked) ;;
 		*) return 0 ;;
 	esac
 	blkid -c /dev/null -s PARTUUID -o value "$SRC"
@@ -268,9 +296,12 @@ direct_root() {
 
 # Points the 'linux' line in grub.cfg at the given kernel file, if it doesn't already.
 grub_kernel() {
+	local NEWCFG
 	grep -q -E "^[[:space:]]*linux[[:space:]]+/$1([[:space:]]|\$)" "$GRUBCFG" && return 0
-	boot_rw
-	sed -i -E "s|^([[:space:]]*linux[[:space:]]+)[^[:space:]]+|\1/$1|" "$GRUBCFG"
+	NEWCFG=$(mktemp /run/of-bootnsh.XXXXXX 2>/dev/null || mktemp)
+	sed -E "s|^([[:space:]]*linux[[:space:]]+)[^[:space:]]+|\1/$1|" "$GRUBCFG" > "$NEWCFG" &&
+		boot_put "$NEWCFG" "$GRUBCFG"
+	rm -f "$NEWCFG"
 }
 
 if [[ "$MODE" == "stub" ]]; then
@@ -293,8 +324,18 @@ if [[ "$MODE" == "stub" ]]; then
 	grub_kernel "$KERNELEFI"
 
 	read -r _ _ ARGS <<< "$(grep -m1 -E '^[[:space:]]*linux[[:space:]]' "$GRUBCFG")"
+	if ! grep -q -E '(^|[[:space:]])root=[^[:space:]]' <<< "$ARGS"; then
+		echo "The 'linux' line in $GRUBCFG has no root=; boot.nsh left unchanged."
+		exit 1
+	fi
 
 	ROOTPART=$(direct_root "$ARGS")
+	# A missing initrd (a power cut can take it while it's being rebuilt) would stop
+	# both the stub and GRUB, so boot without it rather than not at all.
+	if [[ "$ROOTPART" == "" ]] && [[ "$INITRD" != "" ]] && [ ! -s "$BOOTDIR/$INITRD" ]; then
+		ROOTPART=$(direct_root "$ARGS" anyway)
+		[[ "$ROOTPART" != "" ]] && echo "Warning: $BOOTDIR/$INITRD is missing; booting without an initrd."
+	fi
 	if [[ "$ROOTPART" != "" ]]; then
 		# No initrd: the kernel mounts root itself, found by partition UUID.
 		ARGS=$(sed -E "s#(^|[[:space:]])root=[^[:space:]]+#\1root=PARTUUID=$ROOTPART#" <<< "$ARGS")

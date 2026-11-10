@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v26.11.2 (10th November 2026)
+## of-identifier v26.11.3 (10th November 2026)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -88,12 +88,32 @@ fi
 
 # /boot is mounted read-only, so a power cut can't corrupt it. This makes it writable
 # until the script exits, if it isn't already; whoever made it writable puts it back.
+# fstab's options are left out of the remount: the kernel refuses its dirsync there.
 BOOTRW=""
 boot_rw() {
 	[ -z "$BOOTRW" ] || return 0
 	BOOTRW=done
 	findmnt -n -o OPTIONS /boot 2>/dev/null | grep -qE '(^|,)ro(,|$)' || return 0
-	mount -o remount,rw /boot && trap 'sync; mount -o remount,ro /boot 2>/dev/null' EXIT
+	mount --options-mode ignore -o remount,rw /boot &&
+		trap 'sync; mount --options-mode ignore -o remount,ro /boot 2>/dev/null' EXIT
+}
+
+# Replaces file $2 on /boot with a copy of $1. FAT has no journal and writes its
+# metadata in no particular order, so the copy is synced before it's renamed over
+# the old file: a power cut leaves one or the other. The first sync puts anything
+# deleted earlier on disk before its space is reused.
+boot_put() {
+	boot_rw
+	sync
+	cp "$1" "$2.new" && sync && mv -f "$2.new" "$2" && sync
+}
+
+# sed -i for a file on /boot, through boot_put.
+boot_sed() {
+	local NEW
+	NEW=$(mktemp) || return 1
+	sed "$1" "$2" > "$NEW" && boot_put "$NEW" "$2"
+	rm -f "$NEW"
 }
 
 if [ -f /etc/firstboot ]; then
@@ -116,7 +136,7 @@ if [ -f /etc/firstboot ]; then
 
 	if [[ "$ROOTLOC" != "" ]]; then
 		tune2fs $ROOTLOC -U $NEWUUID >/dev/null
-		sed -i 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
+		boot_sed 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
 		[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh
 		sed -i 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /etc/fstab
 		e2label $ROOTLOC "ROOT${NEWUUIDSHORT^^}"

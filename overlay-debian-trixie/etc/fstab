@@ -12,4 +12,8 @@ tmpfs    /var/lib/apt/lists   tmpfs   noatime,size=256M     0    0
 tmpfs    /var/log             tmpfs   noatime,size=16M      0    0
 
 ROOTDEV   /       FS    MOUNTOPTS   0    CHECK
-BOOTDEV   /boot   vfat    ro,noatime                        0    2
+# The boot volume is read-only (see of-bootnsh), and dirsync puts each change to
+# its directories straight on disk, since FAT has no journal. The kernel refuses
+# dirsync on a remount, so to make it writable by hand, leave fstab's options out:
+#   sudo mount --options-mode ignore -o remount,rw <its mount point>
+BOOTDEV   /boot   vfat    ro,noatime,dirsync                0    2

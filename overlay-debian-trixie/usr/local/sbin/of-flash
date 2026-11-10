@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-flash v1.19 (7th July 2026) by Andrew Davison
+## of-flash v26.11.1 (10th November 2026) by Andrew Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -13,6 +13,21 @@ if [ "$1" ]; then
 else
 	IMGLOC="/boot/reflash"
 fi
+
+# The image directory is normally on /boot, which is mounted read-only so a power
+# cut can't corrupt it. This makes its filesystem writable until the script exits,
+# if it isn't already. fstab's options are left out of the remount: the kernel
+# refuses /boot's dirsync there.
+BOOTRW=""
+boot_rw() {
+	local MNT
+	[ -z "$BOOTRW" ] || return 0
+	BOOTRW=done
+	MNT=$(findmnt -n -o TARGET --target "$IMGLOC" 2>/dev/null)
+	[ -n "$MNT" ] && findmnt -n -o OPTIONS "$MNT" | grep -qE '(^|,)ro(,|$)' || return 0
+	mount --options-mode ignore -o remount,rw "$MNT" &&
+		trap "sync; mount --options-mode ignore -o remount,ro '$MNT' 2>/dev/null" EXIT
+}
 
 COLOUR=6
 HAPPYSTOP=10
@@ -284,6 +299,7 @@ elif [ $FILECOUNT -eq 2 ] && [ $EFIPRESENT -eq 2 ]; then
 
 					if [ "$EFIPOSTSUM" == "$EFISUM" ]; then
 
+						boot_rw
 						[ ! -d $IMGLOC/complete ] && mkdir $IMGLOC/complete
 						mv $IMGLOC/$EFI.img $IMGLOC/$EFI.img.md5 $IMGLOC/complete/
 

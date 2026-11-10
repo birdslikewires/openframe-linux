@@ -1,14 +1,75 @@
 #!/bin/sh
 
-## of-dpkg-recover v26.11.1 (10th November 2026)
+## of-dpkg-recover v26.11.2 (10th November 2026)
 ##  Finishes package operations that a power cut interrupted. A half-installed
-##  package leaves dpkg refusing to do anything else until 'dpkg --configure -a'
-##  is run, which nobody is likely to do on an OpenFrame. Run at every boot by
+##  package leaves dpkg refusing to do anything else until it's dealt with, which
+##  nobody is likely to do on an OpenFrame. Run at every boot by
 ##  of-dpkg-recover.service; it does nothing (in about 50 ms) when all is well.
+##
+##  A package that was unpacked but not configured usually just needs configuring.
+##  Some have to be reinstalled instead: one the cut caught mid-unpack (it has a
+##  mix of old and new files), and one with files on /boot, since FAT has no journal
+##  and the cut may have lost what dpkg wrote there although dpkg's own records (on
+##  the journaled root) say it's done. The .deb comes from apt's cache if it's still
+##  there. If not (OpenFrame images keep the cache in RAM), it's downloaded once the
+##  network is up, by of-dpkg-recover-online.service running 'of-dpkg-recover online'.
 
-if [ -n "$(ls -A /var/lib/dpkg/updates 2>/dev/null)" ] || [ -n "$(dpkg --audit 2>/dev/null)" ]; then
+PENDING="/var/lib/of-dpkg-recover/download"
+
+configure() {
+	[ -n "$(dpkg --audit 2>/dev/null)" ] && dpkg --force-confold --configure -a
+}
+
+if [ "$1" = "online" ]; then
+	[ -s "$PENDING" ] || exit 0
+	echo "Downloading packages to reinstall: $(cut -d' ' -f1 "$PENDING" | tr '\n' ' ')"
+	apt-get -q update || exit 1
+	FAILED=""
+	while read -r PKG VER; do
+		# The same version if the repository still has it, or else its newest.
+		apt-get -q -y -o Dpkg::Options::=--force-confold install --reinstall "$PKG=$VER" ||
+			apt-get -q -y -o Dpkg::Options::=--force-confold install --reinstall "$PKG" ||
+			FAILED="$FAILED$PKG $VER\n"
+	done < "$PENDING"
+	configure
+	if [ -n "$FAILED" ]; then
+		printf "$FAILED" > "$PENDING"
+		echo "Still to reinstall (tried again next boot): $(cut -d' ' -f1 "$PENDING" | tr '\n' ' ')"
+		exit 1
+	fi
+	rm -f "$PENDING"
+	exit 0
+fi
+
+if [ -n "$(ls -A /var/lib/dpkg/updates 2>/dev/null)" ] || [ -n "$(dpkg --audit 2>/dev/null)" ] || [ -s "$PENDING" ]; then
 	echo "An interrupted package operation was found; finishing it."
-	dpkg --force-confold --configure -a
+
+	# dpkg's status letter (second of three): H half-installed, U unpacked, F
+	# half-configured. R (third) means dpkg wants it reinstalled.
+	dpkg-query -W -f='${db:Status-Abbrev} ${Package} ${Version} ${Architecture}\n' 2>/dev/null |
+		awk 'substr($1, 2, 1) ~ /[HUF]/ || substr($1, 3, 1) == "R" { print $1, $2, $3, $4 }' > /run/of-dpkg-recover.list
+	while read -r STATUS PKG VER ARCH; do
+		case "$STATUS" in
+			?H*|??R*) ;;
+			*) dpkg -L "$PKG" 2>/dev/null | grep -q '^/boot/.' || continue ;;
+		esac
+		DEB="/var/cache/apt/archives/${PKG}_$(echo "$VER" | sed 's/:/%3a/')_${ARCH}.deb"
+		if [ -f "$DEB" ]; then
+			echo "Reinstalling $PKG $VER from apt's cache."
+			dpkg --force-confold -i "$DEB"
+		else
+			mkdir -p "${PENDING%/*}"
+			grep -qx "$PKG $VER" "$PENDING" 2>/dev/null || echo "$PKG $VER" >> "$PENDING"
+		fi
+	done < /run/of-dpkg-recover.list
+	rm -f /run/of-dpkg-recover.list
+
+	configure
+	if [ -s "$PENDING" ]; then
+		echo "To reinstall once the network is up: $(cut -d' ' -f1 "$PENDING" | tr '\n' ' ')"
+		sync
+		systemctl --no-block start of-dpkg-recover-online.service
+	fi
 fi
 
 exit 0

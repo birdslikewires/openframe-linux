@@ -1,0 +1,13 @@
+[Unit]
+Description=Reinstall packages a power cut damaged, from the network
+Wants=network-online.target
+After=network-online.target of-dpkg-recover.service
+ConditionPathExists=/var/lib/of-dpkg-recover/download
+
+# Started by of-dpkg-recover when a package has to be reinstalled and its .deb isn't
+# in apt's cache (a tmpfs on OpenFrame images). Not part of the boot, so a unit
+# that's offline boots as quickly as ever; the next boot tries again.
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/of-dpkg-recover online
+Environment=DEBIAN_FRONTEND=noninteractive
