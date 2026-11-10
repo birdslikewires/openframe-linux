@@ -25,6 +25,7 @@ FSCKMARKER="/var/lib/openframe-scripts/root-fsck-default"
 JOURNALMARKER="/var/lib/openframe-scripts/root-journal-default"
 BOOTROMARKER="/var/lib/openframe-scripts/boot-ro-default"
 RECOVERMARKER="/var/lib/openframe-scripts/dpkg-recover-default"
+DIRSYNCMARKER="/var/lib/openframe-scripts/boot-dirsync-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -89,6 +90,14 @@ case "$1" in
 			sed -i -E '/^[^#[:space:]]+[[:space:]]+\/boot[[:space:]]+vfat[[:space:]]/ s/([[:space:]]+vfat[[:space:]]+)defaults([[:space:]]+0[[:space:]]+)0[[:space:]]*$/\1ro,noatime,dirsync\22/' /etc/fstab
 			mkdir -p "${BOOTROMARKER%/*}"
 			touch "$BOOTROMARKER"
+		fi
+
+		# Systems that took the read-only /boot before it gained dirsync (26.11.17) get
+		# it too, from the next boot. Only a /boot line at exactly 'ro,noatime'.
+		if [ ! -e "$DIRSYNCMARKER" ] && [ -f /etc/fstab ]; then
+			sed -i -E '/^[^#[:space:]]+[[:space:]]+\/boot[[:space:]]+vfat[[:space:]]/ s/([[:space:]]+vfat[[:space:]]+)ro,noatime([[:space:]])/\1ro,noatime,dirsync\2/' /etc/fstab
+			mkdir -p "${DIRSYNCMARKER%/*}"
+			touch "$DIRSYNCMARKER"
 		fi
 
 		# Finish package operations a power cut interrupted, at every boot.
