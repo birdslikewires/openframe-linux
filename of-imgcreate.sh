@@ -374,13 +374,13 @@ if [[ "$INSTALL" != "" ]]; then
 	echo
 	echo "Preparing for installation..."
 
-	# Sets whether we check for errors on boot.
+	# Sets whether systemd checks the root filesystem at boot. The kernel usually boots
+	# without an initrd now (of-bootnsh), and the initrd was what checked root at every
+	# boot, so for ext2/3/4 systemd does it instead. btrfs needs no check.
 	if [ "$FS" == "btrfs" ]; then
 		CHECK=0
 	else
-		## Disabled checking - this was proving more trouble than it was worth.
-		#CHECK=1
-		CHECK=0
+		CHECK=1
 	fi
 
 	# If we're just copying from a .tgz.

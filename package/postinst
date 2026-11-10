@@ -8,11 +8,15 @@
 #  stub, which saves around ten seconds per boot. Anyone who later runs
 #  'of-settings efistub disable' keeps GRUB, because the marker stops this repeating.
 #
-#  Every update then tidies the boot volume so the next initrd rebuild fits.
+#  Every update then tidies the boot volume so the next initrd rebuild fits, and
+#  rewrites boot.nsh, which boots the kernel without its initrd once the kernel can
+#  (of-bootnsh). The initrd used to check the root filesystem at every boot, so
+#  once per system systemd is set to do it instead.
 
 set -e
 
 MARKER="/var/lib/openframe-scripts/efistub-default"
+FSCKMARKER="/var/lib/openframe-scripts/root-fsck-default"
 
 case "$1" in
 	configure)
@@ -27,6 +31,16 @@ case "$1" in
 			else
 				echo "Could not switch to EFI stub boot; GRUB boot is unchanged."
 			fi
+		fi
+
+		# Without an initrd nothing checks the root filesystem before it's mounted, so
+		# let systemd check it (fsck pass 1). ext2 has no journal: after a power cut it
+		# needs the check. Only an ext2/3/4 root still at 0, and only once, so a later
+		# choice of 0 stays.
+		if [ ! -e "$FSCKMARKER" ] && [ -f /etc/fstab ]; then
+			sed -i -E '/^[^#[:space:]]+[[:space:]]+\/[[:space:]]+ext[234][[:space:]]/ s/([[:space:]]+0[[:space:]]+)0[[:space:]]*$/\11/' /etc/fstab
+			mkdir -p "${FSCKMARKER%/*}"
+			touch "$FSCKMARKER"
 		fi
 
 		# Refresh the boot volume on every update, keeping the current mode. This gives

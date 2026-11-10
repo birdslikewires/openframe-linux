@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-settings v26.11.1 (6th November 2026)
+## of-settings v26.11.2 (10th November 2026)
 ##  Bundles a bunch of handy settings into one place.
 
 usage() {
@@ -11,6 +11,7 @@ usage() {
 	echo "  autoxrun <user> <cmd>       :  Command run when Xserver started as <user> (~/.xinitrc)."
 	echo "  efistub <enable|disable>    :  Boots the kernel directly through its EFI stub, skipping GRUB."
 	echo "  grubquiet <enable|disable>  :  Quiet GRUB prints nothing to the screen."
+	echo "  initrd <enable|disable>     :  Boots with an initrd even when the kernel could do without (EFI stub)."
 	echo "  locale <locale>             :  Sets system locale (e.g. en_GB.UTF-8). No argument shows current."
 	echo "  rootssh <enable|disable>    :  Allows password-based authentication for root over SSH."
 	echo "  splash <name>               :  Sets splash screen theme and rebuilds initramfs. No name disables."
@@ -173,6 +174,34 @@ EOF
 		fi
 
 		echo " done."
+		exit 0
+
+	;;
+
+
+	# In EFI stub mode the kernel boots without its initrd whenever it can, which saves
+	# about three seconds (see of-bootnsh). This keeps the initrd instead.
+	initrd)
+
+		if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
+
+			echo -n "Enabling '${1}'..."
+			mkdir -p /var/lib/openframe-scripts
+			touch /var/lib/openframe-scripts/keep-initrd
+
+		else
+
+			echo -n "Disabling '${1}'..."
+			rm -f /var/lib/openframe-scripts/keep-initrd
+
+		fi
+
+		/usr/local/sbin/of-bootnsh || exit 1
+		if grep -q 'initrd=' /boot/boot.nsh || ! grep -q 'vmlinuz' /boot/boot.nsh; then
+			echo " done: the kernel boots with its initrd."
+		else
+			echo " done: the kernel boots without an initrd."
+		fi
 		exit 0
 
 	;;

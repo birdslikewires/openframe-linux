@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.3 (9th November 2026)
+## of-bootnsh v26.11.4 (10th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on.
 ##
 ##  In 'stub' mode the shell starts the kernel directly through its EFI stub. The
@@ -21,6 +21,18 @@
 ##  The initrd and kernel arguments are read from grub.cfg, so anything that
 ##  edits grub.cfg, or installs a kernel, should run this afterwards.
 ##
+##  In 'stub' mode the kernel boots without its initrd whenever it can. It then
+##  finds and mounts the root filesystem itself, which saves about three seconds
+##  per boot: the firmware has no initrd to load, and nothing has to unpack it or
+##  run udev inside it. The kernel needs the USB storage, SCSI disk and root
+##  filesystem drivers built in (its config file in /boot is checked), and the
+##  root given by partition UUID, since it can't resolve LABEL= or UUID= itself.
+##  usb-storage's one-second settle delay goes too: the initrd used to hide it.
+##  It only happens when writing this system's own /boot and the mounted root is
+##  the device grub.cfg names, so never in an image build. Otherwise, or after
+##  'of-settings initrd enable', the initrd is used as before. grub.cfg keeps its
+##  initrd either way, so the GRUB fallback still works.
+##
 ##  On BirdsLikeWires firmware, boot.nsh first runs BlwMac.efi with the WLAN card's
 ##  MAC (/var/lib/of-netplan/wlan.mac), or with no card the LAN MAC of-netplan
 ##  generated (lan.mac). It keeps that in NVRAM, writing only when it changes. On
@@ -28,7 +40,9 @@
 ##  as of-netplan makes it, or the generated one), so any OS started on this unit
 ##  sees it, and makes a UUID from the stored MAC, plus for a card the system's
 ##  serial number. A LAN MAC typed into network.yaml stays Linux's business.
-##  Stock firmware never uses BlwMac.efi, so the line isn't added there. Nor when writing
+##  Stock firmware never uses BlwMac.efi, so the line isn't added there. If the
+##  firmware can't be identified (no SMBIOS and no EFI line in the kernel log, as
+##  after a kexec), lines already in boot.nsh are kept as they are. Nor when writing
 ##  another boot directory (an image build), since the MACs belong to the hardware
 ##  this runs on. A change to the line is noted in the kernel log (dmesg).
 ##  'of-bootnsh mac' refreshes just those lines; of-netplan runs it every boot.
@@ -47,6 +61,7 @@ MACONLY=0
 LANMACFILE="/var/lib/of-netplan/lan.mac"
 WLANMACFILE="/var/lib/of-netplan/wlan.mac"
 MACEFI="/usr/lib/openframe/BlwMac.efi"
+KEEPINITRD="/var/lib/openframe-scripts/keep-initrd"
 
 for arg in "$@"; do
 	case "$arg" in
@@ -78,6 +93,16 @@ local_mac() {
 	(( (16#${1:0:2} & 2) != 0 ))
 }
 
+# The firmware's vendor: from SMBIOS, or else from the kernel's 'efi: EFI v2.0 by
+# <vendor>' line (stock firmware publishes no SMBIOS). Empty if neither is there,
+# as after a kexec, which hands on no firmware tables.
+fw_vendor() {
+	local VENDOR
+	VENDOR=$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)
+	[[ "$VENDOR" != "" ]] || VENDOR=$(dmesg 2>/dev/null | sed -n 's/.*efi: EFI v[0-9.]* by \(.*\)$/\1/p' | head -1)
+	echo "$VENDOR"
+}
+
 # The BlwMac.efi lines for boot.nsh (fs1 then fs0, like the kernel lines), or
 # nothing. They carry the WLAN card's MAC if it's the card's own (burned-in)
 # address: the firmware makes the LAN MAC, serial number and UUID from it. Failing
@@ -86,9 +111,14 @@ local_mac() {
 # since the firmware would take it for a card's. Copies BlwMac.efi to the boot
 # volume if it isn't there already.
 mac_lines() {
-	local MAC
+	local MAC VENDOR
 	[[ "$BOOTDIR" == "/boot" ]] || return 0
-	[[ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" == "BirdsLikeWires" ]] || return 0
+	VENDOR=$(fw_vendor)
+	if [[ "$VENDOR" == "" ]]; then
+		grep 'BlwMac\.efi' "$BOOTNSH" 2>/dev/null	# can't tell: keep what's there
+		return 0
+	fi
+	[[ "$VENDOR" == "BirdsLikeWires" ]] || return 0
 	[ -f "$MACEFI" ] || return 0
 	MAC=$(usable_mac "$WLANMACFILE")
 	if [[ "$MAC" == "" ]] || local_mac "$MAC"; then
@@ -164,6 +194,38 @@ else
 	[[ "$NEWEST" != "" ]] && VERSION="${NEWEST##*/vmlinuz-}"
 fi
 
+# The root partition's UUID if the kernel can boot without its initrd (see the
+# notes at the top), or nothing. $1 is the kernel arguments from grub.cfg.
+direct_root() {
+	local CFG SPEC SRC FSTYPE
+	[[ "$BOOTDIR" == "/boot" ]] || return 0
+	[ -e "$KEEPINITRD" ] && return 0
+	CFG="$BOOTDIR/config-$VERSION"
+	[[ "$VERSION" != "" ]] && [ -f "$CFG" ] || return 0
+	grep -q '^CONFIG_USB_STORAGE=y' "$CFG" && grep -q '^CONFIG_BLK_DEV_SD=y' "$CFG" || return 0
+	SRC=$(findmnt -n -o SOURCE / 2>/dev/null)
+	[ -b "$SRC" ] || return 0
+	# The mounted root must be the device grub.cfg names (in a chroot it isn't).
+	SPEC=$(sed -n 's/.*[[:space:]]root=\([^[:space:]]*\).*/\1/p' <<< " $1")
+	case "$SPEC" in
+		UUID=*) [[ "$(blkid -c /dev/null -s UUID -o value "$SRC")" == "${SPEC#UUID=}" ]] || return 0 ;;
+		LABEL=*) [[ "$(blkid -c /dev/null -s LABEL -o value "$SRC")" == "${SPEC#LABEL=}" ]] || return 0 ;;
+		PARTUUID=*) [[ "$(blkid -c /dev/null -s PARTUUID -o value "$SRC")" == "${SPEC#PARTUUID=}" ]] || return 0 ;;
+		/dev/*) [[ "$(readlink -f "$SPEC")" == "$(readlink -f "$SRC")" ]] || return 0 ;;
+		*) return 0 ;;
+	esac
+	# The kernel must have the root filesystem's driver built in.
+	FSTYPE=$(findmnt -n -o FSTYPE /)
+	case "$FSTYPE" in
+		ext2) grep -q '^CONFIG_EXT2_FS=y' "$CFG" || { grep -q '^CONFIG_EXT4_FS=y' "$CFG" &&
+			grep -q '^CONFIG_EXT4_USE_FOR_EXT2=y' "$CFG"; } || return 0 ;;
+		ext3|ext4) grep -q '^CONFIG_EXT4_FS=y' "$CFG" || return 0 ;;
+		btrfs) grep -q '^CONFIG_BTRFS_FS=y' "$CFG" || return 0 ;;
+		*) return 0 ;;
+	esac
+	blkid -c /dev/null -s PARTUUID -o value "$SRC"
+}
+
 # Points the 'linux' line in grub.cfg at the given kernel file.
 grub_kernel() {
 	sed -i -E "s|^([[:space:]]*linux[[:space:]]+)[^[:space:]]+|\1/$1|" "$GRUBCFG"
@@ -188,8 +250,15 @@ if [[ "$MODE" == "stub" ]]; then
 
 	read -r _ _ ARGS <<< "$(grep -m1 -E '^[[:space:]]*linux[[:space:]]' "$GRUBCFG")"
 
-	# The EFI stub takes the initrd path from the root of the boot volume, with backslashes.
-	[[ "$INITRD" != "" ]] && ARGS="$ARGS initrd=\\${INITRD//\//\\}"
+	ROOTPART=$(direct_root "$ARGS")
+	if [[ "$ROOTPART" != "" ]]; then
+		# No initrd: the kernel mounts root itself, found by partition UUID.
+		ARGS=$(sed -E "s#(^|[[:space:]])root=[^[:space:]]+#\1root=PARTUUID=$ROOTPART#" <<< "$ARGS")
+		ARGS="$ARGS usb-storage.delay_use=0"
+	elif [[ "$INITRD" != "" ]]; then
+		# The EFI stub takes the initrd path from the root of the boot volume, with backslashes.
+		ARGS="$ARGS initrd=\\${INITRD//\//\\}"
+	fi
 
 	{
 		mac_lines
