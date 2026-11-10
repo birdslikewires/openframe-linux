@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 
-## of-flash v26.11.1 (10th November 2026) by Andrew Davison
+## of-flash v26.11.2 (10th November 2026) by Andrew Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
+##  Writes the .img.gz in the image directory (default /boot/reflash) to the
+##  internal MMC after checking it against its .img.gz.md5, then reads the MMC back
+##  to check the write. Firmware (EFI chip) images are no longer handled here: see
+##  https://github.com/birdslikewires/openframe-firmware.
+##
+##  Usage: of-flash [image directory]
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."
@@ -14,19 +20,18 @@ else
 	IMGLOC="/boot/reflash"
 fi
 
-# The image directory is normally on /boot, which is mounted read-only so a power
-# cut can't corrupt it. This makes its filesystem writable until the script exits,
-# if it isn't already. fstab's options are left out of the remount: the kernel
-# refuses /boot's dirsync there.
-BOOTRW=""
-boot_rw() {
-	local MNT
-	[ -z "$BOOTRW" ] || return 0
-	BOOTRW=done
-	MNT=$(findmnt -n -o TARGET --target "$IMGLOC" 2>/dev/null)
-	[ -n "$MNT" ] && findmnt -n -o OPTIONS "$MNT" | grep -qE '(^|,)ro(,|$)' || return 0
-	mount --options-mode ignore -o remount,rw "$MNT" &&
-		trap "sync; mount --options-mode ignore -o remount,ro '$MNT' 2>/dev/null" EXIT
+# The internal memory: the one MMC (not SD) device. Its name depends on the
+# kernel (mmcblk0 on old ones, mmcblk2 on 6.18), so it's found, not assumed.
+internal_mmc() {
+	local B FOUND=""
+	for B in /sys/block/mmcblk*; do
+		[ -e "$B/device/type" ] || continue
+		case "${B##*/}" in *boot*|*rpmb*) continue ;; esac
+		[ "$(cat "$B/device/type")" == "MMC" ] || continue
+		[ -z "$FOUND" ] || return 1
+		FOUND="/dev/${B##*/}"
+	done
+	[ -n "$FOUND" ] && echo "$FOUND"
 }
 
 COLOUR=6
@@ -49,7 +54,7 @@ header() {
 	echo
 	echo
 	tput setaf $COLOUR
-	echo "                                                                        OpenFrame Reflash v1.17"
+	echo "                                                                    OpenFrame Reflash v26.11.2"
 	[ $DEBUG -eq 0 ] && echo "==============================================================================================="
 	[ $DEBUG -ne 0 ] && echo "====== DEBUG =================================================================================="
 	echo "                                                                             birdslikewires.net"
@@ -193,8 +198,47 @@ if [ $FILECOUNT -eq 2 ] && [ $IMGPRESENT -eq 1 ] && [ $CHKPRESENT -eq 1 ]; then
 		echo "   --------------------------------------------------------------------------------------------"
 		tput setaf 7
 		echo
-		[ $DEBUG -eq 0 ] && MMCDEST="/dev/mmcblk0" || MMCDEST="/dev/null"
-		gzip -dc $IMGLOC/$IMG.img.gz | dd of=$MMCDEST bs=1M
+		[ $DEBUG -eq 0 ] && MMCDEST=$(internal_mmc) || MMCDEST="/dev/null"
+		if [ -z "$MMCDEST" ]; then
+			tput setaf 3
+			echo "Can't find this OpenFrame's internal memory (one MMC device); nothing was written."
+			tput sgr0
+			shutitdown $SADSTOP
+			exit 1
+		fi
+		if [ "$MMCDEST" != "/dev/null" ] && [ -n "$(lsblk -n -o MOUNTPOINT "$MMCDEST" | tr -d '[:space:]')" ]; then
+			tput setaf 3
+			echo "Something on $MMCDEST is mounted (is this system running from it?); nothing was written."
+			tput sgr0
+			shutitdown $SADSTOP
+			exit 1
+		fi
+		echo "Writing to $MMCDEST."
+		rm -f /tmp/of-flash.md5 /tmp/of-flash.size
+		gzip -dc $IMGLOC/$IMG.img.gz | tee >(md5sum | cut -d' ' -f1 > /tmp/of-flash.md5.new && mv /tmp/of-flash.md5.new /tmp/of-flash.md5) \
+			>(wc -c > /tmp/of-flash.size.new && mv /tmp/of-flash.size.new /tmp/of-flash.size) |
+			dd of=$MMCDEST bs=1M conv=fsync status=progress
+		# The checksum and size come from processes that can finish just after dd.
+		for i in $(seq 1 30); do [ -s /tmp/of-flash.md5 ] && [ -s /tmp/of-flash.size ] && break; sleep 1; done
+		echo
+		echo -n "Checking what was written..."
+		if [ "$MMCDEST" != "/dev/null" ]; then
+			# Read the MMC itself, not what the kernel still has cached from writing it.
+			blockdev --flushbufs "$MMCDEST"
+			echo 3 > /proc/sys/vm/drop_caches
+			WRITTEN=$(head -c "$(cat /tmp/of-flash.size)" "$MMCDEST" | md5sum | cut -d' ' -f1)
+			if [ "$WRITTEN" != "$(cat /tmp/of-flash.md5)" ]; then
+				echo " it doesn't match the image."
+				tput setaf 3
+				echo
+				echo "    The internal memory doesn't hold what was written to it. Try again; if it fails"
+				echo "    again, the internal memory may be failing."
+				tput sgr0
+				shutitdown $SADSTOP
+				exit 1
+			fi
+		fi
+		echo " it matches the image."
 		sleep 1
 
 		aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
@@ -229,244 +273,18 @@ if [ $FILECOUNT -eq 2 ] && [ $IMGPRESENT -eq 1 ] && [ $CHKPRESENT -eq 1 ]; then
 
 	fi
 
-elif [ $FILECOUNT -eq 2 ] && [ $EFIPRESENT -eq 2 ]; then
+elif [ $EFIPRESENT -gt 0 ]; then
 
-		if [ -e /dev/fh ] && [ -f /tmp/openframe.ver ]; then
-
-			OFVER=`cat /tmp/openframe.ver`
-
-			EFI=`echo "$REFLASHCONTENTS" | head -1 | awk -F\.img {'print $1'}`
-			EFISUM=`cat $IMGLOC/$EFI.img.md5 | awk -F\   {'print $1'}`
-			EFIVER=`echo $EFI | head -1 | awk -F\of {'print $2'} | awk -F\_ {'print $1'}`
-
-			echo -n "Checking integrity of EFI image..."
-
-			if [ "$EFIVER" == "$OFVER" ]; then
-
-				CHECKSUM=`md5sum $IMGLOC/$EFI.img | awk -F\  '{print $1}'`
-				if [ "$CHECKSUM" == "$EFISUM" ]; then
-
-					echo " successful."
-					echo
-					tput setaf $COLOUR
-					echo "   -----------------------------------------------------"
-					echo "    WARNING: OPENFRAME $OFVER EFI FLASHING IS ABOUT TO BEGIN "
-					echo "   -----------------------------------------------------"
-					tput setaf 7
-					echo
-					echo "Flashing will PERMANENTLY OVERWRITE the contents of the boot EFI chip, replacing the data with"
-					echo -n "the "
-					tput setaf $COLOUR
-					echo -n "$EFI.img"
-					tput setaf 7
-					echo " file. This is a potentially dangerous change to your device."
-					echo
-					tput setaf 1
-					echo "   ---------------------------------------------------------------------------"
-					echo "    REFLASHING THE EFI HAS THE POTENTIAL TO RENDER YOUR OPENFRAME UNBOOTABLE! "
-					[ "$OFVER" -eq 2 ] && echo "           YOUR DEVICE HAS A SOLDERED EFI CHIP WHICH CANNOT BE CHANGED!"
-					echo "   ---------------------------------------------------------------------------"
-					tput setaf 7
-					echo
-					
-					echo "The process should take approximately 1 minute to complete."
-					echo
-					echo "To stop this, turn off the power to this device BEFORE THE COUNTDOWN ENDS."
-					echo
-					countdown "Reflash will begin" 30
-					echo
-					sleep 3
-					tput setaf 1
-					echo "   --------------------------------------------------------------------------------------------"
-					echo -n "    Reprogramming EFI boot chip using "
-					tput setaf 7
-					echo -n "'$EFI.img'"
-					tput setaf 1
-					echo " - do not interrupt! "
-					echo "   --------------------------------------------------------------------------------------------"
-					tput setaf 7
-					echo
-					[ $DEBUG -eq 0 ] && EFIDEST="/dev/fh" || EFIDEST="/dev/null"
-					dd if=$IMGLOC/$EFI.img of=$EFIDEST bs=1024k count=1
-					echo
-					sleep 2
-					tput setaf 3
-					echo "   --------------------------------------------------------------------------------------------"
-					echo "    Checking integrity of new EFI boot chip contents... "
-					echo "   --------------------------------------------------------------------------------------------"
-
-					EFIPOSTSUM=`md5sum /dev/fh | awk -F\  {'print $1'}`
-
-					if [ "$EFIPOSTSUM" == "$EFISUM" ]; then
-
-						boot_rw
-						[ ! -d $IMGLOC/complete ] && mkdir $IMGLOC/complete
-						mv $IMGLOC/$EFI.img $IMGLOC/$EFI.img.md5 $IMGLOC/complete/
-
-						aplay -q -f a_law -r 44100 /usr/local/share/sounds/success.au &
-
-						tput setaf $COLOUR
-						echo
-						echo "   -----------------------"
-						echo "    EFI FLASHING COMPLETE "
-						echo "   -----------------------"
-						tput sgr0
-						echo
-						echo "Reprogramming of the EFI chip is complete. The EFI image files have been moved into a"
-						echo "directory named 'complete' to ensure they are not written again accidentally."
-						sleep 1
-						shutitdown $HAPPYSTOP
-
-					else
-
-						aplay -q -f a_law -r 44100 /usr/local/share/sounds/failure.au &
-
-						tput setaf 3
-						echo
-						echo "   ----------------------------------"
-						echo "    EFI FLASHING FAILED VERIFICATION "
-						echo "   ----------------------------------"
-						tput sgr0
-						echo
-						echo "The new contents of the EFI chip compared to the file you were reprogramming it with do not"
-						echo "appear to match. It is possible that there was a write error or a problem with the chip."
-						echo
-						echo "This system will shortly drop you to a shell prompt and advise you on what to do next."
-						echo
-						sleep 1
-						droptoshell 3
-
-						tput setab 3
-						tput setaf 0
-						echo "                                                                                                    "
-						echo "        EFI FLASHING FAILED VERIFICATION - DO NOT POWER OFF OR REBOOT YOUR OPENFRAME DEVICE!        "
-						echo "                                                                                                    "
-
-						echo
-						tput sgr0
-						echo "If the EFI is improperly written, switching off may lead to a situation where the OpenFrame can"
-						echo "no longer boot. It is recommended that you seek advice from the O2 Joggler Forums."
-						echo
-						tput setaf $COLOUR
-						echo "    http://www.jogglerwiki.com/forum"
-						tput setaf 7
-						echo
-						echo "This Reflash Tool contains all of the components necessary to attempt a manual EFI flash. If you"
-						echo "wish to repeat the process with the same image files, enter the following command:"
-						echo
-						tput setaf $COLOUR
-						echo "    sudo offlash"
-						tput setaf 7
-						echo
-						echo "In case you do not have a keyboard attached, a Secure Shell (SSH) server is running which will"
-						echo "allow you to connect to your OpenFrame from a PC using a terminal application such as PuTTY."
-
-						if [ $NETWORKUP -eq 1 ]; then
-
-							echo
-							echo "Your IP address should be displayed at the top of the screen."
-
-						else
-
-							tput setaf 3
-							echo
-							echo "   -----------------------------------------------------------------"
-							echo "    Your system does not appear to have a wired network connection. "
-							echo "   -----------------------------------------------------------------"
-							echo
-							tput setaf 7
-							echo "In case you do not have a keyboard attached, the Reflash Tool will wait until a wired network"
-							echo "connection can be made. Plug an ethernet cable into the socket on the back of your OpenFrame"
-							echo "and connect it to your network. Alternatively, press CTRL-C to exit to the shell prompt."
-							echo
-
-							sleep 10
-							until ping -c 1 -W 1 8.8.8.8 &>/dev/null
-							do
-								sleep 1;
-							done
-
-							echo "Network ready."
-							echo
-							ifconfig eth0 | grep inet | grep -v inet6 | sed 's/^ *//'
-
-						fi
-
-						echo
-						sleep 1
-						exit 0
-
-					fi
-
-				else
-
-					echo " checksum mismatch."
-					echo
-					echo
-					tput setaf 3
-					echo "    The firmware image you have provided does not match the checksum and may be corrupt."
-					echo "    It is possible that there was an error writing the file to this USB device, or that it"
-					echo "    did not download properly."
-					echo
-					echo "    Please try copying the firmware image files to this USB device again and ensure that"
-					echo "    the drive is ejected properly before disconnecting it from your PC. If this process fails"
-					echo "    again, try downloading new copies of the files or use a different USB storage device."
-					echo
-					echo "    If the problem persists, contact the provider of the image files."
-
-				fi
-
-			else
-
-				echo " potentially incompatible firmware."
-				echo
-				echo
-				tput setaf 3
-				echo "    The image you have provided does not appear to have been designed for this OpenFrame $OFVER."
-				echo 
-				echo "    The filename specifies that it was written for the OpenFrame $EFIVER. Compatibility with this"
-				echo "    device cannot be guaranteed. If you are intent on writing this image file then the"
-				echo "    workaround should be obvious, but doing so is not recommended."
-
-			fi
-
-		else
-
-			if [ ! -e /dev/fh ]; then
-
-				echo "Firmware Hub driver unavailable."
-				echo
-				echo
-				tput setaf 3
-				echo "    The driver for the Intel Firmware Hub has not been loaded."
-				echo 
-				echo "    This is a problem with the Reflash System, the cause of which cannot be determined."
-				echo "    Please try rebooting. If the problem continues, please rebuild your Reflash System"
-				echo "    USB stick or seek advice from the O2 Joggler Forums."
-				echo
-				tput setaf $COLOUR
-				echo "        http://www.jogglerwiki.com/forum"
-				tput setaf 7
-
-			fi
-
-			if [ ! -f /tmp/openframe.ver ]; then
-
-				echo "Unable to determine OpenFrame type."
-				echo
-				echo
-				tput setaf 3
-				echo "    The type of OpenFrame device you are using could not be determined."
-				echo 
-				echo "    It is not safe to continue with an EFI reprogramming attempt on unknown hardware."
-				echo "    If you wish to attempt this manually you may do so, but this automated system will"
-				echo "    not help you to proceed."
-
-			fi
-
-		fi
-
-		shutitdown $SADSTOP
+	# Writing a whole firmware image overwrites the chip's NVRAM and boot block too,
+	# which can leave an OpenFrame that won't start. Firmware releases are written a
+	# block at a time, by openframe-firmware's own scripts.
+	tput setaf 3
+	echo "    Firmware (EFI) images are no longer written by the Reflash System."
+	echo
+	echo "    See https://github.com/birdslikewires/openframe-firmware for how to update the"
+	echo "    firmware safely."
+	tput sgr0
+	shutitdown $SADSTOP
 
 else
 
