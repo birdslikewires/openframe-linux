@@ -16,14 +16,16 @@ countdown() {
 	printf "\b\b\b\bnow..."
 }
 
-if [[ "$#" -lt 6 ]]; then
-	echo "Usage: $0 <name> <filesystem> <initramfs> <totalMB> <bootMB> <source> [overlay] [kerneldir]"
+if [[ "$#" -lt 5 ]]; then
+	echo "Usage: $0 <name> <filesystem> <totalMB> <bootMB> <source> [overlay] [kerneldir]"
 	echo
 	echo "  name:            System name. Will be used for filename and partition prefix."
 	echo "  filesystem:      Choose from ext2 or btrfs."
-	echo "  initramfs        Enter '1' to use an initrd, or '0' to boot without it."
 	echo "  totalMB:         The total size of the image file; specify 'of1' or 'of2' for respective internal MMC."
-	echo "  bootMB:          The size of the FAT16 boot volume (8 MB minimum with no initrd, otherwise 32 MB minimum)."
+	echo "  bootMB:          The size of the FAT16 boot volume (32 MB minimum, for the initrd)."
+	echo
+	echo "  Images always carry an initrd. Once installed, the system boots without it whenever"
+	echo "  the kernel can (of-bootnsh), starting from its first boot."
 	echo "  source:          Source of operating system, MUST BE QUOTED. You have two options here:"
 	echo "                      1) Give an official distro name and code name, eg. 'ubuntu bionic'."
 	echo "                      2) Point to a local .tgz file containing boot and root structures."
@@ -57,10 +59,9 @@ if [ "$FS" == "btrfs" ]; then
 	FS="ext2"
 fi
 
-USEINITRD="${3}"
-TSIZE="${4}"
-OFVARIANT="${4}"
-BSIZE="${5}"
+TSIZE="${3}"
+OFVARIANT="${3}"
+BSIZE="${4}"
 
 ## If 'of1' or 'of2' is given for size, create an image that exactly matches the OpenFrame 1 or 2 internal storage.
 ##  On the OpenFrame1 we override the boot partition size to 32MB. This is the minimum size that still allows update-initramfs to work.
@@ -69,14 +70,10 @@ if [[ "$TSIZE" == "of1" ]]; then
 	BYTESSIZE="1028128768"
 	TSIZE="1028"
 
-	if [ $USEINITRD -gt 0 ] && [ $BSIZE -eq 0 ]; then
+	if [ $BSIZE -eq 0 ]; then
 		BSIZE="32"
 		echo
 		echo "OpenFrame 1 boot size set to minimum for initramfs ($BSIZE MB)."
-	elif [ $USEINITRD -eq 0 ] && [ $BSIZE -eq 0 ]; then
-		BSIZE="8"
-		echo
-		echo "OpenFrame 1 boot size set to minimum ($BSIZE MB)."
 	fi
 
 elif [[ "$TSIZE" == "of2" ]]; then
@@ -93,27 +90,21 @@ else
 
 	BYTESSIZE="0"
 
-	if [ $USEINITRD -gt 0 ] && [ $BSIZE -lt 32 ]; then
+	if [ $BSIZE -lt 32 ]; then
 		BSIZE="32"
 		echo
 		echo "Specified boot size too small; overridden to $BSIZE MB to accommodate initramfs."
 	fi
 
-	if [ $USEINITRD -eq 0 ] && [ $BSIZE -lt 8 ]; then
-		BSIZE="8"
-		echo
-		echo "Specified boot size too small; overridden to $BSIZE MB."
-	fi
-
 fi
 
-INSTALL="${6}"
+INSTALL="${5}"
 DISTNAME=$(echo "$INSTALL" | awk -F\  {'print $1'})
 CODENAME=$(echo "$INSTALL" | awk -F\  {'print $2'})
 INSTALL="$CODENAME"
-OVERLAY="${7}"
-KERNELDIR="${8}"
-DBSERVER="${9}"
+OVERLAY="${6}"
+KERNELDIR="${7}"
+DBSERVER="${8}"
 OFF=0
 RSIZE=$(($TSIZE - $BSIZE))
 
@@ -466,11 +457,6 @@ if [[ "$INSTALL" != "" ]]; then
 				sed -i "s/CODENAME/${CODENAME^}/" $BLDLOC/boot/grub.cfg
 				sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
 				sed -i "s/ROOTFST/$FS/" $BLDLOC/boot/grub.cfg
-
-				if [ $USEINITRD -ne 1 ]; then
-					cat $BLDLOC/boot/grub.cfg | grep -v initrd >$BLDLOC/boot/grub.cfg.noinitrd
-					mv $BLDLOC/boot/grub.cfg.noinitrd $BLDLOC/boot/grub.cfg
-				fi
 
 				# Boot the kernel through its EFI stub, with GRUB as the fallback. The kernel
 				# hook runs of-bootnsh again once the kernel is installed in the chroot.
