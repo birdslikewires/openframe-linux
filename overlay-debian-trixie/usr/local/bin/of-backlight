@@ -25,11 +25,15 @@ if [[ ! "${1}" =~ $RE ]] && [ $# -gt 0 ]; then
 	usage
 fi
 
-## See if we can control backlight power to turn off the screen.
+## See if we can control backlight power to turn off the screen. Ask display :0.0
+## by name, as the dpms commands below do: from a service or over SSH there's no
+## DISPLAY set, so a plain 'xset q' always failed.
 XSET=0
 XSETBIN=$(command -v xset)
-DPMSSTATUS=$($XSETBIN q 2>&1)
-[[ "$DPMSSTATUS" =~ "DPMS is Enabled" ]] && XSET=1
+if [ -n "$XSETBIN" ]; then
+	DPMSSTATUS=$($XSETBIN -display :0.0 q 2>&1)
+	[[ "$DPMSSTATUS" =~ "DPMS is Enabled" ]] && XSET=1
+fi
 
 
 ## Feed this ($1) Preferred Backlight ($2) Debug
@@ -116,10 +120,13 @@ else
 fi
 
 
-## Kill any other running instances first.
+## Stop any other running instance first (a fade in progress, or the automatic
+## loop). Only bash running this script matches, not anything else that happens to
+## mention it, like an editor with it open or a 'timeout' wrapper.
 if [ "$1" != "888" ]; then
-	BLPIDS=$(ps aux | grep -v grep | grep -v $$ | grep "$0" | awk -F\  '{print $2}')
-	kill $(echo $BLPIDS) 2>/dev/null
+	for BLPID in $(pgrep -f -- "^([^ ]*/)?bash ([^ ]*/)?$(basename "$0")( |\$)"); do
+		[ "$BLPID" -ne $$ ] && kill "$BLPID" 2>/dev/null
+	done
 fi
 
 
