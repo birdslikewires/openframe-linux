@@ -82,7 +82,7 @@ jobs:
         env:
           KERNEL_VERSION: ${{ steps.kernel.outputs.version }}
         run: |
-          ./of-imgcreate.sh of ext2 uni 46 "debian trixie" \
+          ./of-imgcreate.sh of ext4 uni 46 "debian trixie" \
             ./overlay-debian-trixie "" \
             http://deb.debian.org/debian
 

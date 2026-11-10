@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.4 (9th November 2026)
+## of-netplan v26.11.5 (10th November 2026)
 ##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
@@ -73,6 +73,16 @@ write_netinfo() {
 	[[ "$MACW" == "" ]] && MACW="00:00:00:00:00:00"
 	[[ "$MACE" == "" ]] && MACE="00:00:00:00:00:00"
 	echo "$MACW"/"$MACE"/"$(hostname)" > /tmp/openframe.net
+}
+
+# /boot is mounted read-only, so a power cut can't corrupt it. This makes it writable
+# until the script exits, if it isn't already; whoever made it writable puts it back.
+BOOTRW=""
+boot_rw() {
+	[ -z "$BOOTRW" ] || return 0
+	BOOTRW=done
+	findmnt -n -o OPTIONS /boot 2>/dev/null | grep -qE '(^|,)ro(,|$)' || return 0
+	mount -o remount,rw /boot && trap 'sync; mount -o remount,ro /boot 2>/dev/null' EXIT
 }
 
 # The WLAN card's own (burned-in) MAC, waiting up to $1 seconds for the card to appear
@@ -266,7 +276,7 @@ fi
 
 # Copy the updated config file back to /boot for next time, only if it differs,
 # so an unchanged boot doesn't write to the FAT partition.
-cmp -s /etc/netplan/$NETPLANCONFIG /boot/$NETPLANCONFIG || cp /etc/netplan/$NETPLANCONFIG /boot/$NETPLANCONFIG
+cmp -s /etc/netplan/$NETPLANCONFIG /boot/$NETPLANCONFIG || { boot_rw; cp /etc/netplan/$NETPLANCONFIG /boot/$NETPLANCONFIG; }
 
 # Record the MAC we wrote and where it came from straight away, even if 'netplan apply'
 # fails below: network.yaml already holds it, and next boot must see it as ours.

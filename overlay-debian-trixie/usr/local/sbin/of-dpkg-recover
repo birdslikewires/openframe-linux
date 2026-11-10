@@ -1,0 +1,14 @@
+#!/bin/sh
+
+## of-dpkg-recover v26.11.1 (10th November 2026)
+##  Finishes package operations that a power cut interrupted. A half-installed
+##  package leaves dpkg refusing to do anything else until 'dpkg --configure -a'
+##  is run, which nobody is likely to do on an OpenFrame. Run at every boot by
+##  of-dpkg-recover.service; it does nothing (in about 50 ms) when all is well.
+
+if [ -n "$(ls -A /var/lib/dpkg/updates 2>/dev/null)" ] || [ -n "$(dpkg --audit 2>/dev/null)" ]; then
+	echo "An interrupted package operation was found; finishing it."
+	dpkg --force-confold --configure -a
+fi
+
+exit 0

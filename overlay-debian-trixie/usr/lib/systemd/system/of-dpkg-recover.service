@@ -1,0 +1,12 @@
+[Unit]
+Description=Finish package operations a power cut interrupted
+After=local-fs.target
+ConditionPathIsReadWrite=/
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/of-dpkg-recover
+Environment=DEBIAN_FRONTEND=noninteractive
+
+[Install]
+WantedBy=multi-user.target

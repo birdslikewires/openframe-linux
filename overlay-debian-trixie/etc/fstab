@@ -12,4 +12,4 @@ tmpfs    /var/lib/apt/lists   tmpfs   noatime,size=256M     0    0
 tmpfs    /var/log             tmpfs   noatime,size=16M      0    0
 
 ROOTDEV   /       FS    MOUNTOPTS   0    CHECK
-BOOTDEV   /boot   vfat    defaults                          0    0
+BOOTDEV   /boot   vfat    ro,noatime                        0    2

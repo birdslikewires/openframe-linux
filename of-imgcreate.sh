@@ -20,7 +20,7 @@ if [[ "$#" -lt 5 ]]; then
 	echo "Usage: $0 <name> <filesystem> <totalMB> <bootMB> <source> [overlay] [kerneldir]"
 	echo
 	echo "  name:            System name. Will be used for filename and partition prefix."
-	echo "  filesystem:      Choose from ext2 or btrfs."
+	echo "  filesystem:      ext4 (journaled, recommended: it shrugs off power cuts), ext2 or btrfs."
 	echo "  totalMB:         The total size of the image file; specify 'of1' or 'of2' for respective internal MMC."
 	echo "  bootMB:          The size of the FAT16 boot volume (32 MB minimum, for the initrd)."
 	echo
@@ -254,8 +254,10 @@ filesystems_create() {
 		FSCK="e2fsck -f $ROOTLOOP"
 		;;
 	ext4)
-		echo "ext4 (without journal) configuration."
-		MKFS="mkfs.ext4 -O ^has_journal"
+		# With a journal, a power cut costs a moment's replay at the next mount instead of
+		# a full check. 32 MB is plenty for this workload.
+		echo "ext4 configuration."
+		MKFS="mkfs.ext4 -J size=32"
 		TUNEFS="tune2fs -i 0 $ROOTLOOP"
 		FSCK="e2fsck -f $ROOTLOOP"
 		;;

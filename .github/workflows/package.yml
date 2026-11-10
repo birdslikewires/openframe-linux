@@ -12,6 +12,9 @@ on:
       - 'overlay-*/usr/lib/udev/rules.d/**'
       - 'overlay-*/usr/lib/openframe/**'
       - 'overlay-*/usr/share/initramfs-tools/**'
+      - 'overlay-*/usr/lib/systemd/system/**'
+      - 'overlay-*/usr/lib/sysctl.d/**'
+      - 'overlay-*/etc/dpkg/dpkg.cfg.d/openframe-*'
       - 'package/**'
       - '.github/workflows/package.yml'
   workflow_dispatch:
@@ -61,7 +64,8 @@ jobs:
             paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
               "${overlay_dir}usr/share/kernel" "${overlay_dir}usr/lib/firmware/updates" \
               "${overlay_dir}usr/lib/udev/rules.d" "${overlay_dir}usr/lib/openframe" \
-              "${overlay_dir}usr/share/initramfs-tools" package)
+              "${overlay_dir}usr/share/initramfs-tools" "${overlay_dir}usr/lib/systemd/system" \
+              "${overlay_dir}usr/lib/sysctl.d" "${overlay_dir}etc/dpkg/dpkg.cfg.d/openframe-boot" package)
             month=$(TZ=UTC git log -1 --format=%cd --date=format-local:%y.%m -- "${paths[@]}")
             count=$(TZ=UTC git log --format=%cd --date=format-local:%y.%m -- "${paths[@]}" | grep -cx "${month}")
             version="1:${month%.*}.$((10#${month#*.})).${count}"
@@ -112,9 +116,26 @@ jobs:
               install -m 644 package/triggers "${PKG}/DEBIAN/triggers"
             fi
 
+            # Power-cut hardening: the service that finishes interrupted package operations,
+            # a shorter writeback delay, and the dpkg hook that makes the read-only /boot
+            # writable while dpkg runs (a conffile, so local changes are kept).
+            if [ -d "${overlay_dir}usr/lib/systemd/system" ]; then
+              mkdir -p "${PKG}/usr/lib/systemd/system"
+              install -m 644 "${overlay_dir}usr/lib/systemd/system/"*.service "${PKG}/usr/lib/systemd/system/"
+            fi
+            if [ -d "${overlay_dir}usr/lib/sysctl.d" ]; then
+              mkdir -p "${PKG}/usr/lib/sysctl.d"
+              install -m 644 "${overlay_dir}usr/lib/sysctl.d/"*.conf "${PKG}/usr/lib/sysctl.d/"
+            fi
+            if [ -f "${overlay_dir}etc/dpkg/dpkg.cfg.d/openframe-boot" ]; then
+              mkdir -p "${PKG}/etc/dpkg/dpkg.cfg.d"
+              install -m 644 "${overlay_dir}etc/dpkg/dpkg.cfg.d/openframe-boot" "${PKG}/etc/dpkg/dpkg.cfg.d/"
+              echo /etc/dpkg/dpkg.cfg.d/openframe-boot > "${PKG}/DEBIAN/conffiles"
+            fi
+
             install -m 755 package/postinst "${PKG}/DEBIAN/postinst"
 
-            printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
+            printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash, dosfstools, e2fsprogs\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
               "${version}" > "${PKG}/DEBIAN/control"
 
             dpkg-deb --build --root-owner-group "${PKG}"

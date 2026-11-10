@@ -47,7 +47,9 @@
 ##  this runs on. A change to the line is noted in the kernel log (dmesg).
 ##  'of-bootnsh mac' refreshes just those lines; of-netplan runs it every boot.
 ##
-##  boot.nsh is only rewritten when its contents change.
+##  boot.nsh is only rewritten when its contents change. /boot is normally mounted
+##  read-only, so a power cut can't corrupt it: this makes it writable only when
+##  something has to change, and puts it back afterwards.
 ##
 ##  Usage: of-bootnsh [stub|grub] [quiet|normal] [boot directory]
 ##         of-bootnsh mac
@@ -62,6 +64,7 @@ LANMACFILE="/var/lib/of-netplan/lan.mac"
 WLANMACFILE="/var/lib/of-netplan/wlan.mac"
 MACEFI="/usr/lib/openframe/BlwMac.efi"
 KEEPINITRD="/var/lib/openframe-scripts/keep-initrd"
+NEWNSH=""
 
 for arg in "$@"; do
 	case "$arg" in
@@ -76,6 +79,30 @@ done
 
 GRUBCFG="$BOOTDIR/grub.cfg"
 BOOTNSH="$BOOTDIR/boot.nsh"
+
+# /boot is mounted read-only, so a power cut can't corrupt it. This makes the boot
+# directory's filesystem writable until we exit, if it isn't already; whoever made it
+# writable puts it back.
+BOOTRW=0
+RESTORE=""
+boot_rw() {
+	local MNT
+	[ "$BOOTRW" -eq 0 ] || return 0
+	BOOTRW=1
+	MNT=$(findmnt -n -o TARGET --target "$BOOTDIR" 2>/dev/null)
+	[ -n "$MNT" ] && findmnt -n -o OPTIONS "$MNT" | grep -qE '(^|,)ro(,|$)' || return 0
+	mount -o remount,rw "$MNT" && RESTORE="$MNT"
+}
+
+# On the way out: drop the new boot.nsh if it's still about, and put /boot back.
+cleanup() {
+	[ -n "$NEWNSH" ] && rm -f "$NEWNSH"
+	if [ -n "$RESTORE" ]; then
+		sync
+		mount -o remount,ro "$RESTORE" 2>/dev/null
+	fi
+}
+trap cleanup EXIT
 
 # The MAC in file $1, in lower case, if it's unicast and not all zero.
 usable_mac() {
@@ -108,8 +135,8 @@ fw_vendor() {
 # address: the firmware makes the LAN MAC, serial number and UUID from it. Failing
 # that, the LAN MAC if it was generated (no card): the firmware uses it as it is,
 # and for a UUID. Anything else (a typed-in LAN MAC with no card) isn't passed on,
-# since the firmware would take it for a card's. Copies BlwMac.efi to the boot
-# volume if it isn't there already.
+# since the firmware would take it for a card's. (install_macefi puts BlwMac.efi
+# on the boot volume.)
 mac_lines() {
 	local MAC VENDOR
 	[[ "$BOOTDIR" == "/boot" ]] || return 0
@@ -125,19 +152,28 @@ mac_lines() {
 		MAC=$(usable_mac "$LANMACFILE")
 		[[ "$MAC" != "" ]] && local_mac "$MAC" || return 0
 	fi
-	cmp -s "$MACEFI" "$BOOTDIR/BlwMac.efi" || cp "$MACEFI" "$BOOTDIR/BlwMac.efi" || return 0
 	printf 'fs1:\\BlwMac.efi %s\nfs0:\\BlwMac.efi %s\n' "$MAC" "$MAC"
 }
 
-# Puts boot.nsh.new in place, unless it's the same as what's there. A changed
-# BlwMac.efi line goes in the kernel log: NVRAM follows at the next boot.
+# Copies BlwMac.efi to the boot volume if boot.nsh ($1) runs it and it's missing or old.
+install_macefi() {
+	grep -q 'BlwMac\.efi' "$1" && [ -f "$MACEFI" ] || return 0
+	cmp -s "$MACEFI" "$BOOTDIR/BlwMac.efi" && return 0
+	boot_rw
+	cp "$MACEFI" "$BOOTDIR/BlwMac.efi"
+}
+
+# Puts the new boot.nsh ($NEWNSH, built outside /boot) in place, unless it's the
+# same as what's there. A changed BlwMac.efi line goes in the kernel log: NVRAM
+# follows at the next boot.
 install_bootnsh() {
 	local NEW MAC SAYS
-	if cmp -s "$BOOTNSH.new" "$BOOTNSH"; then
-		rm -f "$BOOTNSH.new"
+	install_macefi "$NEWNSH"
+	if cmp -s "$NEWNSH" "$BOOTNSH"; then
+		rm -f "$NEWNSH"
 		return
 	fi
-	NEW=$(grep -m1 'BlwMac\.efi' "$BOOTNSH.new")
+	NEW=$(grep -m1 'BlwMac\.efi' "$NEWNSH")
 	if [[ "$NEW" != "" ]] && [[ "$NEW" != "$(grep -m1 'BlwMac\.efi' "$BOOTNSH" 2>/dev/null)" ]]; then
 		read -r _ MAC <<< "$NEW"
 		if local_mac "$MAC"; then
@@ -147,14 +183,18 @@ install_bootnsh() {
 		fi
 		echo "<5>of-bootnsh: NVRAM gets $SAYS at next boot." > /dev/kmsg 2>/dev/null
 	fi
-	mv -f "$BOOTNSH.new" "$BOOTNSH"
+	boot_rw
+	cp "$NEWNSH" "$BOOTNSH.new" && mv -f "$BOOTNSH.new" "$BOOTNSH"
+	rm -f "$NEWNSH"
 	sync
 }
+
+NEWNSH=$(mktemp /run/of-bootnsh.XXXXXX 2>/dev/null || mktemp)
 
 # BlwLanMac.efi was BlwMac.efi's name before firmware 26.11.20; its lines go too.
 if [[ $MACONLY -eq 1 ]]; then
 	[ -f "$BOOTNSH" ] || exit 1
-	{ mac_lines; grep -v -E 'Blw(Lan)?Mac\.efi' "$BOOTNSH"; } > "$BOOTNSH.new"
+	{ mac_lines; grep -v -E 'Blw(Lan)?Mac\.efi' "$BOOTNSH"; } > "$NEWNSH"
 	install_bootnsh
 	exit 0
 fi
@@ -226,8 +266,10 @@ direct_root() {
 	blkid -c /dev/null -s PARTUUID -o value "$SRC"
 }
 
-# Points the 'linux' line in grub.cfg at the given kernel file.
+# Points the 'linux' line in grub.cfg at the given kernel file, if it doesn't already.
 grub_kernel() {
+	grep -q -E "^[[:space:]]*linux[[:space:]]+/$1([[:space:]]|\$)" "$GRUBCFG" && return 0
+	boot_rw
 	sed -i -E "s|^([[:space:]]*linux[[:space:]]+)[^[:space:]]+|\1/$1|" "$GRUBCFG"
 }
 
@@ -236,11 +278,13 @@ if [[ "$MODE" == "stub" ]]; then
 	# A freshly installed kernel replaces the previous vmlinuz.efi. -s, not -f: an
 	# empty file is our placeholder, and moving it would leave nothing to boot.
 	if [[ "$VERSION" != "" ]] && [ -s "$BOOTDIR/vmlinuz-$VERSION" ]; then
+		boot_rw
 		mv -f "$BOOTDIR/vmlinuz-$VERSION" "$BOOTDIR/$KERNELEFI"
 	fi
 
 	if [ -s "$BOOTDIR/$KERNELEFI" ]; then
 		if [[ "$VERSION" != "" ]] && [ ! -e "$BOOTDIR/vmlinuz-$VERSION" ]; then
+			boot_rw
 			: > "$BOOTDIR/vmlinuz-$VERSION"
 		fi
 	else
@@ -264,12 +308,13 @@ if [[ "$MODE" == "stub" ]]; then
 		mac_lines
 		printf 'fs1:%s %s\nfs1:%s\nfs0:%s %s\nfs0:%s\n' \
 			"${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI"
-	} > "$BOOTNSH.new"
+	} > "$NEWNSH"
 
 else
 
 	if [ -f "$BOOTDIR/$KERNELEFI" ]; then
 		[[ "$VERSION" == "" ]] && VERSION=$(uname -r)
+		boot_rw
 		if [ -s "$BOOTDIR/vmlinuz-$VERSION" ]; then
 			# A real kernel is already under its own name, so vmlinuz.efi is stale.
 			rm -f "$BOOTDIR/$KERNELEFI"
@@ -283,7 +328,7 @@ else
 	{
 		mac_lines
 		printf 'fs1:%s\nfs0:%s\n' "$GRUBEFI" "$GRUBEFI"
-	} > "$BOOTNSH.new"
+	} > "$NEWNSH"
 
 fi
 
