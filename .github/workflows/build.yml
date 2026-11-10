@@ -89,6 +89,9 @@ jobs:
       # a later one), or the image gets the previous version's scripts.
       - name: Wait for openframe-scripts in apt repository
         run: |
+          # The checkout belongs to another user than the container's root, and the
+          # exception actions/checkout makes for that doesn't outlast its own step.
+          git config --global --add safe.directory "$PWD"
           version=$(bash package/version.sh overlay-debian-trixie/)
           url="https://linux.openbeak.net/dists/trixie/main/binary-i386/Packages"
           for attempt in $(seq 1 60); do
