@@ -16,21 +16,24 @@ ROOTPARTNO="${ROOTDEV: -1}"
 
 echo "Root is on $ROOTDEV (disk: $DISKDEV, partition: $ROOTPARTNO)."
 
-# Remove tmpfs fstab entries.
-sed -i '/\/var\/cache\/apt/d' /etc/fstab
-sed -i '/\/var\/lib\/apt\/lists/d' /etc/fstab
-sed -i '/\/tmp/d' /etc/fstab
-
 TMPDIR=/run growpart $DISKDEV $ROOTPARTNO > /dev/null
 GPRET=$?
 if [ $GPRET -eq 1 ]; then
-	echo "Partition already at maximum size."
+	# The image already fills the disk: the 1 GB internal memory of an OpenFrame 1.
+	# /tmp and apt's files stay in RAM there, to save space and wear.
+	echo "Partition already at maximum size; keeping /tmp and apt's files in RAM."
+	exit 0
 elif [ $GPRET -ne 0 ]; then
 	echo "growpart failed (exit $GPRET). Skipping filesystem resize."
 	exit 1
 fi
 
 resize2fs $ROOTDEV > /dev/null
+
+# A bigger drive has room for /tmp and apt's files on disk, so drop their tmpfs.
+sed -i '/\/var\/cache\/apt/d' /etc/fstab
+sed -i '/\/var\/lib\/apt\/lists/d' /etc/fstab
+sed -i -E '/^[^#[:space:]]+[[:space:]]+\/tmp[[:space:]]/d' /etc/fstab
 
 echo "Done."
 
