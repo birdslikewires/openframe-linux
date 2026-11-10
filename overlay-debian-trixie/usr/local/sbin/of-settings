@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-settings v26.11.3 (10th November 2026)
+## of-settings v26.11.4 (10th November 2026)
 ##  Bundles a bunch of handy settings into one place.
 
 usage() {
@@ -9,6 +9,8 @@ usage() {
 	echo "  autologin [user]            :  Enables or disables automatic login on tty1."
 	echo "  autoxinit [user]            :  Enables or disables running Xserver at boot as <user> with systemd."
 	echo "  autoxrun <user> <cmd>       :  Command run when Xserver started as <user> (~/.xinitrc)."
+	echo "  bootrw <enable|disable>     :  Makes /boot writable for editing, until disabled or the next boot."
+	echo "                                 No argument shows which it is."
 	echo "  efistub <enable|disable>    :  Boots the kernel directly through its EFI stub, skipping GRUB."
 	echo "  grubquiet <enable|disable>  :  Quiet GRUB prints nothing to the screen."
 	echo "  initrd <enable|disable>     :  Boots with an initrd even when the kernel could do without (EFI stub)."
@@ -183,6 +185,49 @@ EOF
 			fi
 
 		fi
+
+	;;
+
+
+	# /boot is mounted read-only so a power cut can't corrupt it (see of-bootnsh). This
+	# makes it writable for editing by hand, until it's disabled or the next boot. The
+	# OpenFrame scripts leave an already writable /boot as it is.
+	bootrw)
+
+		BOOTOPTS=$(findmnt -n -o OPTIONS /boot 2>/dev/null)
+		if [[ "$BOOTOPTS" == "" ]]; then
+			echo "/boot isn't mounted."
+			exit 1
+		fi
+
+		if [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
+
+			if ! grep -qE '(^|,)ro(,|$)' <<< "$BOOTOPTS"; then
+				echo "/boot is already writable."
+				exit 0
+			fi
+			echo -n "Making /boot writable..."
+			# fstab's options are left out: the kernel refuses its dirsync on a remount.
+			mount --options-mode ignore -o remount,rw /boot || exit 1
+			echo " done. 'sudo of-settings bootrw disable', or the next boot, makes it read-only again."
+
+		elif [[ "${2}" == "disable" ]] || [[ "${2}" == "0" ]]; then
+
+			if grep -qE '(^|,)ro(,|$)' <<< "$BOOTOPTS"; then
+				echo "/boot is already read-only."
+				exit 0
+			fi
+			echo -n "Making /boot read-only..."
+			sync
+			mount --options-mode ignore -o remount,ro /boot || exit 1
+			echo " done."
+
+		elif grep -qE '(^|,)ro(,|$)' <<< "$BOOTOPTS"; then
+			echo "/boot is read-only."
+		else
+			echo "/boot is writable."
+		fi
+		exit 0
 
 	;;
 
