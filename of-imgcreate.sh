@@ -276,17 +276,13 @@ filesystems_create() {
 mmc_cfg() {
 	if [[ "$OFVARIANT" == "of1" ]] || [[ "$OFVARIANT" == "of2" ]]; then
 		echo
-		echo -n "Configuring internal memory GRUB and FSTAB settings..."
+		echo -n "Configuring internal memory boot settings..."
 
-		# Point /etc/fstab to the internal memory.
-		EXISTINGROOTLOCATION=$(cat $MP/etc/fstab | grep $FS | awk -F\  {'print $1'})
-		sed -i "s,$EXISTINGROOTLOCATION,/dev/mmcblk0p2," $MP/etc/fstab
-		EXISTINGBOOTLOCATION=$(cat $MP/etc/fstab | grep "/boot" | awk -F\  {'print $1'})
-		sed -i "s,$EXISTINGBOOTLOCATION,/dev/mmcblk0p1," $MP/etc/fstab
-
-		# Point /boot/grub.cfg to the internal memory, and boot.nsh with it.
-		sed -i "s,$EXISTINGROOTLOCATION,/dev/mmcblk0p2," $MP/boot/grub.cfg
-		[ -f $MP/usr/local/sbin/of-bootnsh ] && bash $MP/usr/local/sbin/of-bootnsh $MP/boot >/dev/null
+		# fstab and grub.cfg keep naming the partitions by label: the internal memory's
+		# kernel name varies (mmcblk0, 1 or 2), and first boot (of-identifier) gives
+		# them unique identifiers. The firmware can't start the kernel from the
+		# internal memory, so it always boots through GRUB.
+		[ -f $MP/usr/local/sbin/of-bootnsh ] && bash $MP/usr/local/sbin/of-bootnsh grub $MP/boot >/dev/null
 
 		echo " done."
 	fi
