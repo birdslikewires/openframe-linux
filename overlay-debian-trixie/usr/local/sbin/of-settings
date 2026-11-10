@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-settings v26.11.4 (10th November 2026)
+## of-settings v26.11.5 (10th November 2026)
 ##  Bundles a bunch of handy settings into one place.
 
 usage() {
@@ -24,15 +24,14 @@ usage() {
 }
 
 # /boot is mounted read-only, so a power cut can't corrupt it. This makes it writable
-# until the script exits, if it isn't already; whoever made it writable puts it back.
-# fstab's options are left out of the remount: the kernel refuses its dirsync there.
+# until the script exits (/usr/lib/openframe/bootrw keeps it writable while any other
+# writer still needs it, and puts it back after the last).
 BOOTRW=""
 boot_rw() {
 	[ -z "$BOOTRW" ] || return 0
+	/usr/lib/openframe/bootrw open || return 1
 	BOOTRW=done
-	findmnt -n -o OPTIONS /boot 2>/dev/null | grep -qE '(^|,)ro(,|$)' || return 0
-	mount --options-mode ignore -o remount,rw /boot &&
-		trap 'sync; mount --options-mode ignore -o remount,ro /boot 2>/dev/null' EXIT
+	trap '/usr/lib/openframe/bootrw close' EXIT
 }
 
 # Replaces file $2 on /boot with a copy of $1. FAT has no journal and writes its
@@ -202,25 +201,27 @@ EOF
 
 		if [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
 
-			if ! grep -qE '(^|,)ro(,|$)' <<< "$BOOTOPTS"; then
+			if [ -e /run/openframe-bootrw/held ]; then
 				echo "/boot is already writable."
 				exit 0
 			fi
 			echo -n "Making /boot writable..."
-			# fstab's options are left out: the kernel refuses its dirsync on a remount.
-			mount --options-mode ignore -o remount,rw /boot || exit 1
+			/usr/lib/openframe/bootrw hold || exit 1
 			echo " done. 'sudo of-settings bootrw disable', or the next boot, makes it read-only again."
 
 		elif [[ "${2}" == "disable" ]] || [[ "${2}" == "0" ]]; then
 
-			if grep -qE '(^|,)ro(,|$)' <<< "$BOOTOPTS"; then
+			if [ ! -e /run/openframe-bootrw/held ] && grep -qE '(^|,)ro(,|$)' <<< "$BOOTOPTS"; then
 				echo "/boot is already read-only."
 				exit 0
 			fi
 			echo -n "Making /boot read-only..."
-			sync
-			mount --options-mode ignore -o remount,ro /boot || exit 1
-			echo " done."
+			/usr/lib/openframe/bootrw release || exit 1
+			if findmnt -n -o OPTIONS /boot | grep -qE '(^|,)ro(,|$)'; then
+				echo " done."
+			else
+				echo " it will be once the package installation or script writing to it finishes."
+			fi
 
 		elif grep -qE '(^|,)ro(,|$)' <<< "$BOOTOPTS"; then
 			echo "/boot is read-only."

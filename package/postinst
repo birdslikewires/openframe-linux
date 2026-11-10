@@ -41,7 +41,8 @@ case "$1" in
 			if /usr/local/sbin/of-bootnsh stub; then
 				mkdir -p "${MARKER%/*}"
 				touch "$MARKER"
-				echo "OpenFrame now boots the kernel through its EFI stub. To go back to GRUB, run 'sudo of-settings efistub disable'."
+				grep -q vmlinuz /boot/boot.nsh &&
+					echo "OpenFrame now boots the kernel through its EFI stub. To go back to GRUB, run 'sudo of-settings efistub disable'."
 			else
 				echo "Could not switch to EFI stub boot; GRUB boot is unchanged."
 			fi

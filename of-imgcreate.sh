@@ -24,8 +24,9 @@ if [[ "$#" -lt 5 ]]; then
 	echo "  totalMB:         The total size of the image file; specify 'of1' or 'of2' for respective internal MMC."
 	echo "  bootMB:          The size of the FAT16 boot volume (32 MB minimum, for the initrd)."
 	echo
-	echo "  Images always carry an initrd. Once installed, the system boots without it whenever"
-	echo "  the kernel can (of-bootnsh), starting from its first boot."
+	echo "  Images boot through GRUB with an initrd, which works from any disk. From its first boot"
+	echo "  the system starts the kernel directly, without the initrd whenever it can (of-bootnsh),"
+	echo "  except from an OpenFrame's internal memory."
 	echo "  source:          Source of operating system, MUST BE QUOTED. You have two options here:"
 	echo "                      1) Give an official distro name and code name, eg. 'ubuntu bionic'."
 	echo "                      2) Point to a local .tgz file containing boot and root structures."
@@ -460,9 +461,11 @@ if [[ "$INSTALL" != "" ]]; then
 				sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
 				sed -i "s/ROOTFST/$FS/" $BLDLOC/boot/grub.cfg
 
-				# Boot the kernel through its EFI stub, with GRUB as the fallback. The kernel
-				# hook runs of-bootnsh again once the kernel is installed in the chroot.
-				bash $BLDLOC/usr/local/sbin/of-bootnsh stub $BLDLOC/boot >/dev/null
+				# Images boot through GRUB, which works from any disk: the firmware can't
+				# start the kernel directly from an OpenFrame's internal memory. First boot
+				# (of-identifier) switches to the EFI stub wherever it can. The kernel hook
+				# runs of-bootnsh again once the kernel is installed in the chroot.
+				bash $BLDLOC/usr/local/sbin/of-bootnsh grub $BLDLOC/boot >/dev/null
 
 				# Replace the placeholders in fstab
 				sed -i "s/BOOTDEV/LABEL=$BNAME/" $BLDLOC/etc/fstab

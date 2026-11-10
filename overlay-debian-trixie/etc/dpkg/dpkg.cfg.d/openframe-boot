@@ -1,6 +1,6 @@
 # OpenFrame: /boot is mounted read-only, so a power cut can't corrupt it. Let dpkg
 # (and the kernel and initramfs-tools hooks it runs) write to it, then put it back.
-# Only when fstab says read-only, and never in a chroot (an image build). fstab's
-# options are left out: the kernel refuses its dirsync on a remount.
-pre-invoke=if ! systemd-detect-virt -q --chroot && findmnt --fstab -n -o OPTIONS /boot 2>/dev/null | grep -qE '(^|,)ro(,|$)'; then mount --options-mode ignore -o remount,rw /boot; fi; true
-post-invoke=if ! systemd-detect-virt -q --chroot && findmnt --fstab -n -o OPTIONS /boot 2>/dev/null | grep -qE '(^|,)ro(,|$)'; then sync; mount --options-mode ignore -o remount,ro /boot; fi; true
+# /usr/lib/openframe/bootrw does nothing in a chroot (an image build) or when /boot
+# isn't mounted read-only, and keeps it writable while another writer needs it.
+pre-invoke=if [ -x /usr/lib/openframe/bootrw ]; then /usr/lib/openframe/bootrw open; fi; true
+post-invoke=if [ -x /usr/lib/openframe/bootrw ]; then /usr/lib/openframe/bootrw close; fi; true

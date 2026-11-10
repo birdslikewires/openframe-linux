@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.5 (10th November 2026)
+## of-bootnsh v26.11.6 (10th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on.
 ##
 ##  In 'stub' mode the shell starts the kernel directly through its EFI stub. The
@@ -55,6 +55,13 @@
 ##  grub.cfg whose kernel line has no root= leaves boot.nsh as it is. Files that
 ##  fsck.fat recovered after a power cut (FSCKnnnn.REC) are removed.
 ##
+##  On the internal memory (MMC) it always boots through GRUB: the firmware's own
+##  file loading freezes reading a file the size of the kernel from the MMC, which
+##  GRUB reads without trouble.
+##
+##  Runs of this one at a time take turns (a lock in /run), so two at once (say
+##  of-identifier and of-netplan at first boot) can't undo each other's boot.nsh.
+##
 ##  Usage: of-bootnsh [stub|grub] [quiet|normal] [boot directory]
 ##         of-bootnsh mac
 ##  Modes not given are kept from the existing boot.nsh.
@@ -84,10 +91,13 @@ done
 GRUBCFG="$BOOTDIR/grub.cfg"
 BOOTNSH="$BOOTDIR/boot.nsh"
 
+# One run at a time, so that two can't each rewrite boot.nsh from what they read.
+{ exec 8> /run/of-bootnsh.lock; } 2>/dev/null && flock 8
+
 # /boot is mounted read-only, so a power cut can't corrupt it. This makes the boot
-# directory's filesystem writable until we exit, if it isn't already; whoever made it
-# writable puts it back. fstab's options are left out of the remount: the kernel
-# refuses its dirsync there.
+# directory's filesystem writable until we exit, if it isn't already: /boot through
+# /usr/lib/openframe/bootrw, which keeps it writable while another writer still needs
+# it; any other read-only mount (rare) directly, leaving fstab's options out.
 BOOTRW=0
 RESTORE=""
 boot_rw() {
@@ -95,6 +105,10 @@ boot_rw() {
 	[ "$BOOTRW" -eq 0 ] || return 0
 	BOOTRW=1
 	MNT=$(findmnt -n -o TARGET --target "$BOOTDIR" 2>/dev/null)
+	if [[ "$MNT" == "/boot" ]] && [ -x /usr/lib/openframe/bootrw ]; then
+		/usr/lib/openframe/bootrw open && RESTORE="bootrw"
+		return
+	fi
 	[ -n "$MNT" ] && findmnt -n -o OPTIONS "$MNT" | grep -qE '(^|,)ro(,|$)' || return 0
 	mount --options-mode ignore -o remount,rw "$MNT" && RESTORE="$MNT"
 }
@@ -111,7 +125,9 @@ boot_put() {
 # On the way out: drop the new boot.nsh if it's still about, and put /boot back.
 cleanup() {
 	[ -n "$NEWNSH" ] && rm -f "$NEWNSH"
-	if [ -n "$RESTORE" ]; then
+	if [[ "$RESTORE" == "bootrw" ]]; then
+		/usr/lib/openframe/bootrw close
+	elif [ -n "$RESTORE" ]; then
 		sync
 		mount --options-mode ignore -o remount,ro "$RESTORE" 2>/dev/null
 	fi
@@ -233,6 +249,18 @@ if [[ "$MODE" == "" ]]; then
 	else
 		MODE="stub"
 	fi
+fi
+
+# True if the boot directory is on the internal memory (an MMC).
+on_mmc() {
+	local SRC
+	SRC=$(findmnt -n -o SOURCE --target "$BOOTDIR" 2>/dev/null)
+	[ -b "$SRC" ] && [[ "$(lsblk -n -o PKNAME "$SRC" 2>/dev/null | head -1)" == mmcblk* ]]
+}
+
+if [[ "$MODE" == "stub" ]] && on_mmc; then
+	echo "The firmware can't start the kernel from internal memory directly; booting through GRUB."
+	MODE="grub"
 fi
 
 if [[ "$GRUBEFI" == "" ]]; then

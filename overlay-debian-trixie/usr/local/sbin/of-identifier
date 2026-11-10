@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v26.11.5 (10th November 2026)
+## of-identifier v26.11.6 (10th November 2026)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -87,15 +87,14 @@ if [ ! "$OPENFRAME" -eq 1 ] && [ ! "$OPENFRAME" -eq 2 ]; then
 fi
 
 # /boot is mounted read-only, so a power cut can't corrupt it. This makes it writable
-# until the script exits, if it isn't already; whoever made it writable puts it back.
-# fstab's options are left out of the remount: the kernel refuses its dirsync there.
+# until the script exits (/usr/lib/openframe/bootrw keeps it writable while any other
+# writer still needs it, and puts it back after the last).
 BOOTRW=""
 boot_rw() {
 	[ -z "$BOOTRW" ] || return 0
+	/usr/lib/openframe/bootrw open || return 1
 	BOOTRW=done
-	findmnt -n -o OPTIONS /boot 2>/dev/null | grep -qE '(^|,)ro(,|$)' || return 0
-	mount --options-mode ignore -o remount,rw /boot &&
-		trap 'sync; mount --options-mode ignore -o remount,ro /boot 2>/dev/null' EXIT
+	trap '/usr/lib/openframe/bootrw close' EXIT
 }
 
 # Replaces file $2 on /boot with a copy of $1. FAT has no journal and writes its
@@ -127,6 +126,7 @@ if [ -f /etc/firstboot ]; then
 	# and fstab and grub.cfg follow it; the labels (BOOTxxxx, ROOTxxxx) and the root
 	# filesystem's UUID change too. Each step leaves the unit bootable: if the power
 	# goes part way, /etc/firstboot is still there and this runs again.
+	BOOTNSHDONE=""
 	ROOTLOC=$(findmnt -n -o SOURCE /)
 	BOOTLOC=$(findmnt -n -o SOURCE /boot)
 	DISK="/dev/$(lsblk -n -o PKNAME "$ROOTLOC" 2>/dev/null | head -1)"
@@ -137,6 +137,22 @@ if [ -f /etc/firstboot ]; then
 	if [ -b "$ROOTLOC" ] && [ -b "$BOOTLOC" ] && [ -b "$DISK" ] &&
 	   [ "$(lsblk -n -o PKNAME "$BOOTLOC" | head -1)" == "${DISK#/dev/}" ] &&
 	   [ "$(blkid -c /dev/null -o value -s PTTYPE "$DISK")" == "dos" ]; then
+
+		# systemd checks /boot at boot (its fsck pass) through a unit tied to the name
+		# fstab mounts it by, and stopping that unit (as happens when the name goes away
+		# below) unmounts /boot. So the check comes out of this boot's /boot mount until
+		# the names are final. The pass number is saved in case the power goes first.
+		PASSFILE="/var/lib/openframe-scripts/firstboot-bootpass"
+		set_bootpass() {
+			sed -i -E "/^[^#[:space:]]+[[:space:]]+\/boot[[:space:]]/ s/([[:space:]])[0-9]+[[:space:]]*\$/\1$1/" /etc/fstab
+		}
+		if [ ! -s "$PASSFILE" ]; then
+			mkdir -p "${PASSFILE%/*}"
+			awk '$1 !~ /^#/ && $2 == "/boot" { print $6 }' /etc/fstab > "$PASSFILE"
+			sync
+		fi
+		set_bootpass 0
+		systemctl daemon-reload
 
 		DISKID=""
 		until [[ "$DISKID" =~ ^0x[0-9a-f]{8}$ ]] && [[ "$DISKID" != "0x00000000" ]]; do
@@ -153,8 +169,8 @@ if [ -f /etc/firstboot ]; then
 			# fstab and grub.cfg name the partitions by partition UUID from now on.
 			sed -i -E "s#^[^\#[:space:]]+([[:space:]]+/[[:space:]])#PARTUUID=$ROOTPART\1#; s#^[^\#[:space:]]+([[:space:]]+/boot[[:space:]])#PARTUUID=$BOOTPART\1#" /etc/fstab
 			boot_sed "s#root=[^[:space:]]*#root=PARTUUID=$ROOTPART#" /boot/grub.cfg
-			systemctl daemon-reload
-			[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh
+			[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh stub
+			BOOTNSHDONE=1
 
 			# Nothing finds the partitions by label or filesystem UUID any more, so
 			# these (and the boot volume's serial number) only need to differ from
@@ -167,14 +183,22 @@ if [ -f /etc/firstboot ]; then
 			echo "The disk's new identifier didn't take ($DISKID: root $ROOTPART, boot $BOOTPART); identifiers left as they were."
 		fi
 
+		# /boot is checked at boot again from the next one.
+		set_bootpass "$(cat "$PASSFILE" 2>/dev/null || echo 2)"
+		sync
+		rm -f "$PASSFILE"
+		systemctl daemon-reload
+
 	else
 		echo "Can't find a partitioned disk holding both / and /boot; identifiers left as they were."
 	fi
 
-	# Write boot.nsh for this unit. An image is built without knowing whether its
-	# kernel can boot this unit without an initrd (of-bootnsh checks the running
-	# system), so it starts out with one.
-	[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh
+	# Write boot.nsh for this unit, if that wasn't done above. Images boot through
+	# GRUB, which works from any disk: from here on the kernel starts directly from
+	# its EFI stub, without the initrd if it can (of-bootnsh checks the running
+	# system), except on the internal memory, which the firmware can't start the
+	# kernel from.
+	[ -z "$BOOTNSHDONE" ] && [ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh stub
 
 	# Set a sensible default audio level and enable auto-mute.
 	amixer -c 0 sset 'Master' 50% unmute >/dev/null 2>&1

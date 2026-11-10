@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+## bootrw v26.11.1 (10th November 2026)
+##  Makes /boot writable while something writes to it, and read-only again after.
+##  /boot is mounted read-only so a power cut can't corrupt it (FAT has no journal).
+##  Used by the OpenFrame scripts, dpkg's hooks and 'of-settings bootrw'.
+##
+##  Writers can overlap (at first boot of-identifier and of-netplan both write), so
+##  they're counted: the first 'open' makes /boot writable and the last 'close' puts
+##  it back. 'hold' keeps it writable until 'release', for editing by hand. The
+##  count lives in /run, so a reboot clears anything left over, and /boot is mounted
+##  read-only from fstab again.
+##
+##  Only a /boot that is mounted read-only is touched: if it's mounted writable
+##  (fstab says so, or it isn't mounted at all), or this runs in a chroot (an image
+##  build), every action does nothing. Remounts leave fstab's options out, since the
+##  kernel refuses /boot's dirsync on a remount.
+##
+##  Usage: bootrw open|close|hold|release
+
+STATE="/run/openframe-bootrw"
+MNT="/boot"
+
+systemd-detect-virt -q --chroot 2>/dev/null && exit 0
+
+mkdir -p "$STATE" || exit 1
+exec 9> "$STATE/lock"
+flock 9
+
+COUNT=$(cat "$STATE/count" 2>/dev/null)
+[[ "$COUNT" =~ ^[0-9]+$ ]] || COUNT=0
+
+mounted_ro() {
+	findmnt -n -o OPTIONS "$MNT" 2>/dev/null | grep -qE '(^|,)ro(,|$)'
+}
+
+make_rw() {
+	if mounted_ro; then
+		mount --options-mode ignore -o remount,rw "$MNT" || return 1
+		touch "$STATE/opened"
+	fi
+	return 0
+}
+
+# Read-only again, but only if this made it writable and nobody still needs it.
+make_ro() {
+	[ "$COUNT" -eq 0 ] && [ ! -e "$STATE/held" ] && [ -e "$STATE/opened" ] || return 0
+	sync
+	mount --options-mode ignore -o remount,ro "$MNT" && rm -f "$STATE/opened"
+}
+
+case "$1" in
+	open)
+		make_rw || exit 1
+		echo $((COUNT + 1)) > "$STATE/count"
+		;;
+	close)
+		[ "$COUNT" -gt 0 ] && COUNT=$((COUNT - 1))
+		echo "$COUNT" > "$STATE/count"
+		make_ro
+		;;
+	hold)
+		make_rw || exit 1
+		touch "$STATE/held"
+		;;
+	release)
+		rm -f "$STATE/held"
+		# Made writable by hand rather than through here: read-only again all the same.
+		if [ "$COUNT" -eq 0 ] && ! mounted_ro && findmnt -n "$MNT" >/dev/null &&
+		   findmnt --fstab -n -o OPTIONS "$MNT" 2>/dev/null | grep -qE '(^|,)ro(,|$)'; then
+			touch "$STATE/opened"
+		fi
+		make_ro
+		;;
+	*)
+		sed -n 's/^## \{0,1\}//p' "$0"
+		exit 1
+		;;
+esac
+
+exit 0

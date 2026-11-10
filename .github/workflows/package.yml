@@ -101,7 +101,10 @@ jobs:
             # BlwMac.efi, which of-bootnsh copies to /boot on BirdsLikeWires firmware.
             if [ -d "${overlay_dir}usr/lib/openframe" ]; then
               mkdir -p "${PKG}/usr/lib/openframe"
-              install -m 644 "${overlay_dir}usr/lib/openframe/"* "${PKG}/usr/lib/openframe/"
+              for f in "${overlay_dir}usr/lib/openframe/"*; do
+                [ -x "$f" ] && mode=755 || mode=644
+                install -m "$mode" "$f" "${PKG}/usr/lib/openframe/"
+              done
             fi
 
             # initramfs-tools settings for a small initrd: only the modules the root
