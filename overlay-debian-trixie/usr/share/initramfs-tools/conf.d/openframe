@@ -1,0 +1,6 @@
+# OpenFrame: build the initrd with only the modules listed in modules.d/openframe,
+# instead of 'most' (123 modules, NFS and USB network adapters among them). Everything
+# else the root filesystem needs (USB host controllers, SCSI disks, IDE, SD/MMC, ext4)
+# is built into the kernel, so a small initrd unpacks faster at every boot.
+# 'dep' isn't an option: images are built on another machine, whose hardware it would pick.
+MODULES=list

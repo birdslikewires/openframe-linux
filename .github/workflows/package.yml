@@ -11,6 +11,7 @@ on:
       - 'overlay-*/usr/lib/firmware/updates/**'
       - 'overlay-*/usr/lib/udev/rules.d/**'
       - 'overlay-*/usr/lib/openframe/**'
+      - 'overlay-*/usr/share/initramfs-tools/**'
       - 'package/**'
       - '.github/workflows/package.yml'
   workflow_dispatch:
@@ -59,7 +60,8 @@ jobs:
             # YYYYMMDD-1 versions.
             paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
               "${overlay_dir}usr/share/kernel" "${overlay_dir}usr/lib/firmware/updates" \
-              "${overlay_dir}usr/lib/udev/rules.d" "${overlay_dir}usr/lib/openframe" package)
+              "${overlay_dir}usr/lib/udev/rules.d" "${overlay_dir}usr/lib/openframe" \
+              "${overlay_dir}usr/share/initramfs-tools" package)
             month=$(TZ=UTC git log -1 --format=%cd --date=format-local:%y.%m -- "${paths[@]}")
             count=$(TZ=UTC git log --format=%cd --date=format-local:%y.%m -- "${paths[@]}" | grep -cx "${month}")
             version="1:${month%.*}.$((10#${month#*.})).${count}"
@@ -96,6 +98,18 @@ jobs:
             if [ -d "${overlay_dir}usr/lib/openframe" ]; then
               mkdir -p "${PKG}/usr/lib/openframe"
               install -m 644 "${overlay_dir}usr/lib/openframe/"* "${PKG}/usr/lib/openframe/"
+            fi
+
+            # initramfs-tools settings for a small initrd: only the modules the root
+            # filesystem needs (MODULES=list), and no udev hardware database. The trigger
+            # has initramfs-tools rebuild the initrd once the package is installed.
+            if [ -d "${overlay_dir}usr/share/initramfs-tools" ]; then
+              mkdir -p "${PKG}/usr/share/initramfs-tools"
+              cp -R "${overlay_dir}usr/share/initramfs-tools/." "${PKG}/usr/share/initramfs-tools/"
+              find "${PKG}/usr/share/initramfs-tools" -type d -exec chmod 755 {} +
+              find "${PKG}/usr/share/initramfs-tools" -type f -exec chmod 644 {} +
+              chmod 755 "${PKG}/usr/share/initramfs-tools/hooks/"*
+              install -m 644 package/triggers "${PKG}/DEBIAN/triggers"
             fi
 
             install -m 755 package/postinst "${PKG}/DEBIAN/postinst"

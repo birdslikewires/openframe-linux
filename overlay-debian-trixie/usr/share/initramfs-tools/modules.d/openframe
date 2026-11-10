@@ -1,0 +1,8 @@
+# OpenFrame initrd modules (with MODULES=list, see conf.d/openframe).
+# The root filesystem on a USB stick:
+usb-storage
+uas
+# A USB keyboard for the initrd's rescue shell:
+usbhid
+hid-generic
+# A boot splash (plymouth) from the initrd would also need gma500_gfx here.

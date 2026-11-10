@@ -1,0 +1,11 @@
+#!/bin/sh
+# OpenFrame: leave udev's hardware database out of the initrd. It is 13 MB, a third of the
+# unpacked initrd, and only maps devices to names and properties, which finding and mounting
+# the root filesystem doesn't need. The real system's udev uses its own copy.
+PREREQ="udev"
+prereqs() { echo "$PREREQ"; }
+case "$1" in
+	prereqs) prereqs; exit 0 ;;
+esac
+rm -f "${DESTDIR}/usr/lib/udev/hwdb.bin" "${DESTDIR}/etc/udev/hwdb.bin"
+exit 0
