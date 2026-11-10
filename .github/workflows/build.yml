@@ -51,7 +51,8 @@ jobs:
               echo "Failed to get kernel version from openframe-kernel releases."
               exit 1
             fi
-            echo "version=$version" >> $GITHUB_OUTPUT
+            # With the v too, so a tested artifact has the release's file name.
+            echo "version=v$version" >> $GITHUB_OUTPUT
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

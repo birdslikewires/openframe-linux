@@ -1,0 +1,94 @@
+name: image-publish
+run-name: image publish from run ${{ inputs.run_id }}
+
+# Publishes an image an earlier push build already made, as the GitHub Release for
+# its kernel, replacing any release that kernel already has. For when the image
+# changes but the kernel version doesn't (the daily check only builds for a new
+# kernel tag): test the build's artifact, then publish that same image instead of
+# building another.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'The image-build-publish run whose image to publish (the number at the end of its URL)'
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: build-image
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      RUN_ID: ${{ inputs.run_id }}
+
+    steps:
+      - name: Check the build
+        id: run
+        run: |
+          read -r name conclusion branch event sha < <(gh run view "$RUN_ID" --repo "$REPO" \
+            --json workflowName,conclusion,headBranch,event,headSha \
+            --jq '[.workflowName, .conclusion, .headBranch, .event, .headSha] | @tsv')
+          if [ "$name" != "image-build-publish" ] || [ "$conclusion" != "success" ] || [ "$branch" != "main" ]; then
+            echo "Run $RUN_ID isn't a successful image build from main ($name, $conclusion, $branch)."
+            exit 1
+          fi
+          if [ "$event" != "push" ]; then
+            echo "Run $RUN_ID was started by $event; only push builds keep their image as an artifact."
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download the image
+        run: |
+          gh run download "$RUN_ID" --repo "$REPO" --name openframe-trixie --dir image
+          cd image
+          md5sum -c *.img.gz.md5
+
+      # Release files carry the kernel tag with its v (builds before 26.11 left it out),
+      # and the check workflow finds the release by that tag.
+      - name: Name the image after its kernel
+        id: image
+        run: |
+          cd image
+          img=$(ls *.img.gz)
+          [ "$(echo "$img" | wc -l)" -eq 1 ] || { echo "Expected one image, found: $img"; exit 1; }
+          base="${img%.img.gz}"
+          version="${base##*-}"
+          version="${version#v}"
+          if ! echo "$version" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "Can't find the kernel version in $img."
+            exit 1
+          fi
+          tag="v$version"
+          new="${base%-*}-$tag.img.gz"
+          if [ "$new" != "$img" ]; then
+            mv "$img" "$new"
+            rm -f "$img.md5"
+            md5sum "$new" > "$new.md5"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          ls -l
+
+      - name: Replace the release
+        env:
+          TAG: ${{ steps.image.outputs.tag }}
+          SHA: ${{ steps.run.outputs.sha }}
+        run: |
+          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+            echo "Replacing the $TAG release."
+            gh release delete "$TAG" --repo "$REPO" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" image/*.img.gz image/*.img.gz.md5 \
+            --repo "$REPO" \
+            --target "$SHA" \
+            --title "OpenFrame Trixie $TAG" \
+            --notes "Debian Trixie image built with kernel $TAG, from ${SHA:0:7} (build run $RUN_ID)."
