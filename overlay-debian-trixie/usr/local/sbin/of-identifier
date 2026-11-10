@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v26.11.4 (10th November 2026)
+## of-identifier v26.11.5 (10th November 2026)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -120,27 +120,55 @@ if [ -f /etc/firstboot ]; then
 
 	boot_rw
 
-	# Apply a new UUID to the root partition and rename boot and root to avoid conflicts.
-	CODEPRE=${VERSION_CODENAME:0:3}
-	BOOTLOC=$(blkid | grep ${CODEPRE^^}-BOOT | awk -F\: {'print $1'})
-	ROOTLOC=$(blkid | grep ${CODEPRE^^}-ROOT | awk -F\: {'print $1'})
-	NEWUUID=$(uuid)
-	NEWUUIDSHORT="${NEWUUID:0:4}"
+	# Give this unit's disk identifiers nothing else shares. The same image is written
+	# to sticks and to the internal memory, and with two copies attached a boot from
+	# one could otherwise mount the other's root. The kernel finds root by partition
+	# UUID, which comes from the disk's partition-table ID, so that gets a random one
+	# and fstab and grub.cfg follow it; the labels (BOOTxxxx, ROOTxxxx) and the root
+	# filesystem's UUID change too. Each step leaves the unit bootable: if the power
+	# goes part way, /etc/firstboot is still there and this runs again.
+	ROOTLOC=$(findmnt -n -o SOURCE /)
+	BOOTLOC=$(findmnt -n -o SOURCE /boot)
+	DISK="/dev/$(lsblk -n -o PKNAME "$ROOTLOC" 2>/dev/null | head -1)"
+	NEWUUID=$(cat /proc/sys/kernel/random/uuid)
+	NEWSHORT="${NEWUUID:0:4}"
+	NEWSHORT="${NEWSHORT^^}"
 
-	if [[ "$BOOTLOC" != "" ]]; then
-		sed -i 's/LABEL='${CODEPRE^^}'-BOOT/LABEL='BOOT${NEWUUIDSHORT^^}'/g' /etc/fstab
-		dosfslabel $BOOTLOC "BOOT${NEWUUIDSHORT^^}" >/dev/null 2>&1
-	else
-		echo "Change of label aborted. Cannot find the boot partition labelled '${CODEPRE^^}-BOOT'."
-	fi
+	if [ -b "$ROOTLOC" ] && [ -b "$BOOTLOC" ] && [ -b "$DISK" ] &&
+	   [ "$(lsblk -n -o PKNAME "$BOOTLOC" | head -1)" == "${DISK#/dev/}" ] &&
+	   [ "$(blkid -c /dev/null -o value -s PTTYPE "$DISK")" == "dos" ]; then
 
-	if [[ "$ROOTLOC" != "" ]]; then
-		tune2fs $ROOTLOC -U $NEWUUID >/dev/null
-		boot_sed 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /boot/grub.cfg
-		sed -i 's/LABEL='${CODEPRE^^}'-ROOT/UUID='$NEWUUID'/g' /etc/fstab
-		e2label $ROOTLOC "ROOT${NEWUUIDSHORT^^}"
+		DISKID=""
+		until [[ "$DISKID" =~ ^0x[0-9a-f]{8}$ ]] && [[ "$DISKID" != "0x00000000" ]]; do
+			DISKID="0x$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
+		done
+		# sfdisk complains it can't re-read the table of a disk in use; the check below
+		# reads the new identifier back instead.
+		sfdisk --quiet --no-reread --disk-id "$DISK" "$DISKID" 2>/dev/null
+		udevadm trigger --settle "$DISK" "$ROOTLOC" "$BOOTLOC"
+		ROOTPART=$(blkid -c /dev/null -o value -s PARTUUID "$ROOTLOC")
+		BOOTPART=$(blkid -c /dev/null -o value -s PARTUUID "$BOOTLOC")
+
+		if [ "${ROOTPART%-*}" == "${DISKID#0x}" ] && [ "${BOOTPART%-*}" == "${DISKID#0x}" ]; then
+			# fstab and grub.cfg name the partitions by partition UUID from now on.
+			sed -i -E "s#^[^\#[:space:]]+([[:space:]]+/[[:space:]])#PARTUUID=$ROOTPART\1#; s#^[^\#[:space:]]+([[:space:]]+/boot[[:space:]])#PARTUUID=$BOOTPART\1#" /etc/fstab
+			boot_sed "s#root=[^[:space:]]*#root=PARTUUID=$ROOTPART#" /boot/grub.cfg
+			systemctl daemon-reload
+			[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh
+
+			# Nothing finds the partitions by label or filesystem UUID any more, so
+			# these (and the boot volume's serial number) only need to differ from
+			# other disks'.
+			fatlabel "$BOOTLOC" "BOOT$NEWSHORT" >/dev/null 2>&1
+			fatlabel -i "$BOOTLOC" "$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')" >/dev/null 2>&1
+			e2label "$ROOTLOC" "ROOT$NEWSHORT"
+			tune2fs -U "$NEWUUID" "$ROOTLOC" >/dev/null
+		else
+			echo "The disk's new identifier didn't take ($DISKID: root $ROOTPART, boot $BOOTPART); identifiers left as they were."
+		fi
+
 	else
-		echo "Change of UUID aborted. Cannot find the root partition labelled '${CODEPRE^^}-ROOT'."
+		echo "Can't find a partitioned disk holding both / and /boot; identifiers left as they were."
 	fi
 
 	# Write boot.nsh for this unit. An image is built without knowing whether its
