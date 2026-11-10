@@ -9,6 +9,13 @@
  *
  * Intel E82802AC8
  * SST   49LF008A
+ *
+ * It loads only if it finds one of those two (1 MB, 64 KB blocks), and
+ * reading /dev/fh is always allowed. Writing needs the module loaded with
+ * writable=1, and even then a write that would change NVRAM (block 0) or the
+ * boot block (blocks 14 and 15) is refused unless unprotect=1 is given too:
+ * a bad write there leaves a board that won't start, and on an OpenFrame 2
+ * the chip is soldered in. Both can only be set when the module is loaded.
  */
 
 #include <linux/delay.h>
@@ -31,6 +38,17 @@
 
 #define FH_BLOCK_SIZE		0x00010000
 #define FH_BLOCK_MASK		((FH_BLOCK_SIZE) - 1)
+
+/* NVRAM, and the boot block: refused unless unprotect=1 */
+#define FH_PROTECTED(baddr)	((baddr) < 0x00010000 || (baddr) >= 0x000E0000)
+
+static bool writable;
+module_param(writable, bool, 0444);
+MODULE_PARM_DESC(writable, "Allow writing the chip (default: read only)");
+
+static bool unprotect;
+module_param(unprotect, bool, 0444);
+MODULE_PARM_DESC(unprotect, "Also allow changing NVRAM (block 0) and the boot block (blocks 14-15)");
 
 /* Give up rather than spin forever if the chip never reports done */
 #define FH_ERASE_POLLS		67	/* x 150 ms, about 10 s (Intel) */
@@ -291,6 +309,10 @@ static int fh_open(struct inode *inode, struct file *file)
 {
 	int ret = -EIO;
 
+	if ((file->f_mode & FMODE_WRITE) && !writable) {
+		printk("fh: read only; load the module with writable=1 to write the chip\n");
+		return -EPERM;
+	}
 	if (down_interruptible(&fh.sem)) {
 		return -ERESTARTSYS;
 	}
@@ -340,6 +362,10 @@ static int fh_release(struct inode *inode, struct file *file)
  *
  * The file position advances by each block written, including on a
  * failure part way through, so it always reflects what reached the chip.
+ *
+ * Without unprotect=1, a write that would change a protected block is
+ * refused before any block is touched, so it can't leave the chip half
+ * written. Protected blocks that already match are allowed (and skipped).
  */
 static ssize_t fh_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
 {
@@ -364,8 +390,28 @@ static ssize_t fh_write(struct file *filp, const char __user *buf, size_t count,
 		return -EINVAL;
 	}
 
+	if (!writable) {
+		return -EPERM;
+	}
+
 	if (down_interruptible(&fh.sem)) {
 		return -ERESTARTSYS;
+	}
+	if (!unprotect) {
+		for (baddr = foffs; baddr < (foffs + count); baddr += FH_BLOCK_SIZE) {
+			if (!FH_PROTECTED(baddr)) {
+				continue;
+			}
+			if (copy_from_user(fh.buffer, buf + (baddr - foffs), FH_BLOCK_SIZE)) {
+				ret = -EFAULT;
+				goto out;
+			}
+			if (memcmp((char *)fh.vdata + baddr, fh.buffer, FH_BLOCK_SIZE)) {
+				printk("fh: block 0x%08lx is NVRAM or the boot block; nothing written (load with unprotect=1 to change it)\n", baddr);
+				ret = -EPERM;
+				goto out;
+			}
+		}
 	}
 	for (baddr = foffs; baddr < (foffs + count); baddr += FH_BLOCK_SIZE) {
 		if (copy_from_user(fh.buffer, buf, FH_BLOCK_SIZE)) {
@@ -378,6 +424,12 @@ static ssize_t fh_write(struct file *filp, const char __user *buf, size_t count,
 			printk("fh: block 0x%08lx unchanged, skipped\n", baddr);
 			*f_pos = baddr + FH_BLOCK_SIZE;
 			continue;
+		}
+		/* Checked above, but the caller's buffer could have changed since */
+		if (!unprotect && FH_PROTECTED(baddr)) {
+			printk("fh: block 0x%08lx is NVRAM or the boot block; not written\n", baddr);
+			ret = -EPERM;
+			goto out;
 		}
 
 		if ((ret = fh.unlock(baddr)) < 0) goto out;
