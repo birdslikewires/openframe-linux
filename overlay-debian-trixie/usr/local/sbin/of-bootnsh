@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.6 (10th November 2026)
+## of-bootnsh v26.11.7 (10th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on.
 ##
 ##  In 'stub' mode the shell starts the kernel directly through its EFI stub. The
@@ -29,9 +29,10 @@
 ##  root given by partition UUID, since it can't resolve LABEL= or UUID= itself.
 ##  usb-storage's one-second settle delay goes too: the initrd used to hide it.
 ##  It only happens when writing this system's own /boot and the mounted root is
-##  the device grub.cfg names, so never in an image build. Otherwise, or after
-##  'of-settings initrd enable', the initrd is used as before. grub.cfg keeps its
-##  initrd either way, so the GRUB fallback still works.
+##  the device grub.cfg names, so never in an image build. On the internal memory
+##  (MMC) the kernel needs the MMC drivers built in instead, and keeps usb-storage's
+##  delay. Otherwise, or after 'of-settings initrd enable', the initrd is used as
+##  before. grub.cfg keeps its initrd either way, so the GRUB fallback still works.
 ##
 ##  On BirdsLikeWires firmware, boot.nsh first runs BlwMac.efi with the WLAN card's
 ##  MAC (/var/lib/of-netplan/wlan.mac), or with no card the LAN MAC of-netplan
@@ -55,9 +56,16 @@
 ##  grub.cfg whose kernel line has no root= leaves boot.nsh as it is. Files that
 ##  fsck.fat recovered after a power cut (FSCKnnnn.REC) are removed.
 ##
-##  On the internal memory (MMC) it always boots through GRUB: the firmware's own
-##  file loading freezes reading a file the size of the kernel from the MMC, which
-##  GRUB reads without trouble.
+##  On the internal memory (MMC), the firmware's MMC driver reads the wrong sectors
+##  past the first megabyte of a file, so the stock firmware starts a corrupted
+##  kernel there, which hangs; GRUB reads in small pieces and is fine. BirdsLikeWires
+##  firmware 26.11.22 and later fixes the driver, and the kernel starts directly as
+##  from a stick. With any other firmware boot.nsh first runs BlwMmcFix.efi, which
+##  fixes it until the next reset, and starts the kernel only if that worked: if the
+##  app doesn't recognise the driver it fails, and the shell goes on to GRUB. If the
+##  firmware can't be identified, or BlwMmcFix.efi isn't installed, the internal
+##  memory boots through GRUB. 'of-bootnsh mac' (every boot) redoes these lines if
+##  the firmware has changed since they were written.
 ##
 ##  Runs of this one at a time take turns (a lock in /run), so two at once (say
 ##  of-identifier and of-netplan at first boot) can't undo each other's boot.nsh.
@@ -74,6 +82,7 @@ MACONLY=0
 LANMACFILE="/var/lib/of-netplan/lan.mac"
 WLANMACFILE="/var/lib/of-netplan/wlan.mac"
 MACEFI="/usr/lib/openframe/BlwMac.efi"
+MMCFIXEFI="/usr/lib/openframe/BlwMmcFix.efi"
 KEEPINITRD="/var/lib/openframe-scripts/keep-initrd"
 NEWNSH=""
 
@@ -185,11 +194,36 @@ mac_lines() {
 	printf 'fs1:\\BlwMac.efi %s\nfs0:\\BlwMac.efi %s\n' "$MAC" "$MAC"
 }
 
-# Copies BlwMac.efi to the boot volume if boot.nsh ($1) runs it and it's missing or old.
-install_macefi() {
-	grep -q 'BlwMac\.efi' "$1" && [ -f "$MACEFI" ] || return 0
-	cmp -s "$MACEFI" "$BOOTDIR/BlwMac.efi" && return 0
-	boot_put "$MACEFI" "$BOOTDIR/BlwMac.efi"
+# Copies app $2 (BlwMac.efi, BlwMmcFix.efi) to the boot volume if boot.nsh ($1)
+# runs it and it's missing or old.
+install_efi() {
+	local NAME="${2##*/}"
+	grep -q "${NAME//./\\.}" "$1" && [ -f "$2" ] || return 0
+	cmp -s "$2" "$BOOTDIR/$NAME" && return 0
+	boot_put "$2" "$BOOTDIR/$NAME"
+}
+
+# True if the boot directory is on the internal memory (an MMC).
+on_mmc() {
+	local SRC
+	SRC=$(findmnt -n -o SOURCE --target "$BOOTDIR" 2>/dev/null)
+	[ -b "$SRC" ] && [[ "$(lsblk -n -o PKNAME "$SRC" 2>/dev/null | head -1)" == mmcblk* ]]
+}
+
+# How the kernel can start from the internal memory (see the notes at the top):
+# 'direct' (BirdsLikeWires firmware 26.11.22 or later), 'fix' (other firmware,
+# through BlwMmcFix.efi), or nothing (unknown firmware, or no BlwMmcFix.efi): GRUB.
+mmc_start() {
+	local VENDOR VERSION
+	VENDOR=$(fw_vendor)
+	[[ "$VENDOR" != "" ]] || return 0
+	VERSION=$(cat /sys/class/dmi/id/bios_version 2>/dev/null)
+	if [[ "$VENDOR" == "BirdsLikeWires" ]] && [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
+	   [[ "$(printf '%s\n' 26.11.22 "$VERSION" | sort -V | head -1)" == "26.11.22" ]]; then
+		echo direct
+	elif [ -f "$MMCFIXEFI" ]; then
+		echo fix
+	fi
 }
 
 # Puts the new boot.nsh ($NEWNSH, built outside /boot) in place, unless it's the
@@ -197,7 +231,8 @@ install_macefi() {
 # follows at the next boot.
 install_bootnsh() {
 	local NEW MAC SAYS
-	install_macefi "$NEWNSH"
+	install_efi "$NEWNSH" "$MACEFI"
+	install_efi "$NEWNSH" "$MMCFIXEFI"
 	if cmp -s "$NEWNSH" "$BOOTNSH"; then
 		rm -f "$NEWNSH"
 		return
@@ -229,6 +264,20 @@ remove_rec() {
 NEWNSH=$(mktemp /run/of-bootnsh.XXXXXX 2>/dev/null || mktemp)
 remove_rec
 
+# A boot.nsh that starts the kernel from the internal memory must suit the firmware
+# there now: one written for older firmware (with BlwMmcFix.efi) goes to GRUB once
+# the firmware fixes the driver itself, and the other way round the kernel would
+# hang. If they don't match, boot.nsh is rewritten in full, keeping its modes.
+if [[ $MACONLY -eq 1 ]] && [[ "$BOOTDIR" == "/boot" ]] && grep -q 'vmlinuz' "$BOOTNSH" 2>/dev/null && on_mmc; then
+	HASFIX=0
+	grep -q 'BlwMmcFix\.efi' "$BOOTNSH" && HASFIX=1
+	case "$(mmc_start)" in
+		direct) [ $HASFIX -eq 0 ] || MACONLY=0 ;;
+		fix) [ $HASFIX -eq 1 ] || MACONLY=0 ;;
+		*) [[ "$(fw_vendor)" == "" ]] || MACONLY=0 ;;	# unknown firmware (kexec): leave it
+	esac
+fi
+
 # BlwLanMac.efi was BlwMac.efi's name before firmware 26.11.20; its lines go too.
 if [[ $MACONLY -eq 1 ]]; then
 	[ -f "$BOOTNSH" ] || exit 1
@@ -251,16 +300,14 @@ if [[ "$MODE" == "" ]]; then
 	fi
 fi
 
-# True if the boot directory is on the internal memory (an MMC).
-on_mmc() {
-	local SRC
-	SRC=$(findmnt -n -o SOURCE --target "$BOOTDIR" 2>/dev/null)
-	[ -b "$SRC" ] && [[ "$(lsblk -n -o PKNAME "$SRC" 2>/dev/null | head -1)" == mmcblk* ]]
-}
-
+MMCFIX=0
 if [[ "$MODE" == "stub" ]] && on_mmc; then
-	echo "The firmware can't start the kernel from internal memory directly; booting through GRUB."
-	MODE="grub"
+	case "$(mmc_start)" in
+		direct) ;;
+		fix) MMCFIX=1 ;;
+		*)	echo "This firmware may not start the kernel from internal memory directly; booting through GRUB."
+			MODE="grub" ;;
+	esac
 fi
 
 if [[ "$GRUBEFI" == "" ]]; then
@@ -289,16 +336,23 @@ fi
 # 'anyway', the kernel's config isn't checked: for when there's no initrd to boot
 # with, and our kernels' built-in drivers are the only chance.
 direct_root() {
-	local CFG SPEC SRC FSTYPE
+	local CFG SPEC SRC FSTYPE DRV D
 	[[ "$BOOTDIR" == "/boot" ]] || return 0
 	CFG="$BOOTDIR/config-$VERSION"
+	SRC=$(findmnt -n -o SOURCE / 2>/dev/null)
+	[ -b "$SRC" ] || return 0
 	if [[ "$2" != "anyway" ]]; then
 		[ -e "$KEEPINITRD" ] && return 0
 		[[ "$VERSION" != "" ]] && [ -f "$CFG" ] || return 0
-		grep -q '^CONFIG_USB_STORAGE=y' "$CFG" && grep -q '^CONFIG_BLK_DEV_SD=y' "$CFG" || return 0
+		if [[ "$(lsblk -n -o PKNAME "$SRC" 2>/dev/null | head -1)" == mmcblk* ]]; then
+			DRV="MMC MMC_BLOCK MMC_SDHCI MMC_SDHCI_PCI"
+		else
+			DRV="USB_STORAGE BLK_DEV_SD"
+		fi
+		for D in $DRV; do
+			grep -q "^CONFIG_$D=y" "$CFG" || return 0
+		done
 	fi
-	SRC=$(findmnt -n -o SOURCE / 2>/dev/null)
-	[ -b "$SRC" ] || return 0
 	# The mounted root must be the device grub.cfg names (in a chroot it isn't).
 	SPEC=$(sed -n 's/.*[[:space:]]root=\([^[:space:]]*\).*/\1/p' <<< " $1")
 	case "$SPEC" in
@@ -367,7 +421,7 @@ if [[ "$MODE" == "stub" ]]; then
 	if [[ "$ROOTPART" != "" ]]; then
 		# No initrd: the kernel mounts root itself, found by partition UUID.
 		ARGS=$(sed -E "s#(^|[[:space:]])root=[^[:space:]]+#\1root=PARTUUID=$ROOTPART#" <<< "$ARGS")
-		ARGS="$ARGS usb-storage.delay_use=0"
+		on_mmc || ARGS="$ARGS usb-storage.delay_use=0"
 	elif [[ "$INITRD" != "" ]]; then
 		# The EFI stub takes the initrd path from the root of the boot volume, with backslashes.
 		ARGS="$ARGS initrd=\\${INITRD//\//\\}"
@@ -375,8 +429,14 @@ if [[ "$MODE" == "stub" ]]; then
 
 	{
 		mac_lines
-		printf 'fs1:%s %s\nfs1:%s\nfs0:%s %s\nfs0:%s\n' \
-			"${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI"
+		if [ $MMCFIX -eq 1 ]; then
+			# The kernel only if BlwMmcFix.efi worked (the shell's lasterror is 0), else GRUB.
+			printf 'fs0:\\BlwMmcFix.efi\nif %%lasterror%% == 0 then\n  fs1:%s %s\n  fs0:%s %s\nendif\nfs1:%s\nfs0:%s\n' \
+				"${KERNELEFI%.efi}" "$ARGS" "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" "$GRUBEFI"
+		else
+			printf 'fs1:%s %s\nfs1:%s\nfs0:%s %s\nfs0:%s\n' \
+				"${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI"
+		fi
 	} > "$NEWNSH"
 
 else

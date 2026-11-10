@@ -25,8 +25,8 @@ if [[ "$#" -lt 5 ]]; then
 	echo "  bootMB:          The size of the FAT16 boot volume (32 MB minimum, for the initrd)."
 	echo
 	echo "  Images boot through GRUB with an initrd, which works from any disk. From its first boot"
-	echo "  the system starts the kernel directly, without the initrd whenever it can (of-bootnsh),"
-	echo "  except from an OpenFrame's internal memory."
+	echo "  the system starts the kernel directly, without the initrd whenever it can (of-bootnsh);"
+	echo "  from an OpenFrame's internal memory as its firmware allows."
 	echo "  source:          Source of operating system, MUST BE QUOTED. You have two options here:"
 	echo "                      1) Give an official distro name and code name, eg. 'ubuntu bionic'."
 	echo "                      2) Point to a local .tgz file containing boot and root structures."

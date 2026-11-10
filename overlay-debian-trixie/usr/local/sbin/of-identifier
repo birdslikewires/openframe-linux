@@ -219,8 +219,7 @@ if [ -f /etc/firstboot ]; then
 	# Write boot.nsh for this unit, if that wasn't done above. Images boot through
 	# GRUB, which works from any disk: from here on the kernel starts directly from
 	# its EFI stub, without the initrd if it can (of-bootnsh checks the running
-	# system), except on the internal memory, which the firmware can't start the
-	# kernel from.
+	# system), and on the internal memory as this firmware allows (see of-bootnsh).
 	[ -z "$BOOTNSHDONE" ] && [ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh stub
 
 	# Set a sensible default audio level and enable auto-mute.

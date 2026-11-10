@@ -8,6 +8,8 @@
 #  stub, which saves around ten seconds per boot. Anyone who later runs
 #  'of-settings efistub disable' keeps GRUB, because the marker stops this repeating.
 #  An image build keeps GRUB, and the image's first boot switches (of-identifier).
+#  Systems on the internal memory had to keep GRUB until the firmware's MMC driver
+#  could be worked around (of-bootnsh); once per system they switch now too.
 #
 #  Every update then tidies the boot volume so the next initrd rebuild fits, and
 #  rewrites boot.nsh, which boots the kernel without its initrd once the kernel can
@@ -27,6 +29,7 @@ JOURNALMARKER="/var/lib/openframe-scripts/root-journal-default"
 BOOTROMARKER="/var/lib/openframe-scripts/boot-ro-default"
 RECOVERMARKER="/var/lib/openframe-scripts/dpkg-recover-default"
 DIRSYNCMARKER="/var/lib/openframe-scripts/boot-dirsync-default"
+MMCMARKER="/var/lib/openframe-scripts/mmc-stub-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -38,10 +41,10 @@ case "$1" in
 
 		rm -f /etc/kernel/preinst.d/openframe-boot-prep /etc/kernel/postinst.d/openframe-grub-update
 
-		# An image build can't tell what the image will be written to, and the firmware
-		# can't start the kernel from an OpenFrame's internal memory: images keep GRUB,
-		# and first boot (of-identifier) switches. The marker still goes in, so this
-		# doesn't switch an image's system back after 'of-settings efistub disable'.
+		# An image build can't tell what the image will be written to, or what firmware
+		# will start it (on the internal memory that matters, see of-bootnsh): images
+		# keep GRUB, and first boot (of-identifier) switches. The marker still goes in,
+		# so this doesn't switch an image's system back after 'of-settings efistub disable'.
 		if [ ! -e "$MARKER" ] && in_chroot; then
 			mkdir -p "${MARKER%/*}"
 			touch "$MARKER"
@@ -54,6 +57,23 @@ case "$1" in
 			else
 				echo "Could not switch to EFI stub boot; GRUB boot is unchanged."
 			fi
+		fi
+
+		# Systems on the internal memory were kept on GRUB, because the firmware loaded
+		# the kernel corrupted from there. of-bootnsh now starts it directly when the
+		# firmware is fixed or BlwMmcFix.efi can fix it, and keeps GRUB when not. Once
+		# per system; an image's first boot chooses for itself.
+		if [ ! -e "$MMCMARKER" ]; then
+			if ! in_chroot && [ -f /boot/grub.cfg ] && [ -f /boot/boot.nsh ] && ! grep -q vmlinuz /boot/boot.nsh; then
+				BOOTSRC=$(findmnt -n -o SOURCE --target /boot 2>/dev/null || true)
+				if [ -b "$BOOTSRC" ] && lsblk -n -o PKNAME "$BOOTSRC" 2>/dev/null | head -1 | grep -q '^mmcblk'; then
+					/usr/local/sbin/of-bootnsh stub >/dev/null 2>&1 || true
+					grep -q vmlinuz /boot/boot.nsh &&
+						echo "OpenFrame now boots the kernel from its internal memory through its EFI stub. To go back to GRUB, run 'sudo of-settings efistub disable'."
+				fi
+			fi
+			mkdir -p "${MMCMARKER%/*}"
+			touch "$MMCMARKER"
 		fi
 
 		# Without an initrd nothing checks the root filesystem before it's mounted, so
