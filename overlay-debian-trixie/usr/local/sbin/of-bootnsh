@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.10 (13th November 2026)
+## of-bootnsh v26.11.11 (13th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on, and
 ##  startup.nsh, which runs it.
 ##
@@ -62,9 +62,8 @@
 ##  On the internal memory (MMC), the firmware's MMC driver reads the wrong sectors
 ##  past the first megabyte of a file, so the stock firmware starts a corrupted
 ##  kernel there, which hangs; GRUB reads in small pieces and is fine. BirdsLikeWires
-##  firmware 26.11.22 and later fixes the driver, and the kernel starts directly as
-##  from a stick. A development build (26.11.27-dev4, say) counts as the release it
-##  was built on. With any other firmware boot.nsh first runs BlwMmcFix.efi, which
+##  firmware fixes the driver, and the kernel starts directly as from a stick. With
+##  any other firmware boot.nsh first runs BlwMmcFix.efi, which
 ##  fixes the driver until the next reset, and starts the kernel only if that
 ##  worked: if the app doesn't recognise the driver (or finds it already fixed) it
 ##  fails, and the shell goes on to GRUB. If the firmware can't be identified, or
@@ -75,20 +74,21 @@
 ##  driver itself its first boot goes through GRUB, and then starts the kernel
 ##  directly.
 ##
-##  The shell numbers volumes (fs0, fs1, ...) in the order the firmware set them up:
-##  on BirdsLikeWires firmware 26.11.28 and later the internal memory is always fs0,
-##  and USB drives follow. startup.nsh, which the shell runs from fs0, runs the
-##  boot.nsh of fs1, then fs2 (two USB drives through a hub), then fs0, so a drive
-##  with a system on it wins over the internal memory, and one without boot.nsh (a
-##  storage drive) is passed over. A file named without a volume (vmlinuz, grubq,
-##  BlwMac.efi) is looked for on the shell's current volume, which is fs0 whichever
-##  volume the script came from, so a stick's boot.nsh would start the internal
-##  memory's kernel or GRUB if it has one. So boot.nsh first makes its own volume
-##  the current one: each boot volume holds a marker file named after it,
-##  ofboot-<boot partition UUID> (a random number in an image build, until first
-##  boot gives the disk its own identifier), and boot.nsh switches to the volume
-##  that has it. Each drive then starts its own kernel whatever number it got. A
-##  boot.nsh without these lines (from before v26.11.10) is rewritten in full.
+##  The shell numbers volumes (fs0, fs1, ...) in the order the firmware set them up,
+##  and runs the first startup.nsh it finds on fs0, then fs1, and so on. A file named
+##  without a volume (boot, vmlinuz, grubq, BlwMac.efi) is looked for the same way:
+##  on the shell's current volume, then fs0, fs1, ..., whichever volume the script
+##  came from. BirdsLikeWires firmware makes a USB stick with a startup.nsh fs0, ahead
+##  of the internal memory; otherwise the internal memory is fs0. (Stock firmware
+##  usually makes any stick fs0, the internal memory being slow to appear.) So both
+##  scripts first make their own volume the current one, and then name their files
+##  without a volume: startup.nsh runs its own volume's boot.nsh ('boot'), and
+##  boot.nsh starts its own volume's kernel. Each boot volume holds a marker file
+##  named after it, ofboot-<boot partition UUID> (a random number in an image build,
+##  until first boot gives the disk its own identifier), and the scripts switch to
+##  the volume that has it. Whichever startup.nsh the shell finds first, its own
+##  system starts. A boot.nsh without these lines (from before v26.11.10) is
+##  rewritten in full.
 ##
 ##  Runs of this one at a time take turns (a lock in /run), so two at once (say
 ##  of-identifier and of-netplan at first boot) can't undo each other's boot.nsh.
@@ -243,10 +243,10 @@ boot_marker() {
 	echo "ofboot-${ID,,}"
 }
 
-# The lines that make the boot volume holding marker $1 the shell's current one.
-# Checked in the reverse of startup.nsh's order, so that if two volumes ever share
-# a marker (one disk copied to another, before first boot) the one whose boot.nsh
-# runs first wins.
+# The lines that make the boot volume holding marker $1 the shell's current one,
+# for startup.nsh and boot.nsh. If two volumes ever share a marker (one disk copied
+# to another, before first boot), the last checked wins: fs1, a stick, as the
+# firmware would choose.
 switch_lines() {
 	local N
 	for N in 0 2 1; do
@@ -274,21 +274,17 @@ on_mmc() {
 }
 
 # How the kernel can start from the internal memory (see the notes at the top):
-# 'direct' (BirdsLikeWires firmware 26.11.22 or later, or a development build of
-# one: -devN), 'fix' (other firmware, or an image, through BlwMmcFix.efi), or
-# nothing (unknown firmware, or no BlwMmcFix.efi): GRUB.
+# 'direct' (BirdsLikeWires firmware), 'fix' (other firmware, or an image, through
+# BlwMmcFix.efi), or nothing (unknown firmware, or no BlwMmcFix.efi): GRUB.
 mmc_start() {
-	local VENDOR VERSION
+	local VENDOR
 	if [[ "$BOOTDIR" != "/boot" ]]; then
 		[ -f "$MMCFIXEFI" ] && echo fix
 		return 0
 	fi
 	VENDOR=$(fw_vendor)
 	[[ "$VENDOR" != "" ]] || return 0
-	VERSION=$(cat /sys/class/dmi/id/bios_version 2>/dev/null)
-	VERSION="${VERSION%-dev[0-9]*}"
-	if [[ "$VENDOR" == "BirdsLikeWires" ]] && [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
-	   [[ "$(printf '%s\n' 26.11.22 "$VERSION" | sort -V | head -1)" == "26.11.22" ]]; then
+	if [[ "$VENDOR" == "BirdsLikeWires" ]]; then
 		echo direct
 	elif [ -f "$MMCFIXEFI" ]; then
 		echo fix
@@ -296,22 +292,22 @@ mmc_start() {
 }
 
 # Puts the new boot.nsh ($NEWNSH, built outside /boot) in place, unless it's the
-# same as what's there, with the marker it looks for put down first and any other
-# taken away after. A changed BlwMac.efi line goes in the kernel log: NVRAM follows
+# same as what's there, with the marker the scripts look for put down first and any
+# other taken away after, and startup.nsh: its own volume's boot.nsh. A changed BlwMac.efi line goes in the kernel log: NVRAM follows
 # at the next boot.
 install_bootnsh() {
 	local NEW MAC SAYS F
-	printf 'fs1:boot\nfs2:boot\nfs0:boot\n' > "$NEWNSH.start"
+	if [ ! -f "$BOOTDIR/$MARKER" ]; then
+		echo "This boot volume's startup.nsh and boot.nsh find their own volume by this file (of-bootnsh)." > "$NEWNSH.mark"
+		boot_put "$NEWNSH.mark" "$BOOTDIR/$MARKER"
+		rm -f "$NEWNSH.mark"
+	fi
+	{ switch_lines "$MARKER"; echo boot; } > "$NEWNSH.start"
 	cmp -s "$NEWNSH.start" "$STARTNSH" || boot_put "$NEWNSH.start" "$STARTNSH"
 	rm -f "$NEWNSH.start"
 	install_efi "$NEWNSH" "$MACEFI"
 	install_efi "$NEWNSH" "$MMCFIXEFI"
 	install_efi "$NEWNSH" "$GRUBQEFI"
-	if [ ! -f "$BOOTDIR/$MARKER" ]; then
-		echo "This boot volume's boot.nsh finds its own volume by this file (of-bootnsh)." > "$NEWNSH.mark"
-		boot_put "$NEWNSH.mark" "$BOOTDIR/$MARKER"
-		rm -f "$NEWNSH.mark"
-	fi
 	if ! cmp -s "$NEWNSH" "$BOOTNSH"; then
 		NEW=$(grep -m1 'BlwMac\.efi' "$NEWNSH")
 		if [[ "$NEW" != "" ]] && [[ "$NEW" != "$(grep -m1 'BlwMac\.efi' "$BOOTNSH" 2>/dev/null)" ]]; then
