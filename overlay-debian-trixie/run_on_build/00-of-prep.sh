@@ -141,7 +141,9 @@ sleep 2
 echo "Configuring OpenFrame kernel repository..."
 source /etc/os-release
 mkdir -p /etc/apt/keyrings
-curl -fsSL https://kernel.openbeak.net/key.gpg -o /etc/apt/keyrings/openframe-kernel.gpg
+# All the OpenFrame apt repositories are signed with the key in the overlay (and in the
+# openframe-scripts package, which keeps these keyrings to it).
+install -m 644 /usr/share/keyrings/openframe-apt.gpg /etc/apt/keyrings/openframe-kernel.gpg
 KBRANCH=$(echo "${KERNEL_VERSION#v}" | cut -d. -f1-2)
 echo "deb [signed-by=/etc/apt/keyrings/openframe-kernel.gpg] https://kernel.openbeak.net/ $VERSION_CODENAME $KBRANCH" \
   > /etc/apt/sources.list.d/openframe-kernel.list
@@ -167,8 +169,7 @@ echo
 sleep 2
 
 echo "Configuring OpenFrame scripts repository..."
-curl -fsSL https://linux.openbeak.net/key.gpg \
-  -o /etc/apt/keyrings/openframe-linux.gpg
+install -m 644 /usr/share/keyrings/openframe-apt.gpg /etc/apt/keyrings/openframe-linux.gpg
 echo "deb [signed-by=/etc/apt/keyrings/openframe-linux.gpg] https://linux.openbeak.net/ $VERSION_CODENAME main" \
   > /etc/apt/sources.list.d/openframe-linux.list
 apt-get update

@@ -15,6 +15,7 @@ on:
       - 'overlay-*/usr/lib/systemd/system/**'
       - 'overlay-*/usr/lib/sysctl.d/**'
       - 'overlay-*/etc/dpkg/dpkg.cfg.d/openframe-*'
+      - 'overlay-*/usr/share/keyrings/**'
       - 'package/**'
       - '.github/workflows/package.yml'
   workflow_dispatch:
@@ -50,8 +51,30 @@ jobs:
           ref: repo
           path: apt-repo
 
-      - name: Import GPG signing key
-        run: echo "${{ secrets.APT_SIGNING_KEY }}" | gpg --batch --import
+      # The OpenFrame apt repositories are signed with one key (APT_SIGNING_KEY_OPENFRAME in
+      # each repository), the one the package ships in usr/share/keyrings. Until 2026-11 this
+      # repository had its own (APT_SIGNING_KEY); while systems move over, the Release is
+      # signed with both, so systems that know either key accept it. Every secret key imported signs. A
+      # package that ships a key this run doesn't sign with is refused: units that installed
+      # it would no longer accept this repository.
+      - name: Import GPG signing keys
+        env:
+          KEY: ${{ secrets.APT_SIGNING_KEY }}
+          KEY_NEW: ${{ secrets.APT_SIGNING_KEY_OPENFRAME }}
+        run: |
+          echo "${KEY}" | gpg --batch --import
+          [ -z "${KEY_NEW}" ] || echo "${KEY_NEW}" | gpg --batch --import
+          SIGNERS=$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/ { s = 1; next } s && /^fpr/ { print $10; s = 0 }')
+          echo "Signing with: ${SIGNERS}"
+          for k in overlay-*/usr/share/keyrings/openframe-apt.gpg; do
+            [ -f "$k" ] || continue
+            SHIPPED=$(gpg --batch --with-colons --show-keys "$k" | awk -F: '/^pub/ { s = 1; next } s && /^fpr/ { print $10; s = 0 }')
+            for f in ${SHIPPED}; do
+              echo "${SIGNERS}" | grep -qx "$f" || { echo "$k holds $f, which this run doesn't sign with: not publishing."; exit 1; }
+            done
+            echo "PUBLISH_KEY=${SHIPPED}" >> $GITHUB_ENV
+          done
+          echo "SIGN_ARGS=$(for f in ${SIGNERS}; do printf -- '--local-user %s! ' "$f"; done)" >> $GITHUB_ENV
 
       - name: Build packages and apt repository
         run: |
@@ -87,6 +110,13 @@ jobs:
             if [ -d "${overlay_dir}usr/lib/udev/rules.d" ]; then
               mkdir -p "${PKG}/usr/lib/udev/rules.d"
               install -m 644 "${overlay_dir}usr/lib/udev/rules.d/"*.rules "${PKG}/usr/lib/udev/rules.d/"
+            fi
+
+            # The key the OpenFrame apt repositories are signed with (the postinst keeps
+            # each repository's keyring in /etc/apt/keyrings to it).
+            if [ -d "${overlay_dir}usr/share/keyrings" ]; then
+              mkdir -p "${PKG}/usr/share/keyrings"
+              install -m 644 "${overlay_dir}usr/share/keyrings/"*.gpg "${PKG}/usr/share/keyrings/"
             fi
 
             # BlwMac.efi, which of-bootnsh copies to /boot on BirdsLikeWires firmware.
@@ -143,7 +173,6 @@ jobs:
             dpkg-scanpackages "pool/${codename}" > "dists/${codename}/main/binary-i386/Packages"
             gzip -kf "dists/${codename}/main/binary-i386/Packages"
 
-            GPG_KEY_ID=$(gpg --list-keys --with-colons | awk -F: '/^pub/{print $5; exit}')
             apt-ftparchive \
               -o APT::FTPArchive::Release::Origin="OpenFrame" \
               -o APT::FTPArchive::Release::Label="OpenFrame Linux" \
@@ -154,16 +183,17 @@ jobs:
               -o APT::FTPArchive::Release::Description="OpenFrame Linux packages" \
               release "dists/${codename}" > "dists/${codename}/Release"
 
-            gpg --batch --yes --default-key "${GPG_KEY_ID}" \
+            gpg --batch --yes ${SIGN_ARGS} \
               --detach-sign --armor -o "dists/${codename}/Release.gpg" "dists/${codename}/Release"
-            gpg --batch --yes --default-key "${GPG_KEY_ID}" \
+            gpg --batch --yes ${SIGN_ARGS} \
               --clearsign -o "dists/${codename}/InRelease" "dists/${codename}/Release"
             cd ..
 
             rm -rf "${PKG}"
           done
 
-          gpg --export > apt-repo/key.gpg
+          # The public key for new systems: the shared one once the package ships it.
+          gpg --export ${PUBLISH_KEY:-} > apt-repo/key.gpg
 
       - name: Generate directory listing
         run: |

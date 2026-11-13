@@ -139,6 +139,17 @@ case "$1" in
 		# Write changed data out within ten seconds (usr/lib/sysctl.d), from now on.
 		in_chroot || sysctl -q -p /usr/lib/sysctl.d/60-openframe-writeback.conf 2>/dev/null || true
 
+		# The OpenFrame apt repositories (kernel., linux. and firmware.openbeak.net) are
+		# signed with one key, which this package ships. On every update, each of their
+		# keyrings in /etc/apt/keyrings is set to it: until 2026-11 linux.openbeak.net had
+		# a key of its own, and it signs with both while systems move over.
+		APTKEY=/usr/share/keyrings/openframe-apt.gpg
+		for KR in /etc/apt/keyrings/openframe-kernel.gpg /etc/apt/keyrings/openframe-linux.gpg /etc/apt/keyrings/openframe-firmware.gpg; do
+			if [ -f "$APTKEY" ] && [ -f "$KR" ] && ! cmp -s "$APTKEY" "$KR"; then
+				install -m 644 "$APTKEY" "$KR.new" && mv -f "$KR.new" "$KR"
+			fi
+		done
+
 		# Refresh the boot volume on every update, keeping the current mode. This gives
 		# systems already in stub mode the empty vmlinuz-<version> that lets
 		# update-initramfs find the kernel. It also clears what blocks a rebuild:
