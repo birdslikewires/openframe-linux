@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-builder.sh v26.11.1 (10th November 2026)
+## of-builder.sh v26.11.2 (13th November 2026)
 ##  Builds kernels, modules and images.
 
 if [ $# -lt 5 ]; then
@@ -277,15 +277,15 @@ else
 	# cp crystalhd/driver/linux/crystalhd.ko lib/modules/$KOURNAME/kernel/drivers/video/broadcom
 	# rm -rf crystalhd
 
-	## Firmware Hub Module (fh/ in openframe-firmware, which was the fh repository)
-	[ -d openframe-firmware ] && rm -rf openframe-firmware
-	git clone --depth 1 https://github.com/birdslikewires/openframe-firmware.git
+	## Firmware Hub Module (fh/ in openframe-kernel since 2026-11-13; before that openframe-firmware)
+	[ -d openframe-kernel ] && rm -rf openframe-kernel
+	git clone --depth 1 https://github.com/birdslikewires/openframe-kernel.git
 	mkdir -p lib/modules/$KOURNAME/extra
-	cd openframe-firmware/fh
+	cd openframe-kernel/fh
 	make -C /lib/modules/$KOURNAME/build M=`pwd` modules
 	cd ../..
-	cp openframe-firmware/fh/fh.ko lib/modules/$KOURNAME/extra
-	rm -rf openframe-firmware
+	cp openframe-kernel/fh/fh.ko lib/modules/$KOURNAME/extra
+	rm -rf openframe-kernel
 
 	echo
 	echo "`date  +'%Y-%m-%d %H:%M:%S'`: Companion modules done, but check the log above. Compressing and moving..."
