@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.11 (13th November 2026)
+## of-bootnsh v26.11.12 (13th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on, and
 ##  startup.nsh, which runs it.
 ##
@@ -37,19 +37,32 @@
 ##  drivers built in instead, and keeps usb-storage's delay. Otherwise, or after
 ##  'of-settings initrd enable', the initrd is used as before.
 ##
-##  On BirdsLikeWires firmware, boot.nsh runs BlwMac.efi with the WLAN card's
-##  MAC (/var/lib/of-netplan/wlan.mac), or with no card the LAN MAC of-netplan
-##  generated (lan.mac). It keeps that in NVRAM, writing only when it changes. On
-##  every boot the firmware gives the network chip the LAN MAC (made from the card's
-##  as of-netplan makes it, or the generated one), so any OS started on this unit
-##  sees it, and makes a UUID from the stored MAC, plus for a card the system's
-##  serial number. A LAN MAC typed into network.yaml stays Linux's business.
+##  On BirdsLikeWires firmware the unit's MAC is kept in NVRAM: the WLAN card's
+##  (/var/lib/of-netplan/wlan.mac), or with no card the LAN MAC of-netplan generated
+##  (lan.mac). On every boot the firmware gives the network chip the LAN MAC (made
+##  from the card's as of-netplan makes it, or the generated one), so any OS started
+##  on this unit sees it, and makes the SMBIOS UUID from the stored MAC
+##  (00000000-0000-8000-8000-<MAC>), plus for a card the system's serial number. A
+##  LAN MAC typed into network.yaml stays Linux's business. Linux can't write NVRAM
+##  (the kernel has no efivarfs), so BlwMac.efi, run from boot.nsh, stores it; and
+##  the line is there only while NVRAM doesn't hold this unit's MAC, as the UUID
+##  shows. So a stick moved to another unit doesn't take its MAC along: on the new
+##  unit the UUID doesn't match, the line is added (with that unit's own MAC), and
+##  while the unit is still booting (or of-netplan, the boot service, asks, with
+##  OF_BOOTNSH_AT_BOOT=1) it is rebooted at once (of-mac-reboot.service,
+##  after first-boot provisioning, package recovery and any firmware update);
+##  BlwMac.efi stores the MAC and resets the unit straight away, since it locks the
+##  firmware's flash down until a reset; and on the boot after, the UUID matches and
+##  the line goes. A line added outside boot (say, by a package upgrade) waits for
+##  the next boot. If the line was already there and the UUID still doesn't match,
+##  BlwMac.efi didn't store it: the kernel log (dmesg) says so and nothing is
+##  rebooted, so a failing store can't loop. Changes to the line are noted there too.
 ##  Stock firmware never uses BlwMac.efi, so the line isn't added there. If the
 ##  firmware can't be identified (no SMBIOS and no EFI line in the kernel log, as
 ##  after a kexec), lines already in boot.nsh are kept as they are. Nor when writing
 ##  another boot directory (an image build), since the MACs belong to the hardware
-##  this runs on. A change to the line is noted in the kernel log (dmesg).
-##  'of-bootnsh mac' refreshes just those lines; of-netplan runs it every boot.
+##  this runs on. 'of-bootnsh mac' refreshes just those lines; of-netplan runs it
+##  every boot.
 ##
 ##  boot.nsh is only rewritten when its contents change. /boot is normally mounted
 ##  read-only, so a power cut can't corrupt it: this makes it writable only when
@@ -113,6 +126,7 @@ LANMACFILE="/var/lib/of-netplan/lan.mac"
 WLANMACFILE="/var/lib/of-netplan/wlan.mac"
 MACEFI="$LIBDIR/BlwMac.efi"
 MMCFIXEFI="$LIBDIR/BlwMmcFix.efi"
+MACRUN="/run/of-bootnsh"                     # this boot: mac-pending once a store has been asked for
 GRUBQEFI="$LIBDIR/grubq.efi"
 KEEPINITRD="/var/lib/openframe-scripts/keep-initrd"
 NEWNSH=""
@@ -223,7 +237,32 @@ mac_lines() {
 		MAC=$(usable_mac "$LANMACFILE")
 		[[ "$MAC" != "" ]] && local_mac "$MAC" || return 0
 	fi
+	[[ "$(stored_mac)" == "$MAC" ]] && return 0	# NVRAM holds it already
 	printf 'BlwMac.efi %s\n' "$MAC"
+}
+
+# The MAC the firmware has in NVRAM, from the SMBIOS UUID it made from it
+# (00000000-0000-8000-8000-<MAC>), in lower case with colons; nothing if there is no
+# such UUID (none stored yet, or not BirdsLikeWires' table).
+stored_mac() {
+	local U
+	U=$(cat /sys/class/dmi/id/product_uuid 2>/dev/null)
+	U="${U,,}"
+	[[ "$U" =~ ^00000000-0000-8000-8000-([0-9a-f]{12})$ ]] || return 0
+	sed -E 's/(..)(..)(..)(..)(..)(..)/\1:\2:\3:\4:\5:\6/' <<< "${BASH_REMATCH[1]}"
+}
+
+# A BlwMac.efi line has just been added or changed: note it for this boot, and if the
+# system is still booting, reboot as soon as the boot's own work is done (see the
+# notes at the top), so BlwMac.efi stores the MAC on the next.
+mac_store_reboot() {
+	[[ "$BOOTDIR" == "/boot" ]] || return 0
+	mkdir -p "$MACRUN" 2>/dev/null && touch "$MACRUN/mac-pending"
+	case "${OF_BOOTNSH_AT_BOOT:-}:$(systemctl is-system-running 2>/dev/null)" in
+		1:*|*:initializing|*:starting)
+			echo "<5>of-bootnsh: rebooting once this boot's work is done, so the firmware stores it." > /dev/kmsg 2>/dev/null
+			systemctl --no-block start of-mac-reboot.service 2>/dev/null ;;
+	esac
 }
 
 # The name of this boot volume's marker file (see the notes at the top):
@@ -296,7 +335,7 @@ mmc_start() {
 # other taken away after, and startup.nsh: its own volume's boot.nsh. A changed BlwMac.efi line goes in the kernel log: NVRAM follows
 # at the next boot.
 install_bootnsh() {
-	local NEW MAC SAYS F
+	local NEW OLD MAC SAYS F STORE
 	if [ ! -f "$BOOTDIR/$MARKER" ]; then
 		echo "This boot volume's startup.nsh and boot.nsh find their own volume by this file (of-bootnsh)." > "$NEWNSH.mark"
 		boot_put "$NEWNSH.mark" "$BOOTDIR/$MARKER"
@@ -308,20 +347,29 @@ install_bootnsh() {
 	install_efi "$NEWNSH" "$MACEFI"
 	install_efi "$NEWNSH" "$MMCFIXEFI"
 	install_efi "$NEWNSH" "$GRUBQEFI"
-	if ! cmp -s "$NEWNSH" "$BOOTNSH"; then
-		NEW=$(grep -m1 'BlwMac\.efi' "$NEWNSH")
-		if [[ "$NEW" != "" ]] && [[ "$NEW" != "$(grep -m1 'BlwMac\.efi' "$BOOTNSH" 2>/dev/null)" ]]; then
-			read -r _ MAC <<< "$NEW"
-			if local_mac "$MAC"; then
-				SAYS="generated LAN MAC $MAC (no serial number)"
-			else
-				SAYS="WLAN card MAC $MAC (LAN MAC 02:${MAC:3}, serial number $(tr -d : <<< "${MAC^^}"))"
-			fi
-			echo "<5>of-bootnsh: NVRAM gets $SAYS at next boot." > /dev/kmsg 2>/dev/null
+	NEW=$(grep -m1 'BlwMac\.efi' "$NEWNSH")
+	OLD=$(grep -m1 'BlwMac\.efi' "$BOOTNSH" 2>/dev/null)
+	STORE=0
+	if [[ "$NEW" != "" ]] && [[ "$NEW" != "$OLD" ]]; then
+		read -r _ MAC <<< "$NEW"
+		if local_mac "$MAC"; then
+			SAYS="generated LAN MAC $MAC (no serial number)"
+		else
+			SAYS="WLAN card MAC $MAC (LAN MAC 02:${MAC:3}, serial number $(tr -d : <<< "${MAC^^}"))"
 		fi
+		echo "<5>of-bootnsh: NVRAM gets $SAYS at next boot." > /dev/kmsg 2>/dev/null
+		STORE=1
+	elif [[ "$NEW" != "" ]] && [[ "$BOOTDIR" == "/boot" ]] && [ ! -e "$MACRUN/mac-pending" ] &&
+	     [[ "$(fw_vendor)" == "BirdsLikeWires" ]]; then
+		echo "<4>of-bootnsh: NVRAM still doesn't hold ${NEW#BlwMac.efi }: BlwMac.efi didn't store it last boot. Not rebooting for it again." > /dev/kmsg 2>/dev/null
+	elif [[ "$NEW" == "" ]] && [[ "$OLD" != "" ]] && [[ "$(fw_vendor)" == "BirdsLikeWires" ]]; then
+		echo "<5>of-bootnsh: NVRAM holds ${OLD#BlwMac.efi }: BlwMac.efi line removed." > /dev/kmsg 2>/dev/null
+	fi
+	if ! cmp -s "$NEWNSH" "$BOOTNSH"; then
 		boot_put "$NEWNSH" "$BOOTNSH"
 	fi
 	rm -f "$NEWNSH"
+	[ $STORE -eq 1 ] && mac_store_reboot
 	for F in "$BOOTDIR"/ofboot-*; do
 		[ -f "$F" ] && [[ "${F##*/}" != "$MARKER" ]] || continue
 		boot_rw

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.7 (10th November 2026)
+## of-netplan v26.11.8 (13th November 2026)
 ##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
@@ -20,11 +20,20 @@
 ##  other's cards. The kernel log (dmesg) says when that happens. A MAC typed into
 ##  network.yaml is left alone, and deleting it there makes one from the card again.
 ##
-##  On BirdsLikeWires firmware, of-bootnsh puts the card MAC (or with no card, the
-##  generated LAN MAC) on a BlwMac.efi line in boot.nsh, which keeps it in NVRAM:
-##  the firmware applies the LAN MAC before any OS starts, and makes the system's
-##  UUID, plus for a card its serial number, from it. We refresh that line every
-##  boot (it's only rewritten when it changes).
+##  On BirdsLikeWires firmware the unit's MAC is kept in NVRAM (of-bootnsh has
+##  BlwMac.efi store it when it isn't there): the card's own, or with no card the
+##  generated LAN MAC. The firmware applies the LAN MAC before any OS starts, and
+##  makes the system's UUID from it (00000000-0000-8000-8000-<MAC>), plus for a card
+##  its serial number. A generated LAN MAC then belongs to the unit, not this stick:
+##  with no card, if NVRAM holds a generated MAC (02...), that is the LAN MAC, so any
+##  stick in this unit uses it and a stick moved to another unit takes that unit's.
+##  If NVRAM holds a card's MAC but the card has gone, or holds none, a new one is
+##  generated and stored: never this stick's old one, which may be another unit's,
+##  and not the old card's either, which may be in another unit by now. A card that
+##  turns up again takes over as before. A MAC generated for this unit and not yet
+##  stored is kept in lan.pending, so it isn't generated afresh every boot while it
+##  waits. Generated MACs come from /dev/urandom. On other firmware a generated LAN
+##  MAC is made once and kept, as before.
 ##
 ##  Then we put the modified file back into /boot. If its Wi-Fi section is still
 ##  the unedited template, it's left out of the live config.
@@ -130,6 +139,49 @@ card_changed() {
 		&& { [ "$2" = "none" ] || { is_mac "$2" && [ "${3,,}" = "$(from_card ${2,,})" ]; }; }
 }
 
+# A new LAN MAC: 02 (locally administered) then five random octets.
+gen_mac() {
+	echo "02:$(od -An -N5 -tx1 /dev/urandom | tr -s ' ' | sed 's/^ //; s/ $//; s/ /:/g')"
+}
+
+# The MAC the firmware has in NVRAM, from the SMBIOS UUID it made from it
+# (00000000-0000-8000-8000-<MAC>), lower case with colons; nothing if there is no such
+# UUID (none stored, or not BirdsLikeWires firmware).
+stored_mac() {
+	local U
+	U=$(cat /sys/class/dmi/id/product_uuid 2>/dev/null)
+	U="${U,,}"
+	[[ "$U" =~ ^00000000-0000-8000-8000-([0-9a-f]{12})$ ]] || return 0
+	sed -E 's/(..)(..)(..)(..)(..)(..)/\1:\2:\3:\4:\5:\6/' <<< "${BASH_REMATCH[1]}"
+}
+
+# With no card, on BirdsLikeWires firmware: sets NOCARDLAN to the LAN MAC this unit
+# should have (see the notes at the top), given the LAN MAC now ($1): the generated one
+# NVRAM holds; or the one generated for this unit and waiting to be stored, if that's
+# the LAN MAC now; or a new one (noted in lan.pending). Empty on other firmware. Once
+# per run, so a new one is only made once.
+nocard_lan() {
+	local STORED PENDING
+	[ -z "$NOCARDDONE" ] || return 0
+	NOCARDDONE=1
+	NOCARDLAN=""
+	[[ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" == "BirdsLikeWires" ]] || return 0
+	STORED=$(stored_mac)
+	if [ -n "$STORED" ] && (( (16#${STORED:0:2} & 2) != 0 )); then
+		rm -f $STATEDIR/lan.pending
+		NOCARDLAN="$STORED"
+		return 0
+	fi
+	PENDING=$(cat $STATEDIR/lan.pending 2>/dev/null)
+	if is_mac "$PENDING" && [ "${PENDING,,}" = "${1,,}" ]; then
+		NOCARDLAN="${1,,}"
+		return 0
+	fi
+	NOCARDLAN=$(gen_mac)
+	mkdir -p $STATEDIR
+	echo "$NOCARDLAN" > $STATEDIR/lan.pending
+}
+
 # Says $1 in the kernel log (dmesg) as well as our own.
 klog() {
 	echo "$1"
@@ -139,7 +191,10 @@ klog() {
 # Keep boot.nsh's BlwMac.efi line in step with wlan.mac and lan.mac. of-bootnsh only
 # adds it on BirdsLikeWires firmware, and only rewrites boot.nsh when it changes.
 update_bootnsh() {
-	[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh mac >/dev/null 2>&1
+	# Run as the boot service (systemd sets INVOCATION_ID), this is the boot: if NVRAM
+	# needs the MAC, of-bootnsh reboots for it now, however long the card check took.
+	[ -x /usr/local/sbin/of-bootnsh ] &&
+		OF_BOOTNSH_AT_BOOT=${INVOCATION_ID:+1} /usr/local/sbin/of-bootnsh mac >/dev/null 2>&1
 	return 0
 }
 
@@ -197,8 +252,11 @@ if [ -e /boot/$NETPLANCONFIG ] && [ -s $STATEDIR/lan.mac ] \
 	# the OpenFrame 2 has none, and its file is still written sooner than before.
 	WLANMAC=$(card_mac 8)
 	OLDWLAN=$(cat $STATEDIR/wlan.mac 2>/dev/null)
-	if card_changed "$WLANMAC" "$OLDWLAN" "$LANMAC"; then
-		# A different card (or a first one): carry on below and make the LAN MAC again.
+	[ -n "$WLANMAC" ] || nocard_lan "$LANMAC"
+	if card_changed "$WLANMAC" "$OLDWLAN" "$LANMAC" ||
+	   { [ -n "$NOCARDLAN" ] && [ "$NOCARDLAN" != "${LANMAC,,}" ]; }; then
+		# A different card (or a first one), or no card and this unit's LAN MAC is
+		# another: carry on below and make the LAN MAC again.
 		CARDCHECKED=1
 	else
 		# A card we haven't noted (installed before wlan.mac existed, or the LAN MAC
@@ -236,11 +294,13 @@ if [[ -z "$YAMLMAC" ]]; then
 		echo "Found $WLANMAC as $WLAN hardware address."
 		echo "Applying $LANMAC to $LAN (local bit set)."
 	else
-		# No card with an address of its own to mirror, so generate one.
-		LANMAC="02:`cat /proc/interrupts | md5sum | sed -r "s/(.{2})/\1:/g; s/^(.{14}).*/\1/"`"
+		# No card with an address of its own to mirror: this unit's (from NVRAM, on
+		# BirdsLikeWires firmware), else generate one.
+		nocard_lan "$OLDLAN"
+		if [ -n "$NOCARDLAN" ]; then LANMAC="$NOCARDLAN"; else LANMAC=$(gen_mac); fi
 		NEWWLAN="none"
 		echo "No burned-in $WLAN hardware address found after $WLANTIMEOUT seconds."
-		echo "Applying $LANMAC to $LAN (generated)."
+		echo "Applying $LANMAC to $LAN (generated, this unit's)."
 	fi
 
 elif [ -n "$OLDLAN" ] && [ "${YAMLMAC,,}" != "${OLDLAN,,}" ]; then
@@ -268,11 +328,20 @@ else
 			klog "Hardware MAC change detected: WLAN card $WLANMAC replaces $OLDWLAN; $LAN MAC is now $LANMAC."
 		fi
 	else
-		# The LAN MAC stays as it is: made from this card, someone else's, or, from
-		# before wlan.mac, of unknown origin. (Noting the card makes a MAC made from it
-		# ours.)
-		[ -n "$WLANMAC" ] && NEWWLAN="$WLANMAC"
-		echo "Hardware address $LANMAC for $LAN is present."
+		[ -n "$WLANMAC" ] || nocard_lan "$YAMLMAC"
+		if [ -z "$WLANMAC" ] && [ -n "$NOCARDLAN" ] && [ "$NOCARDLAN" != "${YAMLMAC,,}" ]; then
+			# No card, on BirdsLikeWires firmware: the LAN MAC is this unit's (see the
+			# notes at the top), whatever this stick had.
+			LANMAC="$NOCARDLAN"
+			NEWWLAN="none"
+			klog "No WLAN card; $LAN MAC is now $LANMAC, this unit's (was ${YAMLMAC,,})."
+		else
+			# The LAN MAC stays as it is: made from this card, someone else's, or, from
+			# before wlan.mac, of unknown origin. (Noting the card makes a MAC made from it
+			# ours.)
+			[ -n "$WLANMAC" ] && NEWWLAN="$WLANMAC"
+			echo "Hardware address $LANMAC for $LAN is present."
+		fi
 	fi
 
 fi

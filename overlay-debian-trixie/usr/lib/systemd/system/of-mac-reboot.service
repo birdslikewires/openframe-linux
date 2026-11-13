@@ -1,0 +1,12 @@
+# Started by of-bootnsh during boot when it has just added a BlwMac.efi line to boot.nsh
+# because NVRAM doesn't hold this unit's MAC: reboots, so BlwMac.efi stores it on the
+# next boot (and then resets the unit itself; see of-bootnsh). Waits for the boot's own
+# work first: first-boot identification and provisioning, interrupted package
+# operations, and a firmware update.
+[Unit]
+Description=OpenFrame reboot to store this unit's MAC in NVRAM
+After=of-identifier.service of-netplan.service of-provision.service of-dpkg-recover.service of-dpkg-recover-online.service of-firmware.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --no-block reboot
