@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.8 (13th November 2026)
-##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on.
+## of-bootnsh v26.11.9 (13th November 2026)
+##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on, and
+##  startup.nsh, which runs it.
 ##
 ##  In 'stub' mode the shell starts the kernel directly through its EFI stub. The
 ##  firmware loads the kernel and initrd about five times faster than GRUB 1.98,
@@ -70,6 +71,16 @@
 ##  memory boots through GRUB. 'of-bootnsh mac' (every boot) redoes these lines if
 ##  the firmware has changed since they were written.
 ##
+##  The shell numbers volumes (fs0, fs1, ...) in the order the firmware set them up:
+##  on BirdsLikeWires firmware 26.11.28 and later the internal memory is always fs0,
+##  and USB drives follow. startup.nsh, which the shell runs from fs0, runs the
+##  boot.nsh of fs1, then fs2 (two USB drives through a hub), then fs0, so a drive
+##  with a system on it wins over the internal memory, and one without boot.nsh (a
+##  storage drive) is passed over. boot.nsh names its files without a volume
+##  (vmlinuz, grub, BlwMac.efi), and the shell finds them on the volume the script
+##  came from, so each drive starts its own kernel whatever number it got. An older
+##  boot.nsh, with fs0:/fs1: lines, is rewritten in full at the next boot.
+##
 ##  Runs of this one at a time take turns (a lock in /run), so two at once (say
 ##  of-identifier and of-netplan at first boot) can't undo each other's boot.nsh.
 ##
@@ -102,6 +113,7 @@ done
 
 GRUBCFG="$BOOTDIR/grub.cfg"
 BOOTNSH="$BOOTDIR/boot.nsh"
+STARTNSH="$BOOTDIR/startup.nsh"
 
 # One run at a time, so that two can't each rewrite boot.nsh from what they read.
 { exec 8> /run/of-bootnsh.lock; } 2>/dev/null && flock 8
@@ -172,7 +184,7 @@ fw_vendor() {
 	echo "$VENDOR"
 }
 
-# The BlwMac.efi lines for boot.nsh (fs1 then fs0, like the kernel lines), or
+# The BlwMac.efi line for boot.nsh (no volume: the script's own), or
 # nothing. They carry the WLAN card's MAC if it's the card's own (burned-in)
 # address: the firmware makes the LAN MAC, serial number and UUID from it. Failing
 # that, the LAN MAC if it was generated (no card): the firmware uses it as it is,
@@ -194,7 +206,7 @@ mac_lines() {
 		MAC=$(usable_mac "$LANMACFILE")
 		[[ "$MAC" != "" ]] && local_mac "$MAC" || return 0
 	fi
-	printf 'fs1:\\BlwMac.efi %s\nfs0:\\BlwMac.efi %s\n' "$MAC" "$MAC"
+	printf 'BlwMac.efi %s\n' "$MAC"
 }
 
 # Copies app $2 (BlwMac.efi, BlwMmcFix.efi) to the boot volume if boot.nsh ($1)
@@ -236,6 +248,9 @@ mmc_start() {
 # follows at the next boot.
 install_bootnsh() {
 	local NEW MAC SAYS
+	printf 'fs1:boot\nfs2:boot\nfs0:boot\n' > "$NEWNSH.start"
+	cmp -s "$NEWNSH.start" "$STARTNSH" || boot_put "$NEWNSH.start" "$STARTNSH"
+	rm -f "$NEWNSH.start"
 	install_efi "$NEWNSH" "$MACEFI"
 	install_efi "$NEWNSH" "$MMCFIXEFI"
 	if cmp -s "$NEWNSH" "$BOOTNSH"; then
@@ -281,6 +296,11 @@ if [[ $MACONLY -eq 1 ]] && [[ "$BOOTDIR" == "/boot" ]] && grep -q 'vmlinuz' "$BO
 		fix) [ $HASFIX -eq 1 ] || MACONLY=0 ;;
 		*) [[ "$(fw_vendor)" == "" ]] || MACONLY=0 ;;	# unknown firmware (kexec): leave it
 	esac
+fi
+
+# A boot.nsh from before v26.11.9 names volumes (fs0:, fs1:): written again in full.
+if [[ $MACONLY -eq 1 ]] && grep -qE '(^|[[:space:]])fs[0-9]+:' "$BOOTNSH" 2>/dev/null; then
+	MACONLY=0
 fi
 
 # BlwLanMac.efi was BlwMac.efi's name before firmware 26.11.20; its lines go too.
@@ -436,11 +456,10 @@ if [[ "$MODE" == "stub" ]]; then
 		mac_lines
 		if [ $MMCFIX -eq 1 ]; then
 			# The kernel only if BlwMmcFix.efi worked (the shell's lasterror is 0), else GRUB.
-			printf 'fs0:\\BlwMmcFix.efi\nif %%lasterror%% == 0 then\n  fs1:%s %s\n  fs0:%s %s\nendif\nfs1:%s\nfs0:%s\n' \
-				"${KERNELEFI%.efi}" "$ARGS" "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" "$GRUBEFI"
+			printf 'BlwMmcFix.efi\nif %%lasterror%% == 0 then\n  %s %s\nendif\n%s\n' \
+				"${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI"
 		else
-			printf 'fs1:%s %s\nfs1:%s\nfs0:%s %s\nfs0:%s\n' \
-				"${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI" "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI"
+			printf '%s %s\n%s\n' "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI"
 		fi
 	} > "$NEWNSH"
 
@@ -461,7 +480,7 @@ else
 
 	{
 		mac_lines
-		printf 'fs1:%s\nfs0:%s\n' "$GRUBEFI" "$GRUBEFI"
+		printf '%s\n' "$GRUBEFI"
 	} > "$NEWNSH"
 
 fi
