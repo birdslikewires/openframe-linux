@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v26.11.7 (10th November 2026)
+## of-identifier v26.11.8 (13th November 2026)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -216,10 +216,10 @@ if [ -f /etc/firstboot ]; then
 		echo "Can't find a partitioned disk holding both / and /boot; identifiers left as they were."
 	fi
 
-	# Write boot.nsh for this unit, if that wasn't done above. Images boot through
-	# GRUB, which works from any disk: from here on the kernel starts directly from
-	# its EFI stub, without the initrd if it can (of-bootnsh checks the running
-	# system), and on the internal memory as this firmware allows (see of-bootnsh).
+	# Write boot.nsh for this unit, if that wasn't done above. Images start the
+	# kernel with its initrd, from a stick whatever the firmware: from here on
+	# without the initrd if it can (of-bootnsh checks the running system), and on
+	# the internal memory as this firmware allows (see of-bootnsh).
 	[ -z "$BOOTNSHDONE" ] && [ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh stub
 
 	# Set a sensible default audio level and enable auto-mute.

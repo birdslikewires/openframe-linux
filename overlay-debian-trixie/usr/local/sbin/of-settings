@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-settings v26.11.5 (10th November 2026)
+## of-settings v26.11.6 (13th November 2026)
 ##  Bundles a bunch of handy settings into one place.
 
 usage() {
@@ -11,8 +11,7 @@ usage() {
 	echo "  autoxrun <user> <cmd>       :  Command run when Xserver started as <user> (~/.xinitrc)."
 	echo "  bootrw <enable|disable>     :  Makes /boot writable for editing, until disabled or the next boot."
 	echo "                                 No argument shows which it is."
-	echo "  efistub <enable|disable>    :  Boots the kernel directly through its EFI stub, skipping GRUB."
-	echo "  grubquiet <enable|disable>  :  Quiet GRUB prints nothing to the screen."
+	echo "  efistub <enable|disable>    :  Boots the kernel directly through its EFI stub (the default), or through GRUB."
 	echo "  initrd <enable|disable>     :  Boots with an initrd even when the kernel could do without (EFI stub)."
 	echo "  locale <locale>             :  Sets system locale (e.g. en_GB.UTF-8). No argument shows current."
 	echo "  rootssh <enable|disable>    :  Allows password-based authentication for root over SSH."
@@ -233,8 +232,8 @@ EOF
 	;;
 
 
-	# Boots the kernel directly through its EFI stub instead of through GRUB, which
-	# loads it about five times faster. GRUB stays as the fallback.
+	# Boots the kernel directly through its EFI stub, which loads it about five times
+	# faster than GRUB. Disabled, it boots through GRUB instead.
 	efistub)
 
 		if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
@@ -283,22 +282,11 @@ EOF
 	;;
 
 
-	# Silent GRUB prints nothing to the screen.
+	# GRUB always prints nothing to the screen now: the one that drew on it (GRUB 1.98)
+	# is gone (see of-bootnsh).
 	grubquiet)
 
-		if [[ "${2}" == "" ]] || [[ "${2}" == "enable" ]] || [[ "${2}" == "1" ]]; then
-
-			echo -n "Enabling '${1}'..."
-			/usr/local/sbin/of-bootnsh quiet || exit 1
-
-		else
-
-			echo -n "Disabling '${1}'..."
-			/usr/local/sbin/of-bootnsh normal || exit 1
-
-		fi
-
-		echo " done."
+		echo "GRUB is always quiet now; there's nothing to change."
 		exit 0
 
 	;;

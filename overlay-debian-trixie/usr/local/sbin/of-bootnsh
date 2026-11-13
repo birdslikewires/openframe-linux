@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.9 (13th November 2026)
+## of-bootnsh v26.11.10 (13th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on, and
 ##  startup.nsh, which runs it.
 ##
-##  In 'stub' mode the shell starts the kernel directly through its EFI stub. The
-##  firmware loads the kernel and initrd about five times faster than GRUB 1.98,
-##  which saves about ten seconds per boot. GRUB stays in the script as the
-##  fallback: if the kernel can't be started, the shell moves on to the next line.
+##  The shell starts the kernel directly through its EFI stub. The firmware loads
+##  the kernel and initrd about five times faster than GRUB, which saves about ten
+##  seconds per boot. GRUB is only there as a safety net, for the internal memory on
+##  firmware that can't start the kernel there (see below), or after 'of-settings
+##  efistub disable' ('grub' mode). It's GRUB 2.12, built quiet (of-grubbuild.sh):
+##  it prints nothing, so a boot through it looks like any other, only slower.
+##  It's copied to the boot volume from /usr/lib/openframe/grubq.efi when boot.nsh
+##  uses it.
 ##
 ##  The firmware's shell only starts files ending in .efi, and the boot volume has
-##  no room for a second copy of the kernel, so in 'stub' mode the kernel is
-##  renamed to vmlinuz.efi and grub.cfg points at it too. 'grub' mode puts the
-##  usual vmlinuz-<version> name back.
+##  no room for a second copy of the kernel, so the kernel is renamed to vmlinuz.efi
+##  and grub.cfg points at it too.
 ##
 ##  An empty vmlinuz-<version> is left in place of the renamed kernel. It takes no
 ##  space on FAT, and it lets update-initramfs and linux-version find the kernel,
@@ -22,20 +25,19 @@
 ##  The initrd and kernel arguments are read from grub.cfg, so anything that
 ##  edits grub.cfg, or installs a kernel, should run this afterwards.
 ##
-##  In 'stub' mode the kernel boots without its initrd whenever it can. It then
-##  finds and mounts the root filesystem itself, which saves about three seconds
-##  per boot: the firmware has no initrd to load, and nothing has to unpack it or
-##  run udev inside it. The kernel needs the USB storage, SCSI disk and root
-##  filesystem drivers built in (its config file in /boot is checked), and the
-##  root given by partition UUID, since it can't resolve LABEL= or UUID= itself.
-##  usb-storage's one-second settle delay goes too: the initrd used to hide it.
-##  It only happens when writing this system's own /boot and the mounted root is
-##  the device grub.cfg names, so never in an image build. On the internal memory
-##  (MMC) the kernel needs the MMC drivers built in instead, and keeps usb-storage's
-##  delay. Otherwise, or after 'of-settings initrd enable', the initrd is used as
-##  before. grub.cfg keeps its initrd either way, so the GRUB fallback still works.
+##  The kernel boots without its initrd whenever it can. It then finds and mounts
+##  the root filesystem itself, which saves about three seconds per boot: the
+##  firmware has no initrd to load, and nothing has to unpack it or run udev inside
+##  it. The kernel needs the USB storage, SCSI disk and root filesystem drivers
+##  built in (its config file in /boot is checked), and the root given by partition
+##  UUID, since it can't resolve LABEL= or UUID= itself. usb-storage's one-second
+##  settle delay goes too: the initrd used to hide it. It only happens when writing
+##  this system's own /boot and the mounted root is the device grub.cfg names, so
+##  never in an image build. On the internal memory (MMC) the kernel needs the MMC
+##  drivers built in instead, and keeps usb-storage's delay. Otherwise, or after
+##  'of-settings initrd enable', the initrd is used as before.
 ##
-##  On BirdsLikeWires firmware, boot.nsh first runs BlwMac.efi with the WLAN card's
+##  On BirdsLikeWires firmware, boot.nsh runs BlwMac.efi with the WLAN card's
 ##  MAC (/var/lib/of-netplan/wlan.mac), or with no card the LAN MAC of-netplan
 ##  generated (lan.mac). It keeps that in NVRAM, writing only when it changes. On
 ##  every boot the firmware gives the network chip the LAN MAC (made from the card's
@@ -62,49 +64,64 @@
 ##  kernel there, which hangs; GRUB reads in small pieces and is fine. BirdsLikeWires
 ##  firmware 26.11.22 and later fixes the driver, and the kernel starts directly as
 ##  from a stick. A development build (26.11.27-dev4, say) counts as the release it
-##  was built on; before v26.11.8 one got the BlwMmcFix.efi lines, and since that
-##  app fails on a driver the firmware has already fixed, every boot went to GRUB.
-##  With any other firmware boot.nsh first runs BlwMmcFix.efi, which
-##  fixes it until the next reset, and starts the kernel only if that worked: if the
-##  app doesn't recognise the driver it fails, and the shell goes on to GRUB. If the
-##  firmware can't be identified, or BlwMmcFix.efi isn't installed, the internal
-##  memory boots through GRUB. 'of-bootnsh mac' (every boot) redoes these lines if
-##  the firmware has changed since they were written.
+##  was built on. With any other firmware boot.nsh first runs BlwMmcFix.efi, which
+##  fixes the driver until the next reset, and starts the kernel only if that
+##  worked: if the app doesn't recognise the driver (or finds it already fixed) it
+##  fails, and the shell goes on to GRUB. If the firmware can't be identified, or
+##  BlwMmcFix.efi isn't installed, the internal memory boots through GRUB. 'of-bootnsh
+##  mac' (every boot) redoes these lines if the firmware has changed since they were
+##  written. An image for the internal memory ('mmc', for an image build) can't know
+##  its firmware, so it gets the BlwMmcFix.efi lines: on firmware that fixes the
+##  driver itself its first boot goes through GRUB, and then starts the kernel
+##  directly.
 ##
 ##  The shell numbers volumes (fs0, fs1, ...) in the order the firmware set them up:
 ##  on BirdsLikeWires firmware 26.11.28 and later the internal memory is always fs0,
 ##  and USB drives follow. startup.nsh, which the shell runs from fs0, runs the
 ##  boot.nsh of fs1, then fs2 (two USB drives through a hub), then fs0, so a drive
 ##  with a system on it wins over the internal memory, and one without boot.nsh (a
-##  storage drive) is passed over. boot.nsh names its files without a volume
-##  (vmlinuz, grub, BlwMac.efi), and the shell finds them on the volume the script
-##  came from, so each drive starts its own kernel whatever number it got. An older
-##  boot.nsh, with fs0:/fs1: lines, is rewritten in full at the next boot.
+##  storage drive) is passed over. A file named without a volume (vmlinuz, grubq,
+##  BlwMac.efi) is looked for on the shell's current volume, which is fs0 whichever
+##  volume the script came from, so a stick's boot.nsh would start the internal
+##  memory's kernel or GRUB if it has one. So boot.nsh first makes its own volume
+##  the current one: each boot volume holds a marker file named after it,
+##  ofboot-<boot partition UUID> (a random number in an image build, until first
+##  boot gives the disk its own identifier), and boot.nsh switches to the volume
+##  that has it. Each drive then starts its own kernel whatever number it got. A
+##  boot.nsh without these lines (from before v26.11.10) is rewritten in full.
 ##
 ##  Runs of this one at a time take turns (a lock in /run), so two at once (say
 ##  of-identifier and of-netplan at first boot) can't undo each other's boot.nsh.
 ##
-##  Usage: of-bootnsh [stub|grub] [quiet|normal] [boot directory]
+##  Usage: of-bootnsh [stub|grub] [mmc] [boot directory]
 ##         of-bootnsh mac
-##  Modes not given are kept from the existing boot.nsh.
+##  The mode not given is kept from the existing boot.nsh. 'mmc' is for building
+##  an image for the internal memory. 'quiet' and 'normal' (GRUB's look, before
+##  v26.11.10) are accepted and do nothing: GRUB is always quiet now.
 
 BOOTDIR="/boot"
 MODE=""
-GRUBEFI=""
+GRUBEFI="grubq"
 KERNELEFI="vmlinuz.efi"
 MACONLY=0
+MMCIMAGE=0
+# The apps come from the tree this script is in (/usr/local/sbin/of-bootnsh, or an
+# image being built), so that an image build uses the image's own.
+ROOTDIR=$(cd "$(dirname "$0")/../../.." 2>/dev/null && pwd)
+LIBDIR="${ROOTDIR%/}/usr/lib/openframe"
 LANMACFILE="/var/lib/of-netplan/lan.mac"
 WLANMACFILE="/var/lib/of-netplan/wlan.mac"
-MACEFI="/usr/lib/openframe/BlwMac.efi"
-MMCFIXEFI="/usr/lib/openframe/BlwMmcFix.efi"
+MACEFI="$LIBDIR/BlwMac.efi"
+MMCFIXEFI="$LIBDIR/BlwMmcFix.efi"
+GRUBQEFI="$LIBDIR/grubq.efi"
 KEEPINITRD="/var/lib/openframe-scripts/keep-initrd"
 NEWNSH=""
 
 for arg in "$@"; do
 	case "$arg" in
 		stub|grub) MODE="$arg" ;;
-		quiet) GRUBEFI="grubq" ;;
-		normal) GRUBEFI="grub" ;;
+		quiet|normal) ;;
+		mmc) MMCIMAGE=1 ;;
 		mac) MACONLY=1 ;;
 		-h|--help) sed -n 's/^## \{0,1\}//p' "$0"; exit 0 ;;
 		*) BOOTDIR="$arg" ;;
@@ -148,7 +165,7 @@ boot_put() {
 
 # On the way out: drop the new boot.nsh if it's still about, and put /boot back.
 cleanup() {
-	[ -n "$NEWNSH" ] && rm -f "$NEWNSH"
+	[ -n "$NEWNSH" ] && rm -f "$NEWNSH" "$NEWNSH.start" "$NEWNSH.mark"
 	if [[ "$RESTORE" == "bootrw" ]]; then
 		/usr/lib/openframe/bootrw close
 	elif [ -n "$RESTORE" ]; then
@@ -189,7 +206,7 @@ fw_vendor() {
 # address: the firmware makes the LAN MAC, serial number and UUID from it. Failing
 # that, the LAN MAC if it was generated (no card): the firmware uses it as it is,
 # and for a UUID. Anything else (a typed-in LAN MAC with no card) isn't passed on,
-# since the firmware would take it for a card's. (install_macefi puts BlwMac.efi
+# since the firmware would take it for a card's. (install_efi puts BlwMac.efi
 # on the boot volume.)
 mac_lines() {
 	local MAC VENDOR
@@ -209,28 +226,63 @@ mac_lines() {
 	printf 'BlwMac.efi %s\n' "$MAC"
 }
 
-# Copies app $2 (BlwMac.efi, BlwMmcFix.efi) to the boot volume if boot.nsh ($1)
-# runs it and it's missing or old.
+# The name of this boot volume's marker file (see the notes at the top):
+# ofboot-<boot partition UUID>, or for a boot directory whose partition can't be
+# told (an image build) the marker already there, or a new random one.
+boot_marker() {
+	local ID="" SRC OLD
+	if [[ "$BOOTDIR" == "/boot" ]]; then
+		SRC=$(findmnt -n -o SOURCE --target "$BOOTDIR" 2>/dev/null)
+		[ -b "$SRC" ] && ID=$(blkid -c /dev/null -s PARTUUID -o value "$SRC" 2>/dev/null)
+	fi
+	if ! [[ "$ID" =~ ^[0-9A-Fa-f-]+$ ]]; then
+		OLD=$(cd "$BOOTDIR" 2>/dev/null && ls -1d ofboot-* 2>/dev/null | head -1)
+		ID="${OLD#ofboot-}"
+	fi
+	[[ "$ID" =~ ^[0-9A-Fa-f-]+$ ]] || ID=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
+	echo "ofboot-${ID,,}"
+}
+
+# The lines that make the boot volume holding marker $1 the shell's current one.
+# Checked in the reverse of startup.nsh's order, so that if two volumes ever share
+# a marker (one disk copied to another, before first boot) the one whose boot.nsh
+# runs first wins.
+switch_lines() {
+	local N
+	for N in 0 2 1; do
+		printf 'if exist fs%d:\\%s then\n  fs%d:\nendif\n' "$N" "$1" "$N"
+	done
+}
+SWITCHLINES=9
+
+# Copies app $2 (BlwMac.efi, BlwMmcFix.efi, grubq.efi) to the boot volume if
+# boot.nsh ($1) runs it and it's missing or old.
 install_efi() {
 	local NAME="${2##*/}"
-	grep -q "${NAME//./\\.}" "$1" && [ -f "$2" ] || return 0
+	grep -q -E "(^|[[:space:]])${NAME%.efi}(\.efi)?([[:space:]]|\$)" "$1" && [ -f "$2" ] || return 0
 	cmp -s "$2" "$BOOTDIR/$NAME" && return 0
 	boot_put "$2" "$BOOTDIR/$NAME"
 }
 
-# True if the boot directory is on the internal memory (an MMC).
+# True if the boot directory is on the internal memory (an MMC), or is an image
+# being built for it.
 on_mmc() {
 	local SRC
+	[[ "$BOOTDIR" == "/boot" ]] || return $(( 1 - MMCIMAGE ))
 	SRC=$(findmnt -n -o SOURCE --target "$BOOTDIR" 2>/dev/null)
 	[ -b "$SRC" ] && [[ "$(lsblk -n -o PKNAME "$SRC" 2>/dev/null | head -1)" == mmcblk* ]]
 }
 
 # How the kernel can start from the internal memory (see the notes at the top):
 # 'direct' (BirdsLikeWires firmware 26.11.22 or later, or a development build of
-# one: -devN), 'fix' (other firmware, through BlwMmcFix.efi), or nothing (unknown
-# firmware, or no BlwMmcFix.efi): GRUB.
+# one: -devN), 'fix' (other firmware, or an image, through BlwMmcFix.efi), or
+# nothing (unknown firmware, or no BlwMmcFix.efi): GRUB.
 mmc_start() {
 	local VENDOR VERSION
+	if [[ "$BOOTDIR" != "/boot" ]]; then
+		[ -f "$MMCFIXEFI" ] && echo fix
+		return 0
+	fi
 	VENDOR=$(fw_vendor)
 	[[ "$VENDOR" != "" ]] || return 0
 	VERSION=$(cat /sys/class/dmi/id/bios_version 2>/dev/null)
@@ -244,31 +296,41 @@ mmc_start() {
 }
 
 # Puts the new boot.nsh ($NEWNSH, built outside /boot) in place, unless it's the
-# same as what's there. A changed BlwMac.efi line goes in the kernel log: NVRAM
-# follows at the next boot.
+# same as what's there, with the marker it looks for put down first and any other
+# taken away after. A changed BlwMac.efi line goes in the kernel log: NVRAM follows
+# at the next boot.
 install_bootnsh() {
-	local NEW MAC SAYS
+	local NEW MAC SAYS F
 	printf 'fs1:boot\nfs2:boot\nfs0:boot\n' > "$NEWNSH.start"
 	cmp -s "$NEWNSH.start" "$STARTNSH" || boot_put "$NEWNSH.start" "$STARTNSH"
 	rm -f "$NEWNSH.start"
 	install_efi "$NEWNSH" "$MACEFI"
 	install_efi "$NEWNSH" "$MMCFIXEFI"
-	if cmp -s "$NEWNSH" "$BOOTNSH"; then
-		rm -f "$NEWNSH"
-		return
+	install_efi "$NEWNSH" "$GRUBQEFI"
+	if [ ! -f "$BOOTDIR/$MARKER" ]; then
+		echo "This boot volume's boot.nsh finds its own volume by this file (of-bootnsh)." > "$NEWNSH.mark"
+		boot_put "$NEWNSH.mark" "$BOOTDIR/$MARKER"
+		rm -f "$NEWNSH.mark"
 	fi
-	NEW=$(grep -m1 'BlwMac\.efi' "$NEWNSH")
-	if [[ "$NEW" != "" ]] && [[ "$NEW" != "$(grep -m1 'BlwMac\.efi' "$BOOTNSH" 2>/dev/null)" ]]; then
-		read -r _ MAC <<< "$NEW"
-		if local_mac "$MAC"; then
-			SAYS="generated LAN MAC $MAC (no serial number)"
-		else
-			SAYS="WLAN card MAC $MAC (LAN MAC 02:${MAC:3}, serial number $(tr -d : <<< "${MAC^^}"))"
+	if ! cmp -s "$NEWNSH" "$BOOTNSH"; then
+		NEW=$(grep -m1 'BlwMac\.efi' "$NEWNSH")
+		if [[ "$NEW" != "" ]] && [[ "$NEW" != "$(grep -m1 'BlwMac\.efi' "$BOOTNSH" 2>/dev/null)" ]]; then
+			read -r _ MAC <<< "$NEW"
+			if local_mac "$MAC"; then
+				SAYS="generated LAN MAC $MAC (no serial number)"
+			else
+				SAYS="WLAN card MAC $MAC (LAN MAC 02:${MAC:3}, serial number $(tr -d : <<< "${MAC^^}"))"
+			fi
+			echo "<5>of-bootnsh: NVRAM gets $SAYS at next boot." > /dev/kmsg 2>/dev/null
 		fi
-		echo "<5>of-bootnsh: NVRAM gets $SAYS at next boot." > /dev/kmsg 2>/dev/null
+		boot_put "$NEWNSH" "$BOOTNSH"
 	fi
-	boot_put "$NEWNSH" "$BOOTNSH"
 	rm -f "$NEWNSH"
+	for F in "$BOOTDIR"/ofboot-*; do
+		[ -f "$F" ] && [[ "${F##*/}" != "$MARKER" ]] || continue
+		boot_rw
+		rm -f "$F"
+	done
 }
 
 # fsck.fat saves clusters a power cut left allocated to no file as FSCKnnnn.REC.
@@ -283,11 +345,12 @@ remove_rec() {
 
 NEWNSH=$(mktemp /run/of-bootnsh.XXXXXX 2>/dev/null || mktemp)
 remove_rec
+MARKER=$(boot_marker)
 
 # A boot.nsh that starts the kernel from the internal memory must suit the firmware
 # there now: one written for older firmware (with BlwMmcFix.efi) goes to GRUB once
 # the firmware fixes the driver itself, and the other way round the kernel would
-# hang. If they don't match, boot.nsh is rewritten in full, keeping its modes.
+# hang. If they don't match, boot.nsh is rewritten in full, keeping its mode.
 if [[ $MACONLY -eq 1 ]] && [[ "$BOOTDIR" == "/boot" ]] && grep -q 'vmlinuz' "$BOOTNSH" 2>/dev/null && on_mmc; then
 	HASFIX=0
 	grep -q 'BlwMmcFix\.efi' "$BOOTNSH" && HASFIX=1
@@ -298,15 +361,16 @@ if [[ $MACONLY -eq 1 ]] && [[ "$BOOTDIR" == "/boot" ]] && grep -q 'vmlinuz' "$BO
 	esac
 fi
 
-# A boot.nsh from before v26.11.9 names volumes (fs0:, fs1:): written again in full.
-if [[ $MACONLY -eq 1 ]] && grep -qE '(^|[[:space:]])fs[0-9]+:' "$BOOTNSH" 2>/dev/null; then
+# A boot.nsh that doesn't start by switching to this volume (from before v26.11.10,
+# or since given a new partition UUID) is written again in full.
+if [[ $MACONLY -eq 1 ]] && [[ "$(head -n $SWITCHLINES "$BOOTNSH" 2>/dev/null)" != "$(switch_lines "$MARKER")" ]]; then
 	MACONLY=0
 fi
 
 # BlwLanMac.efi was BlwMac.efi's name before firmware 26.11.20; its lines go too.
 if [[ $MACONLY -eq 1 ]]; then
 	[ -f "$BOOTNSH" ] || exit 1
-	{ mac_lines; grep -v -E 'Blw(Lan)?Mac\.efi' "$BOOTNSH"; } > "$NEWNSH"
+	{ switch_lines "$MARKER"; mac_lines; tail -n +$(( SWITCHLINES + 1 )) "$BOOTNSH" | grep -v -E 'Blw(Lan)?Mac\.efi'; } > "$NEWNSH"
 	install_bootnsh
 	exit 0
 fi
@@ -316,7 +380,7 @@ if [ ! -f "$GRUBCFG" ] || ! grep -q -E '^[[:space:]]*linux[[:space:]]' "$GRUBCFG
 	exit 1
 fi
 
-# Keep the current modes unless told otherwise. A missing boot.nsh means stub.
+# Keep the current mode unless told otherwise. A missing boot.nsh means stub.
 if [[ "$MODE" == "" ]]; then
 	if [ -f "$BOOTNSH" ] && ! grep -q 'vmlinuz' "$BOOTNSH"; then
 		MODE="grub"
@@ -333,14 +397,6 @@ if [[ "$MODE" == "stub" ]] && on_mmc; then
 		*)	echo "This firmware may not start the kernel from internal memory directly; booting through GRUB."
 			MODE="grub" ;;
 	esac
-fi
-
-if [[ "$GRUBEFI" == "" ]]; then
-	if [ -f "$BOOTNSH" ] && grep -q 'grubq' "$BOOTNSH"; then
-		GRUBEFI="grubq"
-	else
-		GRUBEFI="grub"
-	fi
 fi
 
 read -r _ INITRD _ <<< "$(grep -m1 -E '^[[:space:]]*initrd[[:space:]]' "$GRUBCFG")"
@@ -411,24 +467,25 @@ grub_kernel() {
 	rm -f "$NEWCFG"
 }
 
-if [[ "$MODE" == "stub" ]]; then
+# The kernel is vmlinuz.efi in either mode. A freshly installed kernel replaces the
+# previous one. -s, not -f: an empty file is our placeholder, and moving it would
+# leave nothing to boot.
+if [[ "$VERSION" != "" ]] && [ -s "$BOOTDIR/vmlinuz-$VERSION" ]; then
+	boot_rw
+	mv -f "$BOOTDIR/vmlinuz-$VERSION" "$BOOTDIR/$KERNELEFI"
+fi
 
-	# A freshly installed kernel replaces the previous vmlinuz.efi. -s, not -f: an
-	# empty file is our placeholder, and moving it would leave nothing to boot.
-	if [[ "$VERSION" != "" ]] && [ -s "$BOOTDIR/vmlinuz-$VERSION" ]; then
+if [ -s "$BOOTDIR/$KERNELEFI" ]; then
+	if [[ "$VERSION" != "" ]] && [ ! -e "$BOOTDIR/vmlinuz-$VERSION" ]; then
 		boot_rw
-		mv -f "$BOOTDIR/vmlinuz-$VERSION" "$BOOTDIR/$KERNELEFI"
+		: > "$BOOTDIR/vmlinuz-$VERSION"
 	fi
+else
+	echo "Warning: no $BOOTDIR/$KERNELEFI yet; it appears when a kernel is installed."
+fi
+grub_kernel "$KERNELEFI"
 
-	if [ -s "$BOOTDIR/$KERNELEFI" ]; then
-		if [[ "$VERSION" != "" ]] && [ ! -e "$BOOTDIR/vmlinuz-$VERSION" ]; then
-			boot_rw
-			: > "$BOOTDIR/vmlinuz-$VERSION"
-		fi
-	else
-		echo "Warning: no $BOOTDIR/$KERNELEFI yet; it appears when a kernel is installed."
-	fi
-	grub_kernel "$KERNELEFI"
+if [[ "$MODE" == "stub" ]]; then
 
 	read -r _ _ ARGS <<< "$(grep -m1 -E '^[[:space:]]*linux[[:space:]]' "$GRUBCFG")"
 	if ! grep -q -E '(^|[[:space:]])root=[^[:space:]]' <<< "$ARGS"; then
@@ -453,32 +510,21 @@ if [[ "$MODE" == "stub" ]]; then
 	fi
 
 	{
+		switch_lines "$MARKER"
 		mac_lines
 		if [ $MMCFIX -eq 1 ]; then
 			# The kernel only if BlwMmcFix.efi worked (the shell's lasterror is 0), else GRUB.
 			printf 'BlwMmcFix.efi\nif %%lasterror%% == 0 then\n  %s %s\nendif\n%s\n' \
 				"${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI"
 		else
-			printf '%s %s\n%s\n' "${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI"
+			printf '%s %s\n' "${KERNELEFI%.efi}" "$ARGS"
 		fi
 	} > "$NEWNSH"
 
 else
 
-	if [ -f "$BOOTDIR/$KERNELEFI" ]; then
-		[[ "$VERSION" == "" ]] && VERSION=$(uname -r)
-		boot_rw
-		if [ -s "$BOOTDIR/vmlinuz-$VERSION" ]; then
-			# A real kernel is already under its own name, so vmlinuz.efi is stale.
-			rm -f "$BOOTDIR/$KERNELEFI"
-		else
-			# Replaces the placeholder, if there is one.
-			mv -f "$BOOTDIR/$KERNELEFI" "$BOOTDIR/vmlinuz-$VERSION"
-		fi
-		grub_kernel "vmlinuz-$VERSION"
-	fi
-
 	{
+		switch_lines "$MARKER"
 		mac_lines
 		printf '%s\n' "$GRUBEFI"
 	} > "$NEWNSH"

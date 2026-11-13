@@ -7,7 +7,8 @@
 #  Then, once per system, the kernel is switched to booting directly through its EFI
 #  stub, which saves around ten seconds per boot. Anyone who later runs
 #  'of-settings efistub disable' keeps GRUB, because the marker stops this repeating.
-#  An image build keeps GRUB, and the image's first boot switches (of-identifier).
+#  An image build writes its own boot.nsh (of-imgcreate.sh), and the image's first
+#  boot rewrites it for the unit (of-identifier).
 #  Systems on the internal memory had to keep GRUB until the firmware's MMC driver
 #  could be worked around (of-bootnsh); once per system they switch now too.
 #
@@ -42,9 +43,9 @@ case "$1" in
 
 		rm -f /etc/kernel/preinst.d/openframe-boot-prep /etc/kernel/postinst.d/openframe-grub-update
 
-		# An image build can't tell what the image will be written to, or what firmware
-		# will start it (on the internal memory that matters, see of-bootnsh): images
-		# keep GRUB, and first boot (of-identifier) switches. The marker still goes in,
+		# An image build can't tell what firmware will start the image (on the internal
+		# memory that matters, see of-bootnsh): of-imgcreate.sh writes the image's
+		# boot.nsh, and first boot (of-identifier) rewrites it. The marker still goes in,
 		# so this doesn't switch an image's system back after 'of-settings efistub disable'.
 		if [ ! -e "$MARKER" ] && in_chroot; then
 			mkdir -p "${MARKER%/*}"

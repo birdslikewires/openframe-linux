@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofimgcreate v1.55 (29th March 2026)
+# ofimgcreate v26.11.1 (13th November 2026)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -24,9 +24,10 @@ if [[ "$#" -lt 5 ]]; then
 	echo "  totalMB:         The total size of the image file; specify 'of1' or 'of2' for respective internal MMC."
 	echo "  bootMB:          The size of the FAT16 boot volume (32 MB minimum, for the initrd)."
 	echo
-	echo "  Images boot through GRUB with an initrd, which works from any disk. From its first boot"
-	echo "  the system starts the kernel directly, without the initrd whenever it can (of-bootnsh);"
-	echo "  from an OpenFrame's internal memory as its firmware allows."
+	echo "  Images start the kernel directly from the firmware's shell, with an initrd. From its first"
+	echo "  boot the system leaves the initrd out whenever it can (of-bootnsh). An image for the"
+	echo "  internal memory (of1, of2) keeps GRUB as the safety net for firmware that can't load the"
+	echo "  kernel from there."
 	echo "  source:          Source of operating system, MUST BE QUOTED. You have two options here:"
 	echo "                      1) Give an official distro name and code name, eg. 'ubuntu bionic'."
 	echo "                      2) Point to a local .tgz file containing boot and root structures."
@@ -284,9 +285,10 @@ mmc_cfg() {
 
 		# fstab and grub.cfg keep naming the partitions by label: the internal memory's
 		# kernel name varies (mmcblk0, 1 or 2), and first boot (of-identifier) gives
-		# them unique identifiers. The firmware can't start the kernel from the
-		# internal memory, so it always boots through GRUB.
-		[ -f $MP/usr/local/sbin/of-bootnsh ] && bash $MP/usr/local/sbin/of-bootnsh grub $MP/boot >/dev/null
+		# them unique identifiers. Stock firmware can only start the kernel from the
+		# internal memory after BlwMmcFix.efi, and firmware it doesn't recognise not
+		# at all, so boot.nsh has GRUB after it (of-bootnsh).
+		[ -f $MP/usr/local/sbin/of-bootnsh ] && bash $MP/usr/local/sbin/of-bootnsh stub mmc $MP/boot >/dev/null
 
 		echo " done."
 	fi
@@ -461,11 +463,7 @@ if [[ "$INSTALL" != "" ]]; then
 				sed -i "s/KERNVER/$KERNVER/" $BLDLOC/boot/grub.cfg
 				sed -i "s/ROOTFST/$FS/" $BLDLOC/boot/grub.cfg
 
-				# Images boot through GRUB, which works from any disk: the firmware can't
-				# start the kernel directly from an OpenFrame's internal memory. First boot
-				# (of-identifier) switches to the EFI stub wherever it can. The kernel hook
-				# runs of-bootnsh again once the kernel is installed in the chroot.
-				bash $BLDLOC/usr/local/sbin/of-bootnsh grub $BLDLOC/boot >/dev/null
+				# boot.nsh is written once the kernel is in (below).
 
 				# Replace the placeholders in fstab
 				sed -i "s/BOOTDEV/LABEL=$BNAME/" $BLDLOC/etc/fstab
@@ -500,10 +498,11 @@ if [[ "$INSTALL" != "" ]]; then
 					rm -rf $BLDLOC/run_on_build
 				fi
 
-				# Images boot through GRUB (see above). The openframe-scripts package installed
-				# in the chroot may be one whose postinst switched to the EFI stub, so the
-				# image is put back in GRUB mode here, whichever version it got.
-				bash $BLDLOC/usr/local/sbin/of-bootnsh grub $BLDLOC/boot >/dev/null
+				# The kernel starts directly from the firmware's shell, with the initrd,
+				# which finds root by label until first boot (of-identifier) gives the
+				# partitions their own identifiers. The image's own of-bootnsh, whichever
+				# openframe-scripts the chroot got, and 'stub' in case that was GRUB mode.
+				bash $BLDLOC/usr/local/sbin/of-bootnsh stub $BLDLOC/boot >/dev/null
 
 				sync
 				sync
@@ -557,6 +556,15 @@ if [[ "$INSTALL" != "" ]]; then
 		sync
 		rm -rf $BLDLOC
 		echo " done."
+
+		# A build directory that already existed was set up for whichever image it was
+		# made for, so boot.nsh is written for this one: from a stick the kernel starts
+		# directly; on the internal memory as mmc_cfg explains.
+		if [[ "$OFVARIANT" == "of1" ]] || [[ "$OFVARIANT" == "of2" ]]; then
+			bash $MP/usr/local/sbin/of-bootnsh stub mmc $MP/boot >/dev/null
+		else
+			bash $MP/usr/local/sbin/of-bootnsh stub $MP/boot >/dev/null
+		fi
 		echo
 		sleep 2
 
