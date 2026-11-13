@@ -30,6 +30,7 @@ BOOTROMARKER="/var/lib/openframe-scripts/boot-ro-default"
 RECOVERMARKER="/var/lib/openframe-scripts/dpkg-recover-default"
 DIRSYNCMARKER="/var/lib/openframe-scripts/boot-dirsync-default"
 MMCMARKER="/var/lib/openframe-scripts/mmc-stub-default"
+FWREPOMARKER="/var/lib/openframe-scripts/firmware-repo-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -149,6 +150,22 @@ case "$1" in
 				install -m 644 "$APTKEY" "$KR.new" && mv -f "$KR.new" "$KR"
 			fi
 		done
+
+		# Once per system, add the firmware repository (firmware.openbeak.net), whose
+		# openframe-firmware package keeps the OpenFrame 1's firmware up to date. A later
+		# openframe-scripts depends on that package; apt can only resolve it once systems
+		# know the repository. Removing the list afterwards keeps it removed.
+		if [ ! -e "$FWREPOMARKER" ]; then
+			FWLIST=/etc/apt/sources.list.d/openframe-firmware.list
+			if [ ! -e "$FWLIST" ] && [ -f "$APTKEY" ] && [ -d /etc/apt/sources.list.d ]; then
+				mkdir -p /etc/apt/keyrings
+				install -m 644 "$APTKEY" /etc/apt/keyrings/openframe-firmware.gpg
+				CODENAME=$(. /etc/os-release && echo "${VERSION_CODENAME:-trixie}")
+				echo "deb [signed-by=/etc/apt/keyrings/openframe-firmware.gpg] https://firmware.openbeak.net/ ${CODENAME} main" > "$FWLIST"
+			fi
+			mkdir -p "${FWREPOMARKER%/*}"
+			touch "$FWREPOMARKER"
+		fi
 
 		# Refresh the boot volume on every update, keeping the current mode. This gives
 		# systems already in stub mode the empty vmlinuz-<version> that lets

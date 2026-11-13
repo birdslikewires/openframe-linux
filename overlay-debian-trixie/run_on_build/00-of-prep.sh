@@ -175,6 +175,13 @@ echo "deb [signed-by=/etc/apt/keyrings/openframe-linux.gpg] https://linux.openbe
 apt-get update
 echo
 
+echo "Configuring OpenFrame firmware repository..."
+install -m 644 /usr/share/keyrings/openframe-apt.gpg /etc/apt/keyrings/openframe-firmware.gpg
+echo "deb [signed-by=/etc/apt/keyrings/openframe-firmware.gpg] https://firmware.openbeak.net/ $VERSION_CODENAME main" \
+  > /etc/apt/sources.list.d/openframe-firmware.list
+apt-get update
+echo
+
 echo "Installing OpenFrame scripts..."
 apt-get install -y openframe-scripts
 echo
