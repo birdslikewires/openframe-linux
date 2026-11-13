@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.7 (10th November 2026)
+## of-bootnsh v26.11.8 (13th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on.
 ##
 ##  In 'stub' mode the shell starts the kernel directly through its EFI stub. The
@@ -60,7 +60,10 @@
 ##  past the first megabyte of a file, so the stock firmware starts a corrupted
 ##  kernel there, which hangs; GRUB reads in small pieces and is fine. BirdsLikeWires
 ##  firmware 26.11.22 and later fixes the driver, and the kernel starts directly as
-##  from a stick. With any other firmware boot.nsh first runs BlwMmcFix.efi, which
+##  from a stick. A development build (26.11.27-dev4, say) counts as the release it
+##  was built on; before v26.11.8 one got the BlwMmcFix.efi lines, and since that
+##  app fails on a driver the firmware has already fixed, every boot went to GRUB.
+##  With any other firmware boot.nsh first runs BlwMmcFix.efi, which
 ##  fixes it until the next reset, and starts the kernel only if that worked: if the
 ##  app doesn't recognise the driver it fails, and the shell goes on to GRUB. If the
 ##  firmware can't be identified, or BlwMmcFix.efi isn't installed, the internal
@@ -211,13 +214,15 @@ on_mmc() {
 }
 
 # How the kernel can start from the internal memory (see the notes at the top):
-# 'direct' (BirdsLikeWires firmware 26.11.22 or later), 'fix' (other firmware,
-# through BlwMmcFix.efi), or nothing (unknown firmware, or no BlwMmcFix.efi): GRUB.
+# 'direct' (BirdsLikeWires firmware 26.11.22 or later, or a development build of
+# one: -devN), 'fix' (other firmware, through BlwMmcFix.efi), or nothing (unknown
+# firmware, or no BlwMmcFix.efi): GRUB.
 mmc_start() {
 	local VENDOR VERSION
 	VENDOR=$(fw_vendor)
 	[[ "$VENDOR" != "" ]] || return 0
 	VERSION=$(cat /sys/class/dmi/id/bios_version 2>/dev/null)
+	VERSION="${VERSION%-dev[0-9]*}"
 	if [[ "$VENDOR" == "BirdsLikeWires" ]] && [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
 	   [[ "$(printf '%s\n' 26.11.22 "$VERSION" | sort -V | head -1)" == "26.11.22" ]]; then
 		echo direct
