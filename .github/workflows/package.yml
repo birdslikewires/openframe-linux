@@ -14,6 +14,7 @@ on:
       - 'overlay-*/usr/share/initramfs-tools/**'
       - 'overlay-*/usr/lib/systemd/system/**'
       - 'overlay-*/usr/lib/sysctl.d/**'
+      - 'overlay-*/usr/lib/systemd/timesyncd.conf.d/**'
       - 'overlay-*/etc/dpkg/dpkg.cfg.d/openframe-*'
       - 'overlay-*/etc/apt/apt.conf.d/50openframe-*'
       - 'overlay-*/usr/share/keyrings/**'
@@ -153,6 +154,10 @@ jobs:
                 mkdir -p "${PKG}/usr/lib/systemd/system/${dropin##*/}"
                 install -m 644 "$dropin/"*.conf "${PKG}/usr/lib/systemd/system/${dropin##*/}/"
               done
+            fi
+            if [ -d "${overlay_dir}usr/lib/systemd/timesyncd.conf.d" ]; then
+              mkdir -p "${PKG}/usr/lib/systemd/timesyncd.conf.d"
+              install -m 644 "${overlay_dir}usr/lib/systemd/timesyncd.conf.d/"*.conf "${PKG}/usr/lib/systemd/timesyncd.conf.d/"
             fi
             if [ -d "${overlay_dir}usr/lib/sysctl.d" ]; then
               mkdir -p "${PKG}/usr/lib/sysctl.d"
