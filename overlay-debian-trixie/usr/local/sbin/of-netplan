@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.10 (14th November 2026)
+## of-netplan v26.11.11 (14th November 2026)
 ##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
@@ -224,9 +224,14 @@ update_bootnsh() {
 	# needs the MAC, of-bootnsh reboots for it now, however long the card check took.
 	[ -x /usr/local/sbin/of-bootnsh ] &&
 		OF_BOOTNSH_AT_BOOT=${INVOCATION_ID:+1} /usr/local/sbin/of-bootnsh mac >/dev/null 2>&1
-	# Done: of-mac-gate (which holds the login prompt and any UI until now) can go on.
-	mkdir -p /run/of-netplan && touch /run/of-netplan/mac-decided
+	release_gate
 	return 0
+}
+
+# Lets of-mac-gate (which holds the login prompt and any UI until the MAC is settled) go
+# on. It then holds only while /run/of-bootnsh/mac-reboot says a reboot is on its way.
+release_gate() {
+	mkdir -p /run/of-netplan && touch /run/of-netplan/mac-decided
 }
 
 # networkd sends its first DHCP DISCOVER within milliseconds of carrier, and on
@@ -272,10 +277,21 @@ if [ -e /boot/$NETPLANCONFIG ] && [ -s $STATEDIR/lan.mac ] \
 	&& cmp -s /etc/netplan/$NETPLANCONFIG $STATEDIR/live.yaml; then
 	echo "No changes to $NETPLANCONFIG since last boot."
 	LANMAC=$(cat $STATEDIR/lan.mac)
+	OLDWLAN=$(cat $STATEDIR/wlan.mac 2>/dev/null)
+	# No card noted last boot ('none', or no wlan.mac when the MAC came from network.yaml),
+	# on BirdsLikeWires firmware, and NVRAM already holds this LAN MAC (so it's generated,
+	# this unit's: with a card NVRAM holds the card's own 00 MAC, never the LAN's 02 one):
+	# unless a card turns up in the wait below, nothing needs storing. So let of-mac-gate
+	# go now, rather than hold the splash, login prompt and UI through the wait on every
+	# boot. A card fitted since (the unit has been opened) still gets its MAC stored, by
+	# a reboot once the UI is up.
+	if ! is_mac "$OLDWLAN" && is_mac "$LANMAC" && [ "$(stored_mac)" = "${LANMAC,,}" ] &&
+	   [[ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" == "BirdsLikeWires" ]]; then
+		release_gate
+	fi
 	# The WLAN adapter may not have appeared yet. Give it up to 8 seconds; the
 	# OpenFrame 2 has none, and its file is still written sooner than before.
 	WLANMAC=$(card_mac 8)
-	OLDWLAN=$(cat $STATEDIR/wlan.mac 2>/dev/null)
 	[ -n "$WLANMAC" ] || nocard_lan "$LANMAC"
 	if [ -z "$WLANMAC" ] && [ -z "$NOCARDLAN" ] && card_made "$LANMAC" "$OLDWLAN"; then
 		# No card, no NVRAM to ask, and a LAN MAC made from a card: carry on below, which
