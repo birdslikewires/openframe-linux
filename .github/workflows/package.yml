@@ -159,7 +159,7 @@ jobs:
 
             install -m 755 package/postinst "${PKG}/DEBIAN/postinst"
 
-            printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash, dosfstools, e2fsprogs\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
+            printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash, dosfstools, e2fsprogs, yq\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
               "${version}" > "${PKG}/DEBIAN/control"
 
             dpkg-deb --build --root-owner-group "${PKG}"

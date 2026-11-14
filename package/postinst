@@ -147,6 +147,14 @@ case "$1" in
 			touch "$MACGATEMARKER"
 		fi
 
+		# Images built before March 2026 put an old Go yq (2.1.1) in /usr/local/bin, ahead
+		# of Debian's yq in PATH; of-netplan is written for Debian's. Remove it, but only
+		# if it's exactly the one those images shipped, so a yq someone installed stays.
+		if [ -f /usr/local/bin/yq ] &&
+		   [ "$(md5sum < /usr/local/bin/yq | cut -d' ' -f1)" = aa1a350d3760a4c7d1abe014c07978f5 ]; then
+			rm -f /usr/local/bin/yq
+		fi
+
 		# Write changed data out within ten seconds (usr/lib/sysctl.d), from now on.
 		in_chroot || sysctl -q -p /usr/lib/sysctl.d/60-openframe-writeback.conf 2>/dev/null || true
 

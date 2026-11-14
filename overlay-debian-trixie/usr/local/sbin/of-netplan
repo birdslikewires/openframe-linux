@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.9 (14th November 2026)
+## of-netplan v26.11.10 (14th November 2026)
 ##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
@@ -66,6 +66,9 @@ WLANTIMEOUT=15
 CONFIGTIMEOUT=10
 NETPLANCONFIG="network.yaml"
 STATEDIR="/var/lib/of-netplan"
+# Debian's yq (a jq wrapper; openframe-scripts depends on it), by its full path: a yq
+# earlier in PATH may be another program altogether.
+YQ="/usr/bin/yq"
 
 # Early mode, from udev: MAC first (while the link is down, so it's right from the
 # first frame and networkd has nothing to change), then link up. Nothing else.
@@ -190,6 +193,24 @@ card_made() {
 	is_mac "$2" && [ "${1,,}" = "$(from_card ${2,,})" ]
 }
 
+# Rewrites /etc/netplan/network.yaml with yq: any arguments it needs, then filter. Only
+# a result that is still a netplan config replaces it, so a yq that fails (or a
+# different yq: images before March 2026 had an old one in /usr/local/bin) can't fill
+# the file with its error message, which netplan refuses and which would go back to
+# /boot. Says so and returns false if not.
+yaml_edit() {
+	local F=/etc/netplan/$NETPLANCONFIG T=/tmp/$NETPLANCONFIG
+	if "$YQ" -y "$@" "$F" > "$T" 2>/dev/null && [ -s "$T" ] &&
+	   "$YQ" -e '.network | type == "object"' "$T" > /dev/null 2>&1; then
+		mv "$T" "$F"
+		chmod 600 "$F"
+		return 0
+	fi
+	rm -f "$T"
+	klog "Could not rewrite $NETPLANCONFIG with $YQ; it's unchanged."
+	return 1
+}
+
 # Says $1 in the kernel log (dmesg) as well as our own.
 klog() {
 	echo "$1"
@@ -292,8 +313,12 @@ if [ -e /boot/$NETPLANCONFIG ]; then
 	chmod 600 /etc/netplan/$NETPLANCONFIG
 fi
 
-# What network.yaml says now, what we last wrote there, and where that came from.
-YAMLMAC=$(yq -r ".network.ethernets.${LAN}.macaddress // empty" /etc/netplan/$NETPLANCONFIG)
+# What network.yaml says now, what we last wrote there, and where that came from. If
+# yq can't read it, act as if it has no MAC; yaml_edit then won't touch the file.
+if ! YAMLMAC=$("$YQ" -r ".network.ethernets.${LAN}.macaddress // empty" /etc/netplan/$NETPLANCONFIG 2>/dev/null); then
+	klog "Could not read $NETPLANCONFIG with $YQ."
+	YAMLMAC=""
+fi
 OLDLAN=$(cat $STATEDIR/lan.mac 2>/dev/null)
 OLDWLAN=$(cat $STATEDIR/wlan.mac 2>/dev/null)
 LANMAC="$YAMLMAC"
@@ -367,12 +392,10 @@ else
 
 fi
 
-# Write a new LAN MAC to the config file.
+# Write a new LAN MAC to the config file. If that can't be done, the MAC stays what the
+# file says, and that's what gets recorded.
 if [ "$LANMAC" != "$YAMLMAC" ]; then
-	yq -y --arg mac "$LANMAC" ".network.ethernets.${LAN}.macaddress = \$mac" \
-		/etc/netplan/$NETPLANCONFIG > /tmp/$NETPLANCONFIG
-	mv /tmp/$NETPLANCONFIG /etc/netplan/$NETPLANCONFIG
-	chmod 600 /etc/netplan/$NETPLANCONFIG
+	yaml_edit --arg mac "$LANMAC" ".network.ethernets.${LAN}.macaddress = \$mac" || LANMAC="$YAMLMAC"
 fi
 
 # Copy the updated config file back to /boot for next time, only if it differs,
@@ -394,9 +417,7 @@ update_bootnsh
 # adapter that may not exist (the OpenFrame 2 has none) and then fails. /boot keeps
 # the full template, so Wi-Fi can still be filled in there.
 if grep -q 'YOURWIFINAME:' /etc/netplan/$NETPLANCONFIG; then
-	yq -y 'del(.network.wifis)' /etc/netplan/$NETPLANCONFIG > /tmp/$NETPLANCONFIG
-	mv /tmp/$NETPLANCONFIG /etc/netplan/$NETPLANCONFIG
-	chmod 600 /etc/netplan/$NETPLANCONFIG
+	yaml_edit 'del(.network.wifis)'
 fi
 
 # Go live with the changes, then remember what we left for next boot.
