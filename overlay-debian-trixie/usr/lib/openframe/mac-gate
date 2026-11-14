@@ -17,8 +17,14 @@ done
 [ -e /run/of-bootnsh/mac-reboot ] || exit 0
 
 MSG="Storing this unit's MAC address in its firmware: restarting."
-echo "$MSG"
-plymouth --ping 2>/dev/null && plymouth display-message --text="$MSG" 2>/dev/null
+echo "$MSG"				# (the journal)
+# Once on the screen: through Plymouth if it's running (it shows it, in text mode too),
+# else straight on the console.
+if plymouth --ping 2>/dev/null; then
+	plymouth display-message --text="$MSG" 2>/dev/null
+else
+	echo "$MSG" > /dev/console 2>/dev/null
+fi
 i=0
 while [ $i -lt 300 ]; do
 	sleep 1

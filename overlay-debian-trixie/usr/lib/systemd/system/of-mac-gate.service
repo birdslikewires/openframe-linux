@@ -9,7 +9,7 @@ Before=getty@tty1.service startx.service display-manager.service plymouth-quit.s
 Type=oneshot
 ExecStart=/usr/lib/openframe/mac-gate
 TimeoutStartSec=infinity
-StandardOutput=journal+console
+StandardOutput=journal
 
 [Install]
 WantedBy=multi-user.target
