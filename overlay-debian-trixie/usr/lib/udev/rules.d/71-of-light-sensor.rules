@@ -1,0 +1,2 @@
+# The OpenFrame 1's light sensor, on the chipset's SMBus (see /usr/lib/openframe/light-sensor).
+ACTION=="add", SUBSYSTEM=="i2c", KERNEL=="i2c-[0-9]*", ATTR{name}=="SMBus SCH adapter at *", RUN+="/usr/lib/openframe/light-sensor %p"

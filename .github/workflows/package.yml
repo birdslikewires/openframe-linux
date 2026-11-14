@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - 'overlay-*/usr/local/bin/of-*'
+      - 'overlay-*/usr/local/bin/readlightsensor'
       - 'overlay-*/usr/local/sbin/of-*'
       - 'overlay-*/usr/share/kernel/**'
       - 'overlay-*/usr/lib/firmware/updates/**'
@@ -91,6 +92,12 @@ jobs:
             cp "${overlay_dir}usr/local/bin/of-"* "${PKG}/usr/local/bin/" 2>/dev/null || true
             cp "${overlay_dir}usr/local/sbin/of-"* "${PKG}/usr/local/sbin/" 2>/dev/null || true
             chmod 755 "${PKG}/usr/local/bin/"of-* "${PKG}/usr/local/sbin/"of-*
+            # readlightsensor: reads the light sensor's kernel driver, else OpenPeak's tool
+            # (usr/lib/openframe/readlightsensor-i2c). It replaces that tool, which older
+            # images had at this path.
+            if [ -f "${overlay_dir}usr/local/bin/readlightsensor" ]; then
+              install -m 755 "${overlay_dir}usr/local/bin/readlightsensor" "${PKG}/usr/local/bin/"
+            fi
 
             # Kernel hooks: the kernel package runs /usr/share/kernel/*.d as well as /etc/kernel/*.d.
             mkdir -p "${PKG}/usr/share/kernel/preinst.d" "${PKG}/usr/share/kernel/postinst.d"

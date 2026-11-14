@@ -1,0 +1,22 @@
+#!/bin/sh
+# light-sensor (71-of-light-sensor.rules): creates the OpenFrame 1's light sensor device,
+# openframe-als at 0x34, on the SMBus adapter whose /sys path udev gives in $1. The kernel
+# driver then publishes the reading under /sys/bus/iio/devices (in_illuminance_raw), and
+# readlightsensor prints it.
+#
+# Only on an OpenFrame 1: what an OpenFrame 2 has at 0x34 isn't known yet. The OpenFrame 2
+# has a PCIe port at 00:1c.1 (its mini-PCIe slot), which the OpenFrame 1 doesn't. And only
+# with a kernel that has the driver: a device at the address without one would also stop
+# OpenPeak's tool (the address counts as taken).
+
+A="/sys$1"
+N="${A##*/i2c-}-0034"
+
+[ -e /sys/bus/pci/devices/0000:00:1c.1 ] && exit 0
+modprobe -q openframe-als 2>/dev/null || exit 0
+[ -e "$A/$N" ] && exit 0
+echo openframe-als 0x34 > "$A/new_device" 2>/dev/null || exit 0
+
+# No reply, so no sensor: take the device away again, and the address stays free.
+[ -e "$A/$N/driver" ] || echo 0x34 > "$A/delete_device" 2>/dev/null
+exit 0
