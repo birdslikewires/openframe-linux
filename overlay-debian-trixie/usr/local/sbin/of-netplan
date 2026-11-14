@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.8 (13th November 2026)
+## of-netplan v26.11.9 (14th November 2026)
 ##  Manages netplan configuration and MAC addresses on OpenFrame devices.
 
 ##  If there's a /boot/network.yaml file, we copy and use that.
@@ -32,8 +32,11 @@
 ##  and not the old card's either, which may be in another unit by now. A card that
 ##  turns up again takes over as before. A MAC generated for this unit and not yet
 ##  stored is kept in lan.pending, so it isn't generated afresh every boot while it
-##  waits. Generated MACs come from /dev/urandom. On other firmware a generated LAN
-##  MAC is made once and kept, as before.
+##  waits. Generated MACs come from /dev/urandom. On other firmware (no NVRAM to ask) a
+##  generated LAN MAC is made once and kept; and with no card, a LAN MAC made from a card
+##  is never kept: the card may be in another unit, or this stick in another unit, whose
+##  LAN would then share it. A new one is generated instead (after waiting the full
+##  WLANTIMEOUT for the card, so a slow one isn't mistaken for a missing one).
 ##
 ##  Then we put the modified file back into /boot. If its Wi-Fi section is still
 ##  the unedited template, it's left out of the live config.
@@ -182,6 +185,11 @@ nocard_lan() {
 	echo "$NOCARDLAN" > $STATEDIR/lan.pending
 }
 
+# True if LAN MAC $1 was made from card $2 (wlan.mac): 02 then the card's last five octets.
+card_made() {
+	is_mac "$2" && [ "${1,,}" = "$(from_card ${2,,})" ]
+}
+
 # Says $1 in the kernel log (dmesg) as well as our own.
 klog() {
 	echo "$1"
@@ -248,7 +256,11 @@ if [ -e /boot/$NETPLANCONFIG ] && [ -s $STATEDIR/lan.mac ] \
 	WLANMAC=$(card_mac 8)
 	OLDWLAN=$(cat $STATEDIR/wlan.mac 2>/dev/null)
 	[ -n "$WLANMAC" ] || nocard_lan "$LANMAC"
-	if card_changed "$WLANMAC" "$OLDWLAN" "$LANMAC" ||
+	if [ -z "$WLANMAC" ] && [ -z "$NOCARDLAN" ] && card_made "$LANMAC" "$OLDWLAN"; then
+		# No card, no NVRAM to ask, and a LAN MAC made from a card: carry on below, which
+		# waits the full WLANTIMEOUT for the card before giving its MAC up.
+		:
+	elif card_changed "$WLANMAC" "$OLDWLAN" "$LANMAC" ||
 	   { [ -n "$NOCARDLAN" ] && [ "$NOCARDLAN" != "${LANMAC,,}" ]; }; then
 		# A different card (or a first one), or no card and this unit's LAN MAC is
 		# another: carry on below and make the LAN MAC again.
@@ -338,6 +350,12 @@ else
 			LANMAC="$NOCARDLAN"
 			NEWWLAN="none"
 			klog "No WLAN card; $LAN MAC is now $LANMAC, this unit's (was ${YAMLMAC,,})."
+		elif [ -z "$WLANMAC" ] && [ -z "$NOCARDLAN" ] && card_made "$YAMLMAC" "$OLDWLAN"; then
+			# No card, and no NVRAM to ask: a MAC made from a card that isn't here may be
+			# another unit's now, so don't keep it.
+			LANMAC=$(gen_mac)
+			NEWWLAN="none"
+			klog "No WLAN card; $LAN MAC is now $LANMAC, generated (was ${YAMLMAC,,}, made from card ${OLDWLAN,,})."
 		else
 			# The LAN MAC stays as it is: made from this card, someone else's, or, from
 			# before wlan.mac, of unknown origin. (Noting the card makes a MAC made from it
