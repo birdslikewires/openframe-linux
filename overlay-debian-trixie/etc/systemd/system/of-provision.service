@@ -1,6 +1,8 @@
 [Unit]
 Description=OpenFrame first-boot software provisioning
 ConditionPathExists=/boot/setup.txt
+# Keep after getty@tty1: of-mac-gate holds the getty while the unit restarts to store
+# its MAC in NVRAM, so provisioning waits for the boot after (see of-provision).
 After=of-identifier.service network-online.target time-sync.target getty@tty1.service
 Wants=network-online.target time-sync.target
 

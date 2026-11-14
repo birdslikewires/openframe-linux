@@ -32,6 +32,7 @@ RECOVERMARKER="/var/lib/openframe-scripts/dpkg-recover-default"
 DIRSYNCMARKER="/var/lib/openframe-scripts/boot-dirsync-default"
 MMCMARKER="/var/lib/openframe-scripts/mmc-stub-default"
 FWREPOMARKER="/var/lib/openframe-scripts/firmware-repo-default"
+MACGATEMARKER="/var/lib/openframe-scripts/mac-gate-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -136,6 +137,14 @@ case "$1" in
 			systemctl enable --quiet of-dpkg-recover.service 2>/dev/null || true
 			mkdir -p "${RECOVERMARKER%/*}"
 			touch "$RECOVERMARKER"
+		fi
+
+		# Hold the login prompt and any UI while the unit reboots to store its MAC in
+		# NVRAM (of-mac-gate, see of-bootnsh). Once per system, so disabling it sticks.
+		if [ ! -e "$MACGATEMARKER" ]; then
+			systemctl enable --quiet of-mac-gate.service 2>/dev/null || true
+			mkdir -p "${MACGATEMARKER%/*}"
+			touch "$MACGATEMARKER"
 		fi
 
 		# Write changed data out within ten seconds (usr/lib/sysctl.d), from now on.

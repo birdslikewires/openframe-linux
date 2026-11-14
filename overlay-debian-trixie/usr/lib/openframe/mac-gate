@@ -1,0 +1,28 @@
+#!/bin/sh
+# mac-gate (of-mac-gate.service): holds the login prompt, any UI (startx, a display
+# manager), first-boot provisioning and the end of the boot splash until of-netplan has
+# settled this boot's MAC. If NVRAM needs it stored, of-bootnsh is rebooting the unit
+# for it (see of-bootnsh), and this waits for that, so nothing appears ready only to
+# restart. On firmware other than BirdsLikeWires there's nothing to store: no wait.
+# Never holds the boot for long if something goes wrong: up to 90 s for of-netplan,
+# then up to 5 minutes for the reboot, then it lets the boot carry on.
+
+[ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" = "BirdsLikeWires" ] || exit 0
+
+i=0
+while [ ! -e /run/of-netplan/mac-decided ] && [ $i -lt 450 ]; do
+	sleep 0.2
+	i=$((i + 1))
+done
+[ -e /run/of-bootnsh/mac-reboot ] || exit 0
+
+MSG="Storing this unit's MAC address in its firmware: restarting."
+echo "$MSG"
+plymouth --ping 2>/dev/null && plymouth display-message --text="$MSG" 2>/dev/null
+i=0
+while [ $i -lt 300 ]; do
+	sleep 1
+	i=$((i + 1))
+done
+echo "No restart came; carrying on."
+exit 0

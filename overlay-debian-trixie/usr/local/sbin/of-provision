@@ -8,6 +8,12 @@
 ##
 ##  Runs once: the service disables itself as soon as it fires, regardless
 ##  of outcome. Re-enable with 'systemctl enable of-provision.service'.
+##
+##  Must not act before getty@tty1 (its unit is ordered after it). On a boot where
+##  the unit is about to restart to store its MAC in NVRAM, of-mac-gate holds the
+##  getty, so this never starts on that boot: it stays enabled, setup.txt stays as it
+##  is, and it runs on the next boot. Anything done earlier (say, from a unit ordered
+##  before the getty, or before disabling itself) could be cut off by that restart.
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."

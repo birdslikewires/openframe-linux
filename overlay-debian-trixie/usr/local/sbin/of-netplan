@@ -195,6 +195,8 @@ update_bootnsh() {
 	# needs the MAC, of-bootnsh reboots for it now, however long the card check took.
 	[ -x /usr/local/sbin/of-bootnsh ] &&
 		OF_BOOTNSH_AT_BOOT=${INVOCATION_ID:+1} /usr/local/sbin/of-bootnsh mac >/dev/null 2>&1
+	# Done: of-mac-gate (which holds the login prompt and any UI until now) can go on.
+	mkdir -p /run/of-netplan && touch /run/of-netplan/mac-decided
 	return 0
 }
 
@@ -240,16 +242,9 @@ if [ -e /boot/$NETPLANCONFIG ] && [ -s $STATEDIR/lan.mac ] \
 	&& cmp -s /boot/$NETPLANCONFIG $STATEDIR/boot.yaml \
 	&& cmp -s /etc/netplan/$NETPLANCONFIG $STATEDIR/live.yaml; then
 	echo "No changes to $NETPLANCONFIG since last boot."
-	# networkd sets the LAN MAC when it starts, which may be after us. Wait for it
-	# (up to 20 seconds), so /tmp/openframe.net records the right address.
 	LANMAC=$(cat $STATEDIR/lan.mac)
-	COUNT=0
-	while [ $COUNT -lt 100 ] && [ "$(cat /sys/class/net/$LAN/address 2>/dev/null)" != "$LANMAC" ]; do
-		COUNT=$((COUNT+1))
-		sleep 0.2
-	done
-	# The WLAN adapter may not have appeared yet either. Give it up to 8 seconds;
-	# the OpenFrame 2 has none, and its file is still written sooner than before.
+	# The WLAN adapter may not have appeared yet. Give it up to 8 seconds; the
+	# OpenFrame 2 has none, and its file is still written sooner than before.
 	WLANMAC=$(card_mac 8)
 	OLDWLAN=$(cat $STATEDIR/wlan.mac 2>/dev/null)
 	[ -n "$WLANMAC" ] || nocard_lan "$LANMAC"
@@ -264,9 +259,17 @@ if [ -e /boot/$NETPLANCONFIG ] && [ -s $STATEDIR/lan.mac ] \
 		if [ -n "$WLANMAC" ] && [ "$WLANMAC" != "${OLDWLAN,,}" ]; then
 			echo "$WLANMAC" > $STATEDIR/wlan.mac
 		fi
+		# The MAC is settled: boot.nsh first (of-mac-gate waits for it, holding the login
+		# prompt), then the network. networkd sets the LAN MAC when it starts, which may be
+		# after us: wait for it (up to 20 seconds), so /tmp/openframe.net records it.
+		update_bootnsh
+		COUNT=0
+		while [ $COUNT -lt 100 ] && [ "$(cat /sys/class/net/$LAN/address 2>/dev/null)" != "$LANMAC" ]; do
+			COUNT=$((COUNT+1))
+			sleep 0.2
+		done
 		write_netinfo
 		kick_dhcp
-		update_bootnsh
 		exit 0
 	fi
 fi
@@ -364,6 +367,10 @@ mkdir -p $STATEDIR
 echo "$LANMAC" > $STATEDIR/lan.mac
 if [ -n "$NEWWLAN" ]; then echo "$NEWWLAN" > $STATEDIR/wlan.mac; else rm -f $STATEDIR/wlan.mac; fi
 
+# The MAC is settled: bring boot.nsh's BlwMac.efi line into step now, before the slower
+# steps below, so a reboot for NVRAM (or none) is known as early as it can be.
+update_bootnsh
+
 # An unedited template still names YOURWIFINAME. Leave Wi-Fi out of the live config
 # then: netplan would start a WPA supplicant for wlan0, which waits 90 seconds for an
 # adapter that may not exist (the OpenFrame 2 has none) and then fails. /boot keeps
@@ -382,6 +389,5 @@ if netplan apply; then
 fi
 
 write_netinfo
-update_bootnsh
 
 exit 0

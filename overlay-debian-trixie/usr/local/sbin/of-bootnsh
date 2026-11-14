@@ -49,8 +49,10 @@
 ##  shows. So a stick moved to another unit doesn't take its MAC along: on the new
 ##  unit the UUID doesn't match, the line is added (with that unit's own MAC), and
 ##  while the unit is still booting (or of-netplan, the boot service, asks, with
-##  OF_BOOTNSH_AT_BOOT=1) it is rebooted at once (of-mac-reboot.service,
-##  after first-boot provisioning, package recovery and any firmware update);
+##  OF_BOOTNSH_AT_BOOT=1) it is rebooted at once (of-mac-reboot.service, once
+##  of-identifier, of-netplan, package recovery and any firmware update are done;
+##  meanwhile of-mac-gate holds the login prompt, any UI and first-boot provisioning,
+##  so nothing looks ready that is about to restart, and a boot splash stays up);
 ##  BlwMac.efi stores the MAC and resets the unit straight away, since it locks the
 ##  firmware's flash down until a reset; and on the boot after, the UUID matches and
 ##  the line goes. A line added outside boot (say, by a package upgrade) waits for
@@ -261,6 +263,7 @@ mac_store_reboot() {
 	case "${OF_BOOTNSH_AT_BOOT:-}:$(systemctl is-system-running 2>/dev/null)" in
 		1:*|*:initializing|*:starting)
 			echo "<5>of-bootnsh: rebooting once this boot's work is done, so the firmware stores it." > /dev/kmsg 2>/dev/null
+			touch "$MACRUN/mac-reboot"		# of-mac-gate holds the login prompt and any UI
 			systemctl --no-block start of-mac-reboot.service 2>/dev/null ;;
 	esac
 }

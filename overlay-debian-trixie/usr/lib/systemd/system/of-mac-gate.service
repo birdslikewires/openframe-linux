@@ -1,0 +1,15 @@
+# Holds the login prompt, any UI and the end of the boot splash until this boot's MAC is
+# settled, and while the unit reboots to store it in NVRAM (see /usr/lib/openframe/mac-gate
+# and of-bootnsh). SSH isn't held.
+[Unit]
+Description=OpenFrame MAC address check before login
+Before=getty@tty1.service startx.service display-manager.service plymouth-quit.service plymouth-quit-wait.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/openframe/mac-gate
+TimeoutStartSec=infinity
+StandardOutput=journal+console
+
+[Install]
+WantedBy=multi-user.target

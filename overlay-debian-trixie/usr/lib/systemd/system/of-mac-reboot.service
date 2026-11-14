@@ -1,12 +1,20 @@
 # Started by of-bootnsh during boot when it has just added a BlwMac.efi line to boot.nsh
 # because NVRAM doesn't hold this unit's MAC: reboots, so BlwMac.efi stores it on the
 # next boot (and then resets the unit itself; see of-bootnsh). Waits for the boot's own
-# work first: first-boot identification and provisioning, interrupted package
-# operations, and a firmware update.
+# work first: interrupted package operations and a firmware update (by ordering), and
+# of-identifier and of-netplan to finish (they're simple services, so ordering alone
+# doesn't wait for them). of-mac-gate holds the login prompt, any UI and first-boot
+# provisioning meanwhile; provisioning runs after the reboot. Plymouth is quit first,
+# so it doesn't hold /var/log open through the shutdown.
 [Unit]
 Description=OpenFrame reboot to store this unit's MAC in NVRAM
-After=of-identifier.service of-netplan.service of-provision.service of-dpkg-recover.service of-dpkg-recover-online.service of-firmware.service
+After=of-dpkg-recover.service of-dpkg-recover-online.service of-firmware.service
 
 [Service]
 Type=oneshot
+ExecStartPre=/bin/sh -c 'i=0; while [ $i -lt 120 ] && systemctl -q is-active of-identifier.service of-netplan.service; do sleep 1; i=$((i + 1)); done'
+# of-mac-gate keeps the boot splash up, so plymouthd still has /var/log/boot.log open (a
+# tmpfs here), and shutdown would fail to unmount /var/log. Quit it, keeping the picture
+# on screen until the reboot splash takes over. Nothing if Plymouth isn't running.
+ExecStartPre=-/bin/sh -c 'plymouth --ping && plymouth quit --retain-splash'
 ExecStart=/usr/bin/systemctl --no-block reboot
