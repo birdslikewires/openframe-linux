@@ -1,0 +1,24 @@
+# The OpenFrame backlight: fades, fixed levels and automatic brightness from the light
+# sensor (of-backlight). 'of-backlight 0-100' and 'of-backlight auto', from any user,
+# pass their request in through /run/of-backlight/control; whichever came last is kept
+# for the next boot. It needs no privileges: the backlight and the sensor are open to
+# every user (70-of-backlight.rules, the sensor's driver), so it runs as a user of its own.
+[Unit]
+Description=OpenFrame backlight
+ConditionPathExists=/sys/class/backlight/openframe-bl
+# After systemd puts back the level saved at shutdown, when it's due by then (the
+# backlight can appear later; the service checks the real level as it goes).
+After=systemd-backlight@backlight:openframe-bl.service
+
+[Service]
+ExecStart=/usr/local/bin/of-backlight daemon
+DynamicUser=yes
+# For OpenPeak's readlightsensor, on a kernel without the sensor's driver.
+SupplementaryGroups=i2c
+RuntimeDirectory=of-backlight
+StateDirectory=of-backlight
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

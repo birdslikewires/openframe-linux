@@ -1,0 +1,28 @@
+# Automatic backlight brightness ('of-backlight auto'; 'of-backlight 0-100' sets a fixed level
+# instead). Remove the # from a line to change that setting. Lines are
+# setting=number; anything else is ignored. Changes apply within about 10 seconds.
+#
+# The light sensor reads about 20 in a lit room, 0-2 when covered and up to about 800
+# with a torch on it. Brightness follows a curve close to how eyes see it.
+
+# The reading at which the screen is at full brightness. Lower makes every level brighter.
+#full=600
+
+# By night, brightness as a percentage of what it would be by day.
+#night=75
+
+# Never dimmer than min, never brighter than max, in percent.
+#min=0
+#max=100
+
+# Below this reading the screen turns off (and comes back at 2 more). 0 keeps it on,
+# at min (at least 1%).
+#off_below=1
+
+# Night, on a 24-hour clock: from night_start until night_end. The screen also dims
+# more readily than it brightens then.
+#night_start=22
+#night_end=6
+
+# Seconds between readings.
+#interval=2

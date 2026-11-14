@@ -36,6 +36,7 @@ MACGATEMARKER="/var/lib/openframe-scripts/mac-gate-default"
 SLIMMARKER="/var/lib/openframe-scripts/slim-default"
 IFUPDOWNMARKER="/var/lib/openframe-scripts/ifupdown-default"
 I2CMARKER="/var/lib/openframe-scripts/i2c-open-default"
+BACKLIGHTMARKER="/var/lib/openframe-scripts/backlight-service-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -206,6 +207,22 @@ case "$1" in
 			fi
 			mkdir -p "${I2CMARKER%/*}"
 			touch "$I2CMARKER"
+		fi
+
+		# Once per system: the backlight service (of-backlight.service), which does the
+		# fades, fixed levels and automatic brightness for 'of-backlight'. It keeps the
+		# level a system already has until someone asks for another or for 'auto'.
+		# Systems from older images also get the commented settings file new images have
+		# in /boot, to edit from any computer. Disabling the service afterwards sticks.
+		if [ ! -e "$BACKLIGHTMARKER" ]; then
+			systemctl enable --quiet of-backlight.service 2>/dev/null || true
+			in_chroot || systemctl start of-backlight.service 2>/dev/null || true
+			if [ ! -e /boot/backlight.txt ] && [ -f /usr/lib/openframe/backlight.txt ] && [ -d /boot ]; then
+				cp /usr/lib/openframe/backlight.txt /boot/backlight.txt.new 2>/dev/null &&
+					sync && mv -f /boot/backlight.txt.new /boot/backlight.txt && sync
+			fi
+			mkdir -p "${BACKLIGHTMARKER%/*}"
+			touch "$BACKLIGHTMARKER"
 		fi
 
 		# Write changed data out within ten seconds (usr/lib/sysctl.d), from now on.

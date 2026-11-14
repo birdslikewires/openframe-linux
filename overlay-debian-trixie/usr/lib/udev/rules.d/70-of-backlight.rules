@@ -1,0 +1,4 @@
+# Every user may set the backlight and switch it off (of-backlight, and its automatic
+# brightness service, which runs unprivileged). Images have long had the same in
+# /etc/udev/rules.d/70-backlight.rules; this one comes with openframe-scripts.
+SUBSYSTEM=="backlight", KERNEL=="openframe-bl", ACTION=="add", RUN+="/bin/chmod 666 /sys%p/bl_power /sys%p/brightness"
