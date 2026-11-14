@@ -23,13 +23,14 @@ DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 # Additions. Nothing here pulls in perl (about 44 MB with its modules): perl-base, which
 # the system needs anyway, is enough for our scripts. i2c-tools and the perl SSL libraries
 # left the list for that reason (November 2026); 'apt install i2c-tools' brings it back.
-APT_SYSTEM="acpi bash-completion bc ca-certificates cloud-guest-utils curl dosfstools e2fsck-static e2fsprogs firmware-realtek htop initramfs-tools inotify-tools locales libbsd0 libdaemon0 libedit2 liblockfile-bin liblockfile1 libpango-1.0-0 lockfile-progs lsb-release nano net-tools netplan.io ntpsec-ntpdate openssl pciutils plymouth psmisc sudo systemd-resolved systemd-timesyncd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-regdb wireless-tools yq zram-tools zstd"
+APT_SYSTEM="acpi bash-completion bc ca-certificates cloud-guest-utils curl dosfstools e2fsck-static e2fsprogs firmware-realtek htop initramfs-tools inotify-tools locales libbsd0 libdaemon0 libedit2 liblockfile-bin liblockfile1 libpango-1.0-0 lockfile-progs lsb-release nano net-tools netplan.io openssl pciutils plymouth psmisc sudo systemd-resolved systemd-timesyncd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-regdb wireless-tools yq zram-tools zstd"
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 # libpam-systemd gives each login its own session, so SSH connections are closed cleanly at poweroff.
 APT_SSH="ssh openssh-server libpam-systemd"
 
-# Removals
-APT_REM_SYSTEM=""
+# Removals. ifupdown comes with debootstrap, but netplan and systemd-networkd configure the
+# network; its networking.service only cost 1.8 s of every boot.
+APT_REM_SYSTEM="ifupdown"
 
 # Make Changes
 [[ "$APT_REM_SYSTEM" != "" ]] && apt-get remove -y --purge $APT_REM_SYSTEM
@@ -104,7 +105,7 @@ echo
 echo "Ensure correct permissions..."
 [[ "$OPENFRAMEUSER" != "root" ]] && chown -R $OPENFRAMEUSER:$OPENFRAMEUSER $HOMEPATH $HOMEPATH/.*
 chown root:root /home
-chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo /usr/sbin/ntpdate
+chmod +s /bin/ping /bin/ping6 /bin/su /usr/bin/sudo
 chown -R root:root /etc/sudoers.d
 chmod -R 440 /etc/sudoers.d/*
 chown root:root /usr/local/bin/*

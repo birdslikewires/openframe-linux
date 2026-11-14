@@ -34,6 +34,7 @@ MMCMARKER="/var/lib/openframe-scripts/mmc-stub-default"
 FWREPOMARKER="/var/lib/openframe-scripts/firmware-repo-default"
 MACGATEMARKER="/var/lib/openframe-scripts/mac-gate-default"
 SLIMMARKER="/var/lib/openframe-scripts/slim-default"
+IFUPDOWNMARKER="/var/lib/openframe-scripts/ifupdown-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -172,6 +173,22 @@ case "$1" in
 			find /usr/share/locale -path '*/LC_MESSAGES/*.mo' -delete 2>/dev/null || true
 			mkdir -p "${SLIMMARKER%/*}"
 			touch "$SLIMMARKER"
+		fi
+
+		# Once per system: images used to come with ifupdown, whose networking.service costs
+		# about 1.8 s of every boot while netplan and systemd-networkd do the actual work.
+		# New images leave it out; here it's only switched off, and only if its files
+		# configure nothing but loopback. Enabling it again keeps it.
+		if [ ! -e "$IFUPDOWNMARKER" ] && ! in_chroot; then
+			if systemctl is-enabled --quiet networking.service 2>/dev/null &&
+			   ! cat /etc/network/interfaces /etc/network/interfaces.d/* 2>/dev/null |
+			     awk '($1 == "auto" || $1 ~ /^allow-/) { for (i = 2; i <= NF; i++) if ($i != "lo") f = 1 }
+			          $1 == "iface" && $2 != "lo" { f = 1 }
+			          END { exit !f }'; then
+				systemctl disable --quiet networking.service 2>/dev/null || true
+			fi
+			mkdir -p "${IFUPDOWNMARKER%/*}"
+			touch "$IFUPDOWNMARKER"
 		fi
 
 		# Write changed data out within ten seconds (usr/lib/sysctl.d), from now on.

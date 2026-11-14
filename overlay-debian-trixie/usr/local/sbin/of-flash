@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-flash v26.11.2 (10th November 2026) by Andrew Davison
+## of-flash v26.11.3 (14th November 2026) by Andrew Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
 ##  Writes the .img.gz in the image directory (default /boot/reflash) to the
 ##  internal MMC after checking it against its .img.gz.md5, then reads the MMC back
@@ -106,7 +106,16 @@ droptoshell() {
 		NETWORKUP=1
 		echo " network ready."
 		echo -n "Fetching network time..."
-		ntpdate 0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org 2>&1 >/dev/null
+		# systemd-timesyncd sets the clock once it reaches a time server (images no longer
+		# have ntpdate). Ask it to try now if it hasn't yet, and wait up to 30 s.
+		if [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" != "yes" ]; then
+			systemctl restart systemd-timesyncd 2>/dev/null
+			waited=0
+			while [ $waited -lt 30 ] && [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" != "yes" ]; do
+				sleep 1
+				waited=$((waited + 1))
+			done
+		fi
 		echo " done."
 		echo
 		countdown "Dropping to shell" $1
