@@ -1,0 +1,10 @@
+// OpenFrame: keep apt's own files small on a 1 GB unit (openframe-scripts).
+// Package lists stay compressed, there are no translated descriptions ('apt show'
+// gives the short one), and there's no source package cache (the deb-src lines in
+// sources.list are commented out; uncomment them to use 'apt source'). Together they
+// take apt's lists and caches from about 240 MB to 64 MB, and 'apt update' from
+// about 36 s to 15 s.
+Acquire::GzipIndexes "true";
+Acquire::CompressionTypes::Order:: "gz";
+Acquire::Languages "none";
+Dir::Cache::srcpkgcache "";

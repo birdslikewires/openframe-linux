@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 99-of-clean.sh v1.27 (28th March 2026)
+# 99-of-clean.sh v26.11.1 (14th November 2026)
 #  Used to clean an OpenFrame.
 
 set -e
@@ -27,6 +27,12 @@ sleep 2
 echo
 echo "Removing documentation and man pages..."
 rm -rf /usr/share/doc /usr/share/man /usr/share/doc-base
+echo
+
+# Translated program messages. dpkg leaves them out from now on (dpkg.cfg.d/
+# openframe-nolocale), but debootstrap unpacked the base system before that was there.
+echo "Removing translated program messages..."
+find /usr/share/locale -path '*/LC_MESSAGES/*.mo' -delete
 echo
 
 # This bit removes the development packages and source code.

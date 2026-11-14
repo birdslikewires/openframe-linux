@@ -15,6 +15,7 @@ on:
       - 'overlay-*/usr/lib/systemd/system/**'
       - 'overlay-*/usr/lib/sysctl.d/**'
       - 'overlay-*/etc/dpkg/dpkg.cfg.d/openframe-*'
+      - 'overlay-*/etc/apt/apt.conf.d/50openframe-*'
       - 'overlay-*/usr/share/keyrings/**'
       - 'package/**'
       - '.github/workflows/package.yml'
@@ -157,11 +158,18 @@ jobs:
               mkdir -p "${PKG}/usr/lib/sysctl.d"
               install -m 644 "${overlay_dir}usr/lib/sysctl.d/"*.conf "${PKG}/usr/lib/sysctl.d/"
             fi
-            if [ -f "${overlay_dir}etc/dpkg/dpkg.cfg.d/openframe-boot" ]; then
-              mkdir -p "${PKG}/etc/dpkg/dpkg.cfg.d"
-              install -m 644 "${overlay_dir}etc/dpkg/dpkg.cfg.d/openframe-boot" "${PKG}/etc/dpkg/dpkg.cfg.d/"
-              echo /etc/dpkg/dpkg.cfg.d/openframe-boot > "${PKG}/DEBIAN/conffiles"
-            fi
+            # dpkg and apt settings, as conffiles so local changes are kept: the /boot hook
+            # (openframe-boot), no translated messages (openframe-nolocale), and apt's
+            # small lists and caches (50openframe-slim). Images get the same files from the
+            # overlay, so dpkg finds them identical and doesn't ask.
+            : > "${PKG}/DEBIAN/conffiles"
+            for conf in etc/dpkg/dpkg.cfg.d/openframe-boot etc/dpkg/dpkg.cfg.d/openframe-nolocale \
+                        etc/apt/apt.conf.d/50openframe-slim; do
+              [ -f "${overlay_dir}${conf}" ] || continue
+              mkdir -p "${PKG}/${conf%/*}"
+              install -m 644 "${overlay_dir}${conf}" "${PKG}/${conf}"
+              echo "/${conf}" >> "${PKG}/DEBIAN/conffiles"
+            done
 
             install -m 755 package/postinst "${PKG}/DEBIAN/postinst"
 

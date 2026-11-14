@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v1.26 (4th November 2026)
+# 00-of-prep.sh v26.11.1 (14th November 2026)
 #  Set up the basics.
 
 #set -x
@@ -20,8 +20,10 @@ sleep 2
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 
-# Additions
-APT_SYSTEM="acpi bash-completion bc ca-certificates cloud-guest-utils curl dosfstools e2fsck-static e2fsprogs firmware-realtek htop i2c-tools initramfs-tools inotify-tools locales libbsd0 libdaemon0 libedit2 libio-socket-ssl-perl liblockfile-bin liblockfile1 libnet-ssleay-perl libpango-1.0-0 lockfile-progs lsb-release nano net-tools netplan.io ntpsec-ntpdate openssl pciutils plymouth psmisc sudo systemd-resolved systemd-timesyncd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-regdb wireless-tools yq zram-tools zstd"
+# Additions. Nothing here pulls in perl (about 44 MB with its modules): perl-base, which
+# the system needs anyway, is enough for our scripts. i2c-tools and the perl SSL libraries
+# left the list for that reason (November 2026); 'apt install i2c-tools' brings it back.
+APT_SYSTEM="acpi bash-completion bc ca-certificates cloud-guest-utils curl dosfstools e2fsck-static e2fsprogs firmware-realtek htop initramfs-tools inotify-tools locales libbsd0 libdaemon0 libedit2 liblockfile-bin liblockfile1 libpango-1.0-0 lockfile-progs lsb-release nano net-tools netplan.io ntpsec-ntpdate openssl pciutils plymouth psmisc sudo systemd-resolved systemd-timesyncd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-regdb wireless-tools yq zram-tools zstd"
 APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
 # libpam-systemd gives each login its own session, so SSH connections are closed cleanly at poweroff.
 APT_SSH="ssh openssh-server libpam-systemd"
