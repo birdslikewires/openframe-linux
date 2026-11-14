@@ -35,6 +35,7 @@ FWREPOMARKER="/var/lib/openframe-scripts/firmware-repo-default"
 MACGATEMARKER="/var/lib/openframe-scripts/mac-gate-default"
 SLIMMARKER="/var/lib/openframe-scripts/slim-default"
 IFUPDOWNMARKER="/var/lib/openframe-scripts/ifupdown-default"
+I2CMARKER="/var/lib/openframe-scripts/i2c-open-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -189,6 +190,22 @@ case "$1" in
 			fi
 			mkdir -p "${IFUPDOWNMARKER%/*}"
 			touch "$IFUPDOWNMARKER"
+		fi
+
+		# Once per system: images used to open every i2c bus to every user
+		# (/etc/udev/rules.d/70-i2c.rules), so OpenPeak's readlightsensor ran without
+		# root. The light sensor now has a kernel driver anyone can read, so the buses go
+		# back to Debian's default: root and the i2c group. Only our exact rule is
+		# removed; an edited one is someone's choice and stays.
+		if [ ! -e "$I2CMARKER" ] && ! in_chroot; then
+			I2CRULE=/etc/udev/rules.d/70-i2c.rules
+			if [ -f "$I2CRULE" ] && [ "$(tr -d ' \t\n' < "$I2CRULE")" = 'KERNEL=="i2c-[0-9]*",MODE="0666"' ]; then
+				rm -f "$I2CRULE"
+				udevadm control --reload 2>/dev/null || true
+				udevadm trigger --action=change --subsystem-match=i2c-dev 2>/dev/null || true
+			fi
+			mkdir -p "${I2CMARKER%/*}"
+			touch "$I2CMARKER"
 		fi
 
 		# Write changed data out within ten seconds (usr/lib/sysctl.d), from now on.
