@@ -146,6 +146,12 @@ jobs:
             if [ -d "${overlay_dir}usr/lib/systemd/system" ]; then
               mkdir -p "${PKG}/usr/lib/systemd/system"
               install -m 644 "${overlay_dir}usr/lib/systemd/system/"*.service "${PKG}/usr/lib/systemd/system/"
+              # Drop-ins for units other things create (xinit.service.d, ...).
+              for dropin in "${overlay_dir}usr/lib/systemd/system/"*.service.d; do
+                [ -d "$dropin" ] || continue
+                mkdir -p "${PKG}/usr/lib/systemd/system/${dropin##*/}"
+                install -m 644 "$dropin/"*.conf "${PKG}/usr/lib/systemd/system/${dropin##*/}/"
+              done
             fi
             if [ -d "${overlay_dir}usr/lib/sysctl.d" ]; then
               mkdir -p "${PKG}/usr/lib/sysctl.d"
