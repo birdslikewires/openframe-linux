@@ -39,7 +39,7 @@ I2CMARKER="/var/lib/openframe-scripts/i2c-open-default"
 BACKLIGHTMARKER="/var/lib/openframe-scripts/backlight-service-default"
 UNUSEDMARKER="/var/lib/openframe-scripts/unused-default"
 SETTINGSMARKER="/var/lib/openframe-scripts/settings-folder-default"
-INSTALLERMARKER="/var/lib/openframe-scripts/installer-service-default"
+FLASHMARKER="/var/lib/openframe-scripts/flash-service-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -270,14 +270,16 @@ case "$1" in
 			touch "$UNUSEDMARKER"
 		fi
 
-		# Once per system: the installer's boot service (of-installer.service), which on an
-		# installer stick (flash=yes in OF-BOOT/settings/flash.txt) installs the system
-		# onto an OpenFrame 1's internal memory, and otherwise does nothing in a moment.
-		# Disabling it afterwards sticks.
-		if [ ! -e "$INSTALLERMARKER" ]; then
-			systemctl enable --quiet of-installer.service 2>/dev/null || true
-			mkdir -p "${INSTALLERMARKER%/*}"
-			touch "$INSTALLERMARKER"
+		# Once per system: OpenFrame Flash's boot service (of-flash.service), which on a
+		# flash stick (flash=yes in OF-BOOT/settings/flash.txt) installs the system onto
+		# an OpenFrame 1's internal memory, and otherwise does nothing in a moment.
+		# Disabling it afterwards sticks. (It was of-installer.service for a day; that
+		# one's link goes, as the unit has.)
+		if [ ! -e "$FLASHMARKER" ]; then
+			rm -f /etc/systemd/system/multi-user.target.wants/of-installer.service
+			systemctl enable --quiet of-flash.service 2>/dev/null || true
+			mkdir -p "${FLASHMARKER%/*}"
+			touch "$FLASHMARKER"
 		fi
 
 		# The clock's floor: systemd moves the clock forward to /usr/lib/clock-epoch's time

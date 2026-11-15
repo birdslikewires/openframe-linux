@@ -7,7 +7,7 @@
 ##    The installer that release images carry: installs this system onto an OpenFrame
 ##    1's internal memory with its firmware brought up to date, after backing both up.
 ##    An installer stick (flash=yes in OF-BOOT/settings/flash.txt) does this by
-##    itself as it starts ('of-flash boot', from of-installer.service). See
+##    itself as it starts ('of-flash boot', from of-flash.service). See
 ##    /usr/lib/openframe/flash.
 ##
 ##  of-flash [image directory]

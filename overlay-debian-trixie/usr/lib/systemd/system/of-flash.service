@@ -1,12 +1,12 @@
-# The installer on an installer stick (flash=yes in OF-BOOT/settings/flash.txt):
+# OpenFrame Flash, on a flash stick (flash=yes in OF-BOOT/settings/flash.txt):
 # installs this system onto an OpenFrame 1's internal memory, after backing it and the
 # firmware up (/usr/lib/openframe/flash). At every other start it does nothing, in
 # a moment, but remove the image copy from a stick in use as a system that's short of
 # room (of-expand removes such a stick's flash.txt as it grows, hence the second
 # condition). Before the firmware update: the backup comes first, and it's the
-# installer that says when the update may run.
+# flash that says when the update may run.
 [Unit]
-Description=OpenFrame installer for the internal memory
+Description=OpenFrame Flash, for the internal memory
 ConditionPathExists=|/boot/settings/flash.txt
 ConditionPathExists=|/usr/lib/openframe/install/image.img.gz
 After=local-fs.target systemd-udevd.service

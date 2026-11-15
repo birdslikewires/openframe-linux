@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-## flash v26.11.9 (15th November 2026)
+## flash v26.11.10 (15th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
-##  of-installer.service at every boot, and 'of-flash install|status|clean' by hand.
+##  of-flash.service at every boot, and 'of-flash install|status|clean' by hand.
 ##
 ##  An installer stick is one written from a release image and first started with
 ##  flash=yes in OF-BOOT/settings/flash.txt: of-expand then makes the rest of the
@@ -47,12 +47,12 @@
 ##  The image copy is removed by 'of-flash clean', or at boot when it isn't an
 ##  installer stick and the root filesystem has less than 256 MB free.
 ##
-##  Testing only, never in normal use (set in a drop-in for of-installer.service):
+##  Testing only, never in normal use (set in a drop-in for of-flash.service):
 ##  OF_INSTALLER_TEST_BACKUPDIR=<directory> stands in for OF-BACKUP, so a stick that
 ##  has grown can test the boot-time steps; OF_INSTALLER_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.9"
+VERSION="26.11.10"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -64,7 +64,7 @@ BACKUPLABEL="OF-BACKUP"
 BACKUPMNT="/mnt/of-backup"
 FWUPDATE="/usr/local/sbin/of-firmware-update"
 FWPENDING="/var/lib/openframe-firmware/pending"
-RUNDIR="/run/of-installer"
+RUNDIR="/run/of-flash"
 HOLD="$RUNDIR/hold"
 TTY="/dev/tty1"
 SOUNDS="/usr/local/share/sounds"
@@ -935,7 +935,7 @@ boot_mode() {
 	[[ "$(findmnt -n -o SOURCE /)" == /dev/mmcblk* ]] && exit 0
 	SCREEN=1
 	setterm -blank 0 -powersave off > "$TTY" 2>/dev/null < "$TTY"
-	W=$(mktemp -d /tmp/of-installer.XXXXXX)
+	W=$(mktemp -d /tmp/of-flash.XXXXXX)
 	trap cleanup EXIT
 
 	# Not an installer stick: say so for a while, change nothing, and let it start as a
@@ -966,7 +966,7 @@ boot_mode() {
 
 cli_install() {
 	MODE=cli
-	W=$(mktemp -d /tmp/of-installer.XXXXXX)
+	W=$(mktemp -d /tmp/of-flash.XXXXXX)
 	trap cleanup EXIT
 	checks
 	if mount_backup; then
@@ -991,7 +991,7 @@ cli_install() {
 cli_backup() {
 	MODE=cli
 	BACKUP_ONLY=1
-	W=$(mktemp -d /tmp/of-installer.XXXXXX)
+	W=$(mktemp -d /tmp/of-flash.XXXXXX)
 	trap cleanup EXIT
 	[ -f "$BUNDLE" ] || BACKUP_ONLY_NO_IMAGE=1
 	checks

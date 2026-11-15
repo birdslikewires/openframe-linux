@@ -55,7 +55,7 @@ make_backup_partition() {
 }
 
 # Not an installer, and never will be: flash.txt goes, so it isn't offered in the
-# settings folder (of-installer.service doesn't start without it, or the image copy).
+# settings folder (of-flash.service doesn't start without it, or the image copy).
 remove_flash_txt() {
 	[ -e /boot/settings/flash.txt ] || return 0
 	/usr/lib/openframe/bootrw open &&
