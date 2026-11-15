@@ -173,12 +173,14 @@ jobs:
               install -m 644 "${overlay_dir}usr/lib/sysctl.d/"*.conf "${PKG}/usr/lib/sysctl.d/"
             fi
             # dpkg, apt and lm-sensors settings, as conffiles so local changes are kept: the
-            # /boot hook (openframe-boot), no translated messages (openframe-nolocale), apt's
+            # /boot hook (openframe-boot), no translated messages (openframe-nolocale), no
+            # firmware for drivers our kernel doesn't build (openframe-unused-firmware), apt's
             # small lists and caches (50openframe-slim), and names for the temperature
             # readings (sensors.d/openframe.conf). Images get the same files from the
             # overlay, so dpkg finds them identical and doesn't ask.
             : > "${PKG}/DEBIAN/conffiles"
             for conf in etc/dpkg/dpkg.cfg.d/openframe-boot etc/dpkg/dpkg.cfg.d/openframe-nolocale \
+                        etc/dpkg/dpkg.cfg.d/openframe-unused-firmware \
                         etc/apt/apt.conf.d/50openframe-slim etc/sensors.d/openframe.conf; do
               [ -f "${overlay_dir}${conf}" ] || continue
               mkdir -p "${PKG}/${conf%/*}"

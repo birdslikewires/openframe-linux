@@ -1,0 +1,4 @@
+# OpenFrame: firmware for drivers the OpenFrame kernel doesn't build, left out so it
+# doesn't take space on a 1 GB unit (openframe-scripts).
+# rtw89, Realtek WiFi 6 cards and adapters (CONFIG_RTW89 is off): about 15 MB.
+path-exclude=/usr/lib/firmware/rtw89/*

@@ -37,6 +37,7 @@ SLIMMARKER="/var/lib/openframe-scripts/slim-default"
 IFUPDOWNMARKER="/var/lib/openframe-scripts/ifupdown-default"
 I2CMARKER="/var/lib/openframe-scripts/i2c-open-default"
 BACKLIGHTMARKER="/var/lib/openframe-scripts/backlight-service-default"
+UNUSEDMARKER="/var/lib/openframe-scripts/unused-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -223,6 +224,24 @@ case "$1" in
 			fi
 			mkdir -p "${BACKLIGHTMARKER%/*}"
 			touch "$BACKLIGHTMARKER"
+		fi
+
+		# Once per system, as new images have it: no firmware for drivers our kernel doesn't
+		# build (dpkg.cfg.d/openframe-unused-firmware leaves it out from now on), unless an
+		# installed kernel does have the driver; and Debian's D-Bus wpa_supplicant.service
+		# off unless NetworkManager, which it's for, is installed (netplan runs its own
+		# wpa_supplicant for each Wi-Fi interface). Enabling it again afterwards sticks.
+		if [ ! -e "$UNUSEDMARKER" ]; then
+			if [ -d /usr/lib/firmware/rtw89 ] &&
+			   [ -z "$(ls -d /usr/lib/modules/*/kernel/drivers/net/wireless/realtek/rtw89 2>/dev/null)" ]; then
+				rm -rf /usr/lib/firmware/rtw89
+			fi
+			if [ ! -e /usr/sbin/NetworkManager ] && systemctl is-enabled --quiet wpa_supplicant.service 2>/dev/null; then
+				systemctl disable --quiet wpa_supplicant.service 2>/dev/null || true
+				in_chroot || systemctl stop wpa_supplicant.service 2>/dev/null || true
+			fi
+			mkdir -p "${UNUSEDMARKER%/*}"
+			touch "$UNUSEDMARKER"
 		fi
 
 		# Write changed data out within ten seconds (usr/lib/sysctl.d), from now on.

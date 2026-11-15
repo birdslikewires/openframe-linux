@@ -1,6 +1,6 @@
 #!/bin/sh
 
-## of-dpkg-recover v26.11.2 (10th November 2026)
+## of-dpkg-recover v26.11.3 (15th November 2026)
 ##  Finishes package operations that a power cut interrupted. A half-installed
 ##  package leaves dpkg refusing to do anything else until it's dealt with, which
 ##  nobody is likely to do on an OpenFrame. Run at every boot by
@@ -41,7 +41,16 @@ if [ "$1" = "online" ]; then
 	exit 0
 fi
 
-if [ -n "$(ls -A /var/lib/dpkg/updates 2>/dev/null)" ] || [ -n "$(dpkg --audit 2>/dev/null)" ] || [ -s "$PENDING" ]; then
+# Whether dpkg has anything unfinished: a journal entry it hasn't applied, or a package
+# in one of the states 'dpkg --audit' reports, read straight from its status file. At
+# boot, with everything else starting too, that's quicker than dpkg reading its database.
+unfinished() {
+	[ -n "$(ls -A /var/lib/dpkg/updates 2>/dev/null)" ] ||
+		grep -qE '^Status: [a-z]+ (reinstreq [a-z-]+|ok (half-installed|unpacked|half-configured|triggers-awaited|triggers-pending))$' \
+			/var/lib/dpkg/status 2>/dev/null
+}
+
+if unfinished || [ -s "$PENDING" ]; then
 	echo "An interrupted package operation was found; finishing it."
 
 	# dpkg's status letter (second of three): H half-installed, U unpacked, F

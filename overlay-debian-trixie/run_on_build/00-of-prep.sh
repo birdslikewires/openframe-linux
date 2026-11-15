@@ -124,6 +124,10 @@ echo "Enable systemd services..."
 # lm-sensors' own service runs 'sensors -s' at every boot (about 2 s here) to write
 # limits from its config into the chips. We set none, and want nothing written to them.
 /bin/systemctl disable lm-sensors.service
+# Debian's wpa_supplicant.service is the D-Bus one, for NetworkManager. Netplan starts a
+# wpa_supplicant of its own for each Wi-Fi interface it configures (netplan-wpa-wlan0),
+# so this one only cost time at boot and 6 MB of memory.
+/bin/systemctl disable wpa_supplicant.service
 chmod +x /usr/local/sbin/of-*
 chmod +x /usr/sbin/*
 for f in `ls -1 /etc/systemd/system | grep 'of-' | grep '.service'`; do
