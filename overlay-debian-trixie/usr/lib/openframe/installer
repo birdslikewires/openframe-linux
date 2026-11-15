@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 
-## installer v26.11.2 (15th November 2026)
+## installer v26.11.3 (15th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-installer.service at every boot, and 'of-flash install|status|clean' by hand.
 ##
 ##  An installer stick is one written from a release image and first started with
-##  install=yes in OF-BOOT/settings/install.txt: of-expand then makes the rest of the
+##  flash=yes in OF-BOOT/settings/flash.txt: of-expand then makes the rest of the
 ##  stick an exFAT partition, OF-BACKUP, that any computer can read, instead of growing
 ##  the system into it. Release images carry a compressed copy of themselves
 ##  (/usr/lib/openframe/install, see of-imgbundle.sh), which is what gets written.
 ##
-##  At boot, with install=yes (or 'again') on an installer stick, in an OpenFrame 1, for a
+##  At boot, with flash=yes (or 'again') on an installer stick, in an OpenFrame 1, for a
 ##  unit not already done, in this order (each step is noted in the unit's folder on
 ##  OF-BACKUP, so after a restart or a power cut the next boot carries on from it):
 ##    1. A folder on OF-BACKUP for the unit (date and MAC), with info.txt. The unit is
@@ -24,15 +24,15 @@
 ##       marked pending and of-firmware.service (which runs after us) does it, and
 ##       restarts the unit. Firmware it doesn't recognise is never touched: we stop.
 ##    4. Write the image to the MMC and read it back (three tries).
-##    5. Put the kept settings into the MMC's OF-BOOT/settings (all but install.txt),
+##    5. Put the kept settings into the MMC's OF-BOOT/settings (all but flash.txt),
 ##       setup.txt included, so provisioning runs on the new system's first start.
-##    6. Mark the unit done, reset this stick's settings to the blank ones (install.txt
+##    6. Mark the unit done, reset this stick's settings to the blank ones (flash.txt
 ##       stays; 'again' becomes 'yes'), play a sound, say so, and power off.
 ##  A unit already done gets "already installed" and a power-off. Anything that stops the
 ##  install says why on the screen and in info.txt, keeps the login prompt off the
 ##  screen so the message stays (SSH still works), and changes nothing more.
 ##
-##  With install=yes on a stick that has been started as a system (no OF-BACKUP: the
+##  With flash=yes on a stick that has been started as a system (no OF-BACKUP: the
 ##  system grew into that space), nothing is installed: the screen says so, and the
 ##  boot carries on. 'of-flash install' still works there while the image copy is on
 ##  the stick: the same steps, by hand, with the backups on the root filesystem
@@ -51,9 +51,9 @@
 ##  has grown can test the boot-time steps; OF_INSTALLER_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.2"
+VERSION="26.11.3"
 SETDIR="/boot/settings"
-INSTALLTXT="$SETDIR/install.txt"
+FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
 BUNDLEDIR="/usr/lib/openframe/install"
 BUNDLE="$BUNDLEDIR/image.img.gz"
@@ -115,6 +115,18 @@ progress_line() {
 	fi
 }
 
+# Counts down $1 seconds on the panel's current line: "$2 in N seconds." ($2 e.g.
+# "Switching off"), then leaves "$2 now." there.
+countdown() {
+	local N="$1" WHAT="$2"
+	while [ "$N" -gt 0 ]; do
+		if [ "$N" = 1 ]; then progress_line "$WHAT in 1 second."; else progress_line "$WHAT in $N seconds."; fi
+		sleep 1
+		N=$((N - 1))
+	done
+	progress_line "$WHAT now."
+}
+
 sound() {
 	[ -n "$SCREEN" ] || return 0
 	command -v aplay >/dev/null || return 0
@@ -122,11 +134,11 @@ sound() {
 	aplay -q -f a_law -r 44100 "$SOUNDS/$1.au" >/dev/null 2>&1 &
 }
 
-# install.txt's install= setting, lower case: yes, again, or anything else (off). Read
+# flash.txt's flash= setting, lower case: yes, again, or anything else (off). Read
 # with bash alone, the way of-netplan reads wifi.txt.
 install_mode() {
 	local line k v
-	[ -r "$INSTALLTXT" ] || return 0
+	[ -r "$FLASHTXT" ] || return 0
 	while IFS= read -r line || [ -n "$line" ]; do
 		line="${line%$'\r'}"
 		line="${line#$'\xef\xbb\xbf'}"
@@ -136,16 +148,16 @@ install_mode() {
 		k="${k//[[:space:]]/}"
 		v="${v//[[:space:]]/}"
 		v="${v//[\"\']/}"
-		[ "${k,,}" = "install" ] && echo "${v,,}"
-	done < "$INSTALLTXT" | tail -1
+		[ "${k,,}" = "flash" ] && echo "${v,,}"
+	done < "$FLASHTXT" | tail -1
 }
 
-# Sets install= in install.txt to $1, keeping everything else.
+# Sets flash= in flash.txt to $1, keeping everything else.
 set_install_mode() {
-	local T="$W/install.txt"
-	sed -E "s/^([[:space:]]*install[[:space:]]*=).*/\1$1/I" "$INSTALLTXT" > "$T" &&
-		/usr/lib/openframe/bootrw open && cp "$T" "$INSTALLTXT.new" && sync &&
-		mv -f "$INSTALLTXT.new" "$INSTALLTXT" && sync
+	local T="$W/flash.txt"
+	sed -E "s/^([[:space:]]*flash[[:space:]]*=).*/\1$1/I" "$FLASHTXT" > "$T" &&
+		/usr/lib/openframe/bootrw open && cp "$T" "$FLASHTXT.new" && sync &&
+		mv -f "$FLASHTXT.new" "$FLASHTXT" && sync
 	/usr/lib/openframe/bootrw close
 }
 
@@ -330,7 +342,7 @@ new_unit() {
 	keep_settings
 }
 
-# This stick's settings, as they are now, kept for the unit (all but install.txt),
+# This stick's settings, as they are now, kept for the unit (all but flash.txt),
 # until it's done: the stick's own are reset at the end, maybe before a power cut.
 keep_settings() {
 	local K="$STATEDIR/units/$CID/settings" F
@@ -338,7 +350,7 @@ keep_settings() {
 	mkdir -p "$K"
 	for F in "$SETDIR"/*; do
 		[ -f "$F" ] || continue
-		[ "${F##*/}" = "install.txt" ] && continue
+		[ "${F##*/}" = "flash.txt" ] && continue
 		cp "$F" "$K/"
 	done
 	sync
@@ -540,18 +552,18 @@ settings_to_mmc() {
 }
 
 # Step 6: done. At boot this stick's settings go back to the blank ones for the next
-# unit (install.txt stays, 'again' becoming 'yes').
+# unit (flash.txt stays, 'again' becoming 'yes').
 finish() {
 	local F
 	kv_set "$UDIR/info.txt" finished "$(date '+%F %T')"
 	if [ "$MODE" = "boot" ]; then
 		/usr/lib/openframe/bootrw open
 		for F in "$SETDIR"/*; do
-			[ "${F##*/}" = "install.txt" ] && continue
+			[ "${F##*/}" = "flash.txt" ] && continue
 			rm -f "$F"
 		done
 		for F in "$TEMPLATES"/*.txt; do
-			[ "${F##*/}" = "install.txt" ] && continue
+			[ "${F##*/}" = "flash.txt" ] && continue
 			cp "$F" "$SETDIR/${F##*/}"
 		done
 		sync
@@ -592,9 +604,9 @@ run_unit() {
 			"  with this stick's settings. The backups are in the OF-BACKUP" \
 			"  drive on the stick." "" \
 			"  Remove the stick once the OpenFrame has switched off; it starts" \
-			"  the new system next time. Switching off in 20 seconds."
+			"  the new system next time." ""
 		sound success
-		sleep 20
+		countdown 20 "Switching off"
 		power_off
 	else
 		echo
@@ -612,10 +624,9 @@ already() {
 		screen "" "  This OpenFrame has already been installed from this stick" \
 			"  (${D##*/})." "" \
 			"  Remove the stick and it starts its own system. To install it" \
-			"  again, set install=again in the stick's settings/install.txt." "" \
-			"  Switching off in 60 seconds."
+			"  again, set flash=again in the stick's settings/flash.txt." ""
 		sound success
-		sleep 60
+		countdown 60 "Switching off"
 		power_off
 		exit 0
 	fi
@@ -671,18 +682,18 @@ boot_mode() {
 	elif ! mount_backup || [ ! -f "$BUNDLE" ]; then
 		rm -f "$FWPENDING"
 		if [ -f "$BUNDLE" ]; then
-			screen "" "  install=yes is set, but this stick has been started as a system" \
+			screen "" "  flash=yes is set, but this stick has been started as a system" \
 				"  before, so it can't install by itself any more: write the image to" \
 				"  it again to use it as an installer. Nothing has been changed." "" \
-				"  ('sudo of-flash install' can still install from it by hand.)" "" \
-				"  Carrying on in 30 seconds."
+				"  ('sudo of-flash install' can still install from it by hand.)" ""
 		else
-			screen "" "  install=yes is set, but this stick no longer carries the image to" \
+			screen "" "  flash=yes is set, but this stick no longer carries the image to" \
 				"  install: write the image to it again to use it as an installer." \
-				"  Nothing has been changed." "" "  Carrying on in 30 seconds."
+				"  Nothing has been changed." ""
 		fi
 		sound failure
-		sleep 30
+		countdown 30 "Starting the system from this stick"
+		[ -w "$TTY" ] && echo > "$TTY"
 		exit 0
 	fi
 	BACKUPDIR="$BACKUPMNT"
@@ -741,7 +752,7 @@ cli_backup() {
 status() {
 	local M P D
 	M=$(install_mode)
-	echo "install.txt: install=${M:-no}"
+	echo "flash.txt: flash=${M:-no}"
 	if [ -f "$BUNDLEINFO" ]; then
 		echo "Image copy: $(kv "$BUNDLEINFO" name) ($(( $(stat -c %s "$BUNDLE" 2>/dev/null || echo 0) / 1048576 )) MB)"
 	else

@@ -1,11 +1,14 @@
-# The installer on an installer stick (install=yes in OF-BOOT/settings/install.txt):
+# The installer on an installer stick (flash=yes in OF-BOOT/settings/flash.txt):
 # installs this system onto an OpenFrame 1's internal memory, after backing it and the
-# firmware up (/usr/lib/openframe/installer). It does nothing, in a moment, at every
-# other start. Before the firmware update: the backup comes first, and it's the
+# firmware up (/usr/lib/openframe/installer). At every other start it does nothing, in
+# a moment, but remove the image copy from a stick in use as a system that's short of
+# room (of-expand removes such a stick's flash.txt as it grows, hence the second
+# condition). Before the firmware update: the backup comes first, and it's the
 # installer that says when the update may run.
 [Unit]
 Description=OpenFrame installer for the internal memory
-ConditionPathExists=/boot/settings/install.txt
+ConditionPathExists=|/boot/settings/flash.txt
+ConditionPathExists=|/usr/lib/openframe/install/image.img.gz
 After=local-fs.target systemd-udevd.service
 Before=of-firmware.service of-mac-reboot.service getty@tty1.service of-provision.service
 Before=systemd-user-sessions.service display-manager.service startx.service xinit.service

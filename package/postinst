@@ -271,7 +271,7 @@ case "$1" in
 		fi
 
 		# Once per system: the installer's boot service (of-installer.service), which on an
-		# installer stick (install=yes in OF-BOOT/settings/install.txt) installs the system
+		# installer stick (flash=yes in OF-BOOT/settings/flash.txt) installs the system
 		# onto an OpenFrame 1's internal memory, and otherwise does nothing in a moment.
 		# Disabling it afterwards sticks.
 		if [ ! -e "$INSTALLERMARKER" ]; then

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-provision v26.11.3 (15th November 2026)
+## of-provision v26.11.4 (15th November 2026)
 ##  Checks for setup.txt on the boot volume, pointing to a hosted project or install.sh:
 ##  in its settings folder (/boot/settings), or in its root as on older images.
 ##  If present, downloads and runs that install.sh as the normal user. Lets
@@ -51,10 +51,10 @@ boot_rw() {
 
 [ -f "$SETUPFILE" ] || exit 0
 
-# On an installer stick (install=yes or again in settings/install.txt) the settings,
+# On an installer stick (flash=yes or again in settings/flash.txt) the settings,
 # setup.txt included, are for the unit it installs (/usr/lib/openframe/installer), not
 # for this stick: leave them be, and give tty1 its login prompt back.
-INSTALL=$(sed -n 's/^[[:space:]]*install[[:space:]]*=//Ip' /boot/settings/install.txt 2>/dev/null |
+INSTALL=$(sed -n 's/^[[:space:]]*flash[[:space:]]*=//Ip' /boot/settings/flash.txt 2>/dev/null |
 	tr -d '\r"'"'"' \t' | tr 'A-Z' 'a-z' | tail -1)
 if [ "$INSTALL" = "yes" ] || [ "$INSTALL" = "again" ]; then
 	echo "of-provision: this is an installer stick; its setup.txt is for the unit it installs."

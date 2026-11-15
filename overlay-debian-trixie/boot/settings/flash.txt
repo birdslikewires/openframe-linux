@@ -1,6 +1,6 @@
 ## System reflash setting.
 
-# Set install=yes to install a fresh system onto an OpenFrame's internal memory.
+# Set flash=yes to install a fresh system onto an OpenFrame's internal memory.
 
 # The internal memory will be backed up to a new OF-BACKUP volume on this stick.
 # The settings specified in the backlight.txt, ethernet.txt, and wifi.txt files
@@ -13,4 +13,4 @@
 # This reflash tool can be used multiple times, so long as space remains for
 # the system backups. Each device backed up uses 1GB at most.
 
-install=no
+flash=no
