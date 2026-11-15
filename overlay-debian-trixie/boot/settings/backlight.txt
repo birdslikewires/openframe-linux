@@ -1,0 +1,18 @@
+# Automatic brightness ('of-backlight auto'). Remove a # to change a setting;
+# changes take effect within 10 seconds.
+
+# Room light at which the screen is fully bright (a lit room is about 20).
+# Lower makes every level brighter.
+#full=600
+
+# The screen turns off when the room is darker than this (0: never off).
+#off_below=1
+
+# Brightness limits, in percent.
+#min=0
+#max=100
+
+# Night hours (24-hour clock), and night brightness as a percentage of day.
+#night_start=22
+#night_end=6
+#night=75

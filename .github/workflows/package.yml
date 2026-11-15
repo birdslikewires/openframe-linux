@@ -8,6 +8,7 @@ on:
       - 'overlay-*/usr/local/bin/of-*'
       - 'overlay-*/usr/local/bin/readlightsensor'
       - 'overlay-*/boot/backlight.txt'
+      - 'overlay-*/boot/settings/**'
       - 'overlay-*/usr/local/sbin/of-*'
       - 'overlay-*/usr/share/kernel/**'
       - 'overlay-*/usr/lib/firmware/updates/**'
@@ -188,12 +189,13 @@ jobs:
               echo "/${conf}" >> "${PKG}/DEBIAN/conffiles"
             done
 
-            # The commented automatic backlight settings new images have in /boot, which the
-            # postinst puts there on older systems.
-            if [ -f "${overlay_dir}boot/backlight.txt" ]; then
-              mkdir -p "${PKG}/usr/lib/openframe"
-              install -m 644 "${overlay_dir}boot/backlight.txt" "${PKG}/usr/lib/openframe/backlight.txt"
-            fi
+            # The settings files new images have in the boot volume's settings folder, which
+            # the postinst and of-netplan put there on older systems.
+            for f in "${overlay_dir}"boot/settings/*.txt; do
+              [ -f "$f" ] || continue
+              mkdir -p "${PKG}/usr/lib/openframe/settings"
+              install -m 644 "$f" "${PKG}/usr/lib/openframe/settings/${f##*/}"
+            done
 
             install -m 755 package/postinst "${PKG}/DEBIAN/postinst"
 

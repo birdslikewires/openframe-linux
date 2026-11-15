@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-## of-provision v26.11.2 (10th November 2026)
-##  Checks for a file on /boot pointing to a hosted project or install.sh.
+## of-provision v26.11.3 (15th November 2026)
+##  Checks for setup.txt on the boot volume, pointing to a hosted project or install.sh:
+##  in its settings folder (/boot/settings), or in its root as on older images.
 ##  If present, downloads and runs that install.sh as the normal user. Lets
 ##  community repos provide their own install.sh without us having to bake
 ##  every combination of software into an image.
@@ -20,13 +21,21 @@ if [ "$(id -u)" -ne 0 ]; then
 	exit 1
 fi
 
-SETUPFILE="/boot/setup.txt"
+SETUPFILE="/boot/settings/setup.txt"
+[ -f "$SETUPFILE" ] || SETUPFILE="/boot/setup.txt"
 LOGFILE="/var/log/setup.log"
 WORKDIR="/tmp/of-provision"
 OPENFRAMEUSER="of"
 
 log() {
 	echo "$1" | tee -a "$LOGFILE"
+}
+
+# Gives up without rebooting: the getty on tty1 stayed away for us, so bring it back
+# now that setup.txt has been renamed (it starts once we've finished).
+give_up() {
+	systemctl start --no-block getty@tty1.service >/dev/null 2>&1
+	exit 1
 }
 
 # /boot is mounted read-only, so a power cut can't corrupt it. This makes it writable
@@ -41,6 +50,12 @@ boot_rw() {
 }
 
 [ -f "$SETUPFILE" ] || exit 0
+
+# Say we've started (for this boot only: /run is emptied at every boot) before
+# disabling ourselves. The getty on tty1 stays away while we're enabled or have
+# started (getty@tty1.service.d/of-provision.conf), and it may check after we've
+# disabled ourselves: it's Type=idle, which can hold its check back for seconds.
+mkdir -p /run/of-provision && touch /run/of-provision/started
 
 # One-shot: disable ourselves now, before doing anything else, so we don't
 # run again on next boot regardless of how this attempt turns out.
@@ -59,7 +74,7 @@ if [[ -z "$URL" ]]; then
 	log "of-provision: setup.txt is empty. Aborting."
 	boot_rw
 	mv "$SETUPFILE" "${SETUPFILE}.rejected"
-	exit 1
+	give_up
 elif [[ "$URL" =~ install\.sh$ ]]; then
 	# Direct link, use as given.
 	CANDIDATES=("$URL")
@@ -98,7 +113,7 @@ if [ -z "$INSTALLER_URL" ]; then
 	log "of-provision: failed to download install.sh. Aborting."
 	boot_rw
 	mv "$SETUPFILE" "${SETUPFILE}.failed"
-	exit 1
+	give_up
 fi
 
 log "of-provision: fetched ${INSTALLER_URL}"

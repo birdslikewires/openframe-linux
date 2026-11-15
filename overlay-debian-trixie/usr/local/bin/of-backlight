@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-backlight v26.11.8 (15th November 2026) by Andrew Davison
+## of-backlight v26.11.9 (15th November 2026) by Andrew Davison
 ##  Backlight control with fading for OpenFrame, and automatic brightness from the
 ##  light sensor. None of it needs root.
 ##
@@ -27,8 +27,9 @@
 ##  room, 0-2 covered, 800 with a torch on it), and by night 75% of that. It's changed
 ##  only when that moves far enough (by night it dims more readily than it brightens),
 ##  and the screen goes off in the dark and back on once there's a little light again.
-##  /boot/backlight.txt can change all of that (see the notes in it); edits there apply
-##  within about 10 seconds.
+##  backlight.txt in the settings folder on the boot volume (OF-BOOT/settings) can
+##  change most of that (see the notes in it); edits there apply within about 10
+##  seconds. Systems that haven't had it moved there yet keep it in the root.
 
 usage() {
 	echo "Usage: $0 [0-100 | auto | status] [debug]"
@@ -43,7 +44,10 @@ usage() {
 BLIF="/sys/class/backlight/openframe-bl/brightness"
 BLPOWER="/sys/class/backlight/openframe-bl/bl_power"
 BLMAX=32
-CONF="/boot/backlight.txt"
+CONF="/boot/settings/backlight.txt"
+OLDCONF="/boot/backlight.txt"
+# Seconds between light sensor readings in automatic brightness.
+INTERVAL=2
 SERVICE="of-backlight.service"
 RUNDIR="/run/of-backlight"
 CTL="$RUNDIR/control"
@@ -121,19 +125,20 @@ setbl() {
 }
 
 
-## Automatic brightness settings: the defaults, then whatever /boot/backlight.txt sets
-## (lines of setting=number; anything else is ignored). It's read with bash alone, never
+## Automatic brightness settings: the defaults, then whatever backlight.txt sets (lines
+## of setting=number; anything else is ignored). It's read with bash alone, never
 ## run, so nothing in it can do harm.
 ## Read every time it's needed, but only worked through when it has changed.
 CONF_SEEN="-"
 conf() {
-	local lines=() line k v all
-	[ -r "$CONF" ] && mapfile -t lines 2>/dev/null < "$CONF"
+	local lines=() line k v all f="$CONF"
+	[ -r "$f" ] || f="$OLDCONF"
+	[ -r "$f" ] && mapfile -t lines 2>/dev/null < "$f"
 	all="${lines[*]}"
 	[ "$all" = "$CONF_SEEN" ] && return 0
 	CONF_SEEN="$all"
 	C_full=600 C_night=75 C_min=0 C_max=100 C_off_below=1
-	C_night_start=22 C_night_end=6 C_interval=2
+	C_night_start=22 C_night_end=6
 	for line in "${lines[@]}"; do
 		[[ "$line" == *=* ]] || continue
 		k="${line%%=*}"
@@ -143,7 +148,7 @@ conf() {
 		v="${v//[[:space:]]/}"
 		[[ "$k" =~ ^[a-z_]+$ ]] && [[ "$v" =~ ^[0-9]{1,5}$ ]] || continue
 		case "$k" in
-			full|night|min|max|off_below|night_start|night_end|interval)
+			full|night|min|max|off_below|night_start|night_end)
 				printf -v "C_$k" '%d' "$(( 10#$v ))" ;;
 		esac
 	done
@@ -151,7 +156,6 @@ conf() {
 	(( C_night > 100 )) && C_night=100
 	(( C_max > 100 )) && C_max=100
 	(( C_min > C_max )) && C_min=$C_max
-	(( C_interval < 1 )) && C_interval=1
 	return 0
 }
 
@@ -326,7 +330,7 @@ daemon() {
 		# since only a change behind its back needs looking for (a request still comes in
 		# at once); but every reading for the first 15, while systemd may still be putting
 		# back the level saved at shutdown.
-		wait="$C_interval"
+		wait="$INTERVAL"
 		[[ $mode != auto ]] && (( passes > 15 )) && wait=30
 		if read -r -t "$wait" -u "$CTLFD" req; then
 			if [ "$req" = "auto" ] || [ "$req" = "999" ]; then
@@ -421,7 +425,7 @@ elif [ "$2" = "debug" ]; then
 		while true; do
 			conf
 			auto_step debug
-			pause "$C_interval"
+			pause "$INTERVAL"
 		done
 	else
 		setbl "$1" debug

@@ -11,7 +11,7 @@ All of the overlays and scripts used to create the image files are in this repo,
 
 Images include `of-provision`, a first-boot mechanism for installing software without baking every combination of packages into the image itself.
 
-To use it, place a `setup.txt` file in the `OF-BOOT` volume before first boot, containing a single line: the URL of the project you want installed, e.g.
+To use it, place a `setup.txt` file in the `settings` folder of the `OF-BOOT` volume before first boot (the root of `OF-BOOT` works too, as on older images), containing a single line: the URL of the project you want installed, e.g.
 
 ```
 https://github.com/birdslikewires/openframe-hamclock
@@ -19,21 +19,32 @@ https://github.com/birdslikewires/openframe-hamclock
 
 For a GitHub project URL like this, `of-provision` works out the raw `install.sh` URL itself, trying the `main` branch and then falling back to `master`. For anything hosted elsewhere, it looks for `install.sh` at the root of the given URL, e.g. `https://example.com/my-openframe-app/` is expected to have an installer at `https://example.com/my-openframe-app/install.sh`.
 
-On first boot, the `of-provision.service` systemd unit checks for `/boot/setup.txt`. If it's present, it downloads the resulting `install.sh` and runs it as the `of` user, logging output to `/var/log/setup.log`. The device then reboots automatically.
+On first boot, the `of-provision.service` systemd unit checks for `/boot/settings/setup.txt` (or `/boot/setup.txt`). If it's present, it downloads the resulting `install.sh` and runs it as the `of` user, logging output to `/var/log/setup.log`. The device then reboots automatically.
 
 The service disables itself immediately upon firing, regardless of whether the installer succeeds, so it will not run again on subsequent boots. Depending on the outcome, `setup.txt` is either removed (success), renamed to `setup.txt.failed` (installer error or download failure), or renamed to `setup.txt.rejected` (file was empty).
 
-To provision another install after first run, re-enable the service and restore `setup.txt`:
+To provision another install after first run, re-enable the service and restore `setup.txt` (systems from images before November 2026 only look for it in the root, `/boot/setup.txt`):
 
 ```
 sudo systemctl enable of-provision.service
 sudo of-settings bootrw enable                   # /boot is normally read-only
-sudo mv /boot/setup.txt.failed /boot/setup.txt   # or recreate it with a new URL
+sudo mv /boot/settings/setup.txt.failed /boot/settings/setup.txt   # or recreate it with a new URL
 sudo reboot
 ```
 
 
 ## Configuration
+
+### Settings on OF-BOOT
+
+The `settings` folder in the `OF-BOOT` volume holds everything meant to be changed from any computer before (or after) the OpenFrame boots:
+
+- `wifi.txt`: the name and password of the Wi-Fi network to join. Leave the password empty for an open network.
+- `backlight.txt`: settings for automatic brightness (`of-backlight auto`), such as night hours and when the screen turns off in the dark. Changes take effect within ten seconds.
+- `network.yaml` (not there unless you add it): a full [netplan](https://netplan.io) configuration, for anything `wifi.txt` can't do, such as a fixed IP address or several Wi-Fi networks. It's used as it is, and `wifi.txt` only adds Wi-Fi if it sets up none. If netplan can't use it, Ethernet carries on with DHCP and the login prompt says what's wrong.
+- `setup.txt` (not there unless you add it): see First-Boot Provisioning.
+
+Older images kept `network.yaml` and `backlight.txt` in the root of `OF-BOOT`. They move into `settings` once `openframe-scripts` is updated: a `network.yaml` with only the Wi-Fi name and password filled in becomes `wifi.txt`, and one with more in it becomes `settings/network.yaml`. The same happens to a `network.yaml` copied into the root of a new image. The MAC address isn't written into it any more.
 
 ### Locale and Timezone
 

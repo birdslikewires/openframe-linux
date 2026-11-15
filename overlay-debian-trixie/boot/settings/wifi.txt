@@ -1,0 +1,4 @@
+# Wi-Fi for this OpenFrame: the network's name and password, after the = signs.
+# Leave the password empty for an open network.
+name=
+password=

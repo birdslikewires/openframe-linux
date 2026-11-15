@@ -38,6 +38,7 @@ IFUPDOWNMARKER="/var/lib/openframe-scripts/ifupdown-default"
 I2CMARKER="/var/lib/openframe-scripts/i2c-open-default"
 BACKLIGHTMARKER="/var/lib/openframe-scripts/backlight-service-default"
 UNUSEDMARKER="/var/lib/openframe-scripts/unused-default"
+SETTINGSMARKER="/var/lib/openframe-scripts/settings-folder-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -213,17 +214,41 @@ case "$1" in
 		# Once per system: the backlight service (of-backlight.service), which does the
 		# fades, fixed levels and automatic brightness for 'of-backlight'. It keeps the
 		# level a system already has until someone asks for another or for 'auto'.
-		# Systems from older images also get the commented settings file new images have
-		# in /boot, to edit from any computer. Disabling the service afterwards sticks.
+		# Disabling the service afterwards sticks.
 		if [ ! -e "$BACKLIGHTMARKER" ]; then
 			systemctl enable --quiet of-backlight.service 2>/dev/null || true
 			in_chroot || systemctl start of-backlight.service 2>/dev/null || true
-			if [ ! -e /boot/backlight.txt ] && [ -f /usr/lib/openframe/backlight.txt ] && [ -d /boot ]; then
-				cp /usr/lib/openframe/backlight.txt /boot/backlight.txt.new 2>/dev/null &&
-					sync && mv -f /boot/backlight.txt.new /boot/backlight.txt && sync
-			fi
 			mkdir -p "${BACKLIGHTMARKER%/*}"
 			touch "$BACKLIGHTMARKER"
+		fi
+
+		# Once per system: the settings folder on the boot volume (OF-BOOT/settings), which
+		# holds what anyone may edit from any computer, as new images have it. backlight.txt
+		# moves into it from the root: the one first shipped (1:26.11.50) becomes the
+		# shorter one, an edited one moves as it is (of-backlight reads either), and a
+		# system without one gets one. network.yaml is of-netplan's to move, at the next
+		# boot (it becomes wifi.txt, or settings/network.yaml). setup.txt works in either
+		# place, so it stays where it is. A Mac's companion file (._backlight.txt) goes with
+		# the original.
+		if [ ! -e "$SETTINGSMARKER" ] && [ -d /boot ]; then
+			SETDIR=/boot/settings
+			SETSRC=/usr/lib/openframe/settings
+			if mkdir -p "$SETDIR" 2>/dev/null; then
+				if [ -f /boot/backlight.txt ] && [ ! -e "$SETDIR/backlight.txt" ]; then
+					if [ "$(md5sum < /boot/backlight.txt | cut -d' ' -f1)" = "a9fbd024efc113901643947f5346febb" ] &&
+					   [ -f "$SETSRC/backlight.txt" ]; then
+						cp "$SETSRC/backlight.txt" "$SETDIR/backlight.txt.new"
+					else
+						cp /boot/backlight.txt "$SETDIR/backlight.txt.new"
+					fi && sync && mv -f "$SETDIR/backlight.txt.new" "$SETDIR/backlight.txt" && sync &&
+						rm -f /boot/backlight.txt /boot/._backlight.txt && sync
+				elif [ ! -e "$SETDIR/backlight.txt" ] && [ -f "$SETSRC/backlight.txt" ]; then
+					cp "$SETSRC/backlight.txt" "$SETDIR/backlight.txt.new" && sync &&
+						mv -f "$SETDIR/backlight.txt.new" "$SETDIR/backlight.txt" && sync
+				fi
+				mkdir -p "${SETTINGSMARKER%/*}"
+				touch "$SETTINGSMARKER"
+			fi
 		fi
 
 		# Once per system, as new images have it: no firmware for drivers our kernel doesn't

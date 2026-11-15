@@ -1,24 +1,45 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.11 (14th November 2026)
-##  Manages netplan configuration and MAC addresses on OpenFrame devices.
-
-##  If there's a /boot/network.yaml file, we copy and use that.
+## of-netplan v26.11.12 (15th November 2026)
+##  Manages the network configuration and MAC addresses on OpenFrame devices.
+##
+##  The settings are in the settings folder on the boot volume (OF-BOOT/settings,
+##  /boot/settings here), for anyone to edit from any computer:
+##    wifi.txt      name= and password= lines: the Wi-Fi network to join, if any.
+##    network.yaml  only if someone puts one there, for anything more (a fixed address,
+##                  several Wi-Fi networks): a netplan configuration, used as it is.
+##                  wifi.txt then adds Wi-Fi only if it has none. A MAC set in it for
+##                  eth0 is used too.
+##  From those we write /etc/netplan/network.yaml, adding the LAN MAC (below). Nothing
+##  we decide goes back to the boot volume. A network.yaml that can't be used (not
+##  YAML, or netplan refuses it), or a Wi-Fi password that can't be right, is left out,
+##  so Ethernet still works, and the login prompt says what's wrong.
+##
+##  Images before November 2026 had network.yaml in the root of the boot volume, and
+##  we wrote the LAN MAC into it. One found there, from an older system or copied there
+##  by someone, is moved into the settings folder (migrate_legacy): the template, or
+##  the template with only the Wi-Fi name and password filled in, becomes wifi.txt;
+##  anything else becomes settings/network.yaml, less a MAC we wrote into it.
+##
 ##  The LAN MAC follows the WLAN card: 02 then the card MAC's last five octets.
 ##  If no WLAN interface is available, we generate a MAC for the LAN interface, once.
 ##  So we do if the card has no burned-in address of its own (a locally administered
 ##  one may be random and change every boot).
 ##
-##  Two state files in /var/lib/of-netplan:
-##    lan.mac   the LAN MAC we last wrote into network.yaml
+##  State files in /var/lib/of-netplan:
+##    lan.mac   the LAN MAC we last settled on
+##    lan.user  there if that MAC was set in settings/network.yaml
 ##    wlan.mac  the WLAN card's MAC when we last saw one, or 'none' if we haven't
 ##              and generated the LAN MAC
+##    wifi.txt, user.yaml, live.yaml, issue.note  the settings we last used, the
+##              config we wrote from them, and anything the login prompt must say
 ##  A LAN MAC that is 02 then wlan.mac's last five octets was made from that card.
 ##  So when a different card turns up (swapped, or this stick moved to another
 ##  unit), a LAN MAC made from the old card, or generated, is made again from the
 ##  new one. Two units can then never share a LAN MAC because they once had each
-##  other's cards. The kernel log (dmesg) says when that happens. A MAC typed into
-##  network.yaml is left alone, and deleting it there makes one from the card again.
+##  other's cards. The kernel log (dmesg) says when that happens. A MAC set in
+##  settings/network.yaml is left alone, and taking it out of there makes one from the
+##  card again.
 ##
 ##  On BirdsLikeWires firmware the unit's MAC is kept in NVRAM (of-bootnsh has
 ##  BlwMac.efi store it when it isn't there): the card's own, or with no card the
@@ -38,15 +59,12 @@
 ##  LAN would then share it. A new one is generated instead (after waiting the full
 ##  WLANTIMEOUT for the card, so a slow one isn't mistaken for a missing one).
 ##
-##  Then we put the modified file back into /boot. If its Wi-Fi section is still
-##  the unedited template, it's left out of the live config.
-##
 ##  We're also responsible for /etc/issue
 ##
-##  If /boot/network.yaml and the live config both match what we left last boot,
-##  nothing has changed. Then we skip the rest, including 'netplan apply': the
-##  netplan generator has already configured the network from /etc/netplan, and
-##  applying again costs a daemon-reload and a second DHCP exchange on every boot.
+##  If the settings and the live config all match what we left last boot, nothing has
+##  changed. Then we skip the rest, including 'netplan apply': the netplan generator
+##  has already configured the network from /etc/netplan, and applying again costs a
+##  daemon-reload and a second DHCP exchange on every boot.
 ##
 ##  'of-netplan --early' is run by udev (70-of-eth0-up.rules) as soon as eth0
 ##  appears. It sets the LAN MAC we settled on last boot and brings the link up,
@@ -63,12 +81,21 @@ source /etc/os-release
 LAN="eth0"
 WLAN="wlan0"
 WLANTIMEOUT=15
-CONFIGTIMEOUT=10
-NETPLANCONFIG="network.yaml"
+BOOTTIMEOUT=10
+SETDIR="/boot/settings"
+WIFITXT="$SETDIR/wifi.txt"
+USERYAML="$SETDIR/network.yaml"
+LEGACYYAML="/boot/network.yaml"
+# The blank wifi.txt that new images have (this package's copy).
+WIFITEMPLATE="/usr/lib/openframe/settings/wifi.txt"
+LIVE="/etc/netplan/network.yaml"
 STATEDIR="/var/lib/of-netplan"
 # Debian's yq (a jq wrapper; openframe-scripts depends on it), by its full path: a yq
 # earlier in PATH may be another program altogether.
 YQ="/usr/bin/yq"
+# The configuration without settings/network.yaml: DHCP on Ethernet. Wi-Fi from
+# wifi.txt and the LAN MAC are added to it.
+DEFAULTJSON='{"network":{"version":2,"renderer":"networkd","ethernets":{"eth0":{"dhcp4":true,"dhcp-identifier":"mac"}}}}'
 
 # Early mode, from udev: MAC first (while the link is down, so it's right from the
 # first frame and networkd has nothing to change), then link up. Nothing else.
@@ -193,22 +220,214 @@ card_made() {
 	is_mac "$2" && [ "${1,,}" = "$(from_card ${2,,})" ]
 }
 
-# Rewrites /etc/netplan/network.yaml with yq: any arguments it needs, then filter. Only
-# a result that is still a netplan config replaces it, so a yq that fails (or a
-# different yq: images before March 2026 had an old one in /usr/local/bin) can't fill
-# the file with its error message, which netplan refuses and which would go back to
-# /boot. Says so and returns false if not.
-yaml_edit() {
-	local F=/etc/netplan/$NETPLANCONFIG T=/tmp/$NETPLANCONFIG
-	if "$YQ" -y "$@" "$F" > "$T" 2>/dev/null && [ -s "$T" ] &&
-	   "$YQ" -e '.network | type == "object"' "$T" > /dev/null 2>&1; then
-		mv "$T" "$F"
-		chmod 600 "$F"
+# True if MAC $1, found in an old network.yaml in the root of the boot volume, is one
+# we wrote there rather than one someone typed: the LAN MAC we noted, made from the
+# card we noted or generated; or the one NVRAM holds for this unit (made from its
+# card's, or generated), for a file from an older image of this unit copied onto a
+# new one.
+mac_ours() {
+	local M="${1,,}" L W S
+	L=$(cat $STATEDIR/lan.mac 2>/dev/null)
+	W=$(cat $STATEDIR/wlan.mac 2>/dev/null)
+	if [ "$M" = "${L,,}" ] && { [ "$W" = "none" ] || card_made "$M" "$W"; }; then
+		return 0
+	fi
+	S=$(stored_mac)
+	[ -n "$S" ] && { [ "$M" = "$S" ] || [ "$M" = "$(from_card "$S")" ]; }
+}
+
+# wifi.txt's settings, in WIFINAME and WIFIPASS: its name= and password= lines. It's
+# read with bash alone, never run. Spaces around the names, the = and the values don't
+# count, nor do quotes around a value, Windows line endings, or the byte-order mark
+# some editors put at the start. Lines starting with # are notes.
+read_wifi() {
+	local line k v
+	WIFINAME="" WIFIPASS=""
+	[ -r "$WIFITXT" ] || return 0
+	while IFS= read -r line || [ -n "$line" ]; do
+		line="${line%$'\r'}"
+		line="${line#$'\xef\xbb\xbf'}"
+		[[ "$line" == *=* ]] || continue
+		k="${line%%=*}"
+		v="${line#*=}"
+		k="${k//[[:space:]]/}"
+		k="${k,,}"
+		v="${v#"${v%%[![:space:]]*}"}"
+		v="${v%"${v##*[![:space:]]}"}"
+		if (( ${#v} >= 2 )) && [[ ${v:0:1} == [\"\'] && ${v: -1} == "${v:0:1}" ]]; then
+			v="${v:1:${#v}-2}"
+		fi
+		case "$k" in
+			name) WIFINAME="$v" ;;
+			password) WIFIPASS="$v" ;;
+		esac
+	done < "$WIFITXT"
+}
+
+# True if WIFIPASS could be a WPA password: none (an open network), 8 to 63
+# characters, or 64 hex digits (the key itself).
+wifi_pass_ok() {
+	[ -z "$WIFIPASS" ] || { (( ${#WIFIPASS} >= 8 && ${#WIFIPASS} <= 63 )); } ||
+		[[ "$WIFIPASS" =~ ^[0-9a-fA-F]{64}$ ]]
+}
+
+# Writes wifi.txt on /boot with name $1 and password $2, from the blank one new images
+# have, so its notes are the same.
+write_wifi() {
+	local T=/tmp/of-netplan-wifi.txt line
+	{
+		if [ -r "$WIFITEMPLATE" ]; then
+			while IFS= read -r line || [ -n "$line" ]; do
+				case "$line" in
+					name=*) printf 'name=%s\n' "$1" ;;
+					password=*) printf 'password=%s\n' "$2" ;;
+					*) printf '%s\n' "$line" ;;
+				esac
+			done < "$WIFITEMPLATE"
+		else
+			printf 'name=%s\npassword=%s\n' "$1" "$2"
+		fi
+	} > "$T" && boot_put "$T" "$WIFITXT"
+	rm -f "$T"
+}
+
+# Moves an old network.yaml from the root of the boot volume into the settings folder
+# (see the notes at the top). Its Wi-Fi name and password go into wifi.txt if that's
+# all anyone changed in the template: any of its versions, with or without
+# dhcp-identifier. Otherwise it's someone's own configuration, and goes in as
+# settings/network.yaml, less a MAC we wrote into it (a MAC someone typed stays); one
+# that was there already is kept as network.yaml.old. One that can't be read goes in
+# as it is: it's not used until someone puts it right (see read_user_yaml), and in the
+# meantime Ethernet works.
+migrate_legacy() {
+	local OUT=() KIND MAC NAME PASS OURS T=/tmp/of-netplan-legacy.yaml
+	[ -f "$LEGACYYAML" ] || return 0
+	boot_rw || return 0
+	mkdir -p "$SETDIR"
+	mapfile -t OUT < <("$YQ" -r --arg lan "$LAN" --arg wlan "$WLAN" '
+		def plain: del(.network.ethernets[$lan]["dhcp-identifier"] | select(. == "mac"))
+			| del(.network.wifis[$wlan]["dhcp-identifier"] | select(. == "mac"));
+		def template($n; $p): {"network": {"version": 2, "renderer": "networkd",
+			"ethernets": {($lan): {"dhcp4": true}},
+			"wifis": {($wlan): {"dhcp4": true,
+				"access-points": {($n): (if $p == null then {} else {"password": $p} end)}}}}};
+		if (.network | type) != "object" then error("not netplan") else . end
+		| (.network.ethernets[$lan].macaddress // "") as $mac
+		| (if $mac == "" then . else del(.network.ethernets[$lan].macaddress) end) as $rest
+		| ($rest.network.wifis[$wlan]["access-points"] // {}) as $aps
+		| (if ($aps | type) == "object" and ($aps | length) == 1 then ($aps | keys[0]) else null end) as $n
+		| (if $n == null then null elif ($aps[$n] | type) == "object" then $aps[$n].password else 0 end) as $p
+		| if $n != null and ($p == null or ($p | type) == "string")
+		     and ($rest | plain) == template($n; $p)
+		  then "template", $mac, $n, ($p // "")
+		  else "own", $mac end' "$LEGACYYAML" 2>/dev/null)
+	KIND="${OUT[0]}" MAC="${OUT[1]}" NAME="${OUT[2]}" PASS="${OUT[3]}"
+	[ -n "$MAC" ] && mac_ours "$MAC" && OURS=1 || OURS=""
+
+	if [ "$KIND" = "template" ] && { [ -z "$MAC" ] || [ -n "$OURS" ]; }; then
+		if [ "$NAME" = "YOURWIFINAME" ]; then
+			[ -e "$WIFITXT" ] || write_wifi "" ""
+			klog "Moved network settings into settings/wifi.txt (no Wi-Fi was set up)."
+		else
+			write_wifi "$NAME" "$PASS"
+			klog "Moved network settings into settings/wifi.txt (Wi-Fi network '$NAME')."
+		fi
+	else
+		boot_rw
+		sync
+		[ -e "$USERYAML" ] && mv -f "$USERYAML" "$USERYAML.old"
+		if [ -n "$OURS" ] && "$YQ" -y --arg lan "$LAN" 'del(.network.ethernets[$lan].macaddress)' \
+				"$LEGACYYAML" > "$T" 2>/dev/null && [ -s "$T" ]; then
+			boot_put "$T" "$USERYAML"
+		else
+			boot_put "$LEGACYYAML" "$USERYAML"
+		fi
+		rm -f "$T"
+		[ -e "$WIFITXT" ] || write_wifi "" ""
+		klog "Moved network.yaml into the settings folder${OURS:+ (less the MAC we had written into it)}."
+	fi
+	sync
+	# With the Mac's companion file (._network.yaml), if a Mac has been at it: alone
+	# it's clutter.
+	rm -f "$LEGACYYAML" "${LEGACYYAML%/*}/._${LEGACYYAML##*/}"
+	sync
+}
+
+# Reads settings/network.yaml: false if it isn't a netplan configuration we can read.
+# Sets USERMAC to the MAC it sets for eth0, if any, and USERWIFI to 'true' if it sets
+# up any Wi-Fi of its own (the old template's YOURWIFINAME doesn't count: it's left out).
+read_user_yaml() {
+	local OUT
+	USERMAC="" USERWIFI=""
+	OUT=$("$YQ" -r --arg lan "$LAN" --arg wlan "$WLAN" '
+		if (.network | type) != "object" then error("not netplan") else . end
+		| "\(.network.ethernets[$lan].macaddress // "")|\(((.network.wifis // {}) | length) > 0
+			and ((.network.wifis[$wlan]["access-points"] // {}) | has("YOURWIFINAME") | not))"' \
+		"$USERYAML" 2>/dev/null) || return 1
+	[[ "$OUT" == *"|"* ]] || return 1
+	USERMAC="${OUT%%|*}"
+	USERWIFI="${OUT##*|}"
+	[ -z "$USERMAC" ] || is_mac "$USERMAC"
+}
+
+# Writes the live config: base $1 (settings/network.yaml, or - for DHCP on Ethernet),
+# with eth0's MAC set to $2 (none: as the base has it), any YOURWIFINAME template left
+# out, and the network from wifi.txt added if WIFIUSE says so and the base has no
+# Wi-Fi. Only a result that is still a netplan config replaces it, so a yq that fails
+# can't fill the file with its error message.
+build_live() {
+	local NAME="" T="$LIVE.new"
+	[ -n "$WIFIUSE" ] && NAME="$WIFINAME"
+	mkdir -p "${LIVE%/*}"
+	if { if [ "$1" = "-" ]; then echo "$DEFAULTJSON"; else cat "$1"; fi; } |
+	   "$YQ" -y --arg lan "$LAN" --arg wlan "$WLAN" --arg mac "$2" \
+	         --arg name "$NAME" --arg pass "$WIFIPASS" '
+		(if $mac != "" then .network.ethernets[$lan].macaddress = $mac else . end)
+		| (if ((.network.wifis[$wlan]["access-points"] // {}) | type) == "object"
+		      and ((.network.wifis[$wlan]["access-points"] // {}) | has("YOURWIFINAME"))
+		   then del(.network.wifis) else . end)
+		| (if $name != "" and ((.network.wifis // {}) | length) == 0 then
+			.network.wifis[$wlan] = {"dhcp4": true, "dhcp-identifier": "mac",
+				"access-points": {($name): (if $pass == "" then {} else {"password": $pass} end)}}
+		   else . end)' > "$T" 2>/dev/null &&
+	   [ -s "$T" ] && "$YQ" -e '.network | type == "object"' "$T" > /dev/null 2>&1; then
+		chmod 600 "$T"
+		mv -f "$T" "$LIVE"
 		return 0
 	fi
 	rm -f "$T"
-	klog "Could not rewrite $NETPLANCONFIG with $YQ; it's unchanged."
+	klog "Could not write $LIVE with $YQ."
 	return 1
+}
+
+# True if file $1 is as it was when we last used it (our copy, $2 in STATEDIR): both
+# there and the same, or neither.
+unchanged() {
+	if [ -e "$1" ]; then cmp -s "$1" "$STATEDIR/$2"; else [ ! -e "$STATEDIR/$2" ]; fi
+}
+
+# Keeps a copy of file $1 as $2 in STATEDIR, or none if it isn't there.
+remember() {
+	if [ -e "$1" ]; then
+		cp "$1" "$STATEDIR/$2" && chmod 600 "$STATEDIR/$2"
+	else
+		rm -f "$STATEDIR/$2"
+	fi
+}
+
+# The text login prompt: the addresses (wlan0's only if Wi-Fi is set up), then anything
+# about the settings that someone needs to put right (issue.note).
+write_issue() {
+	if grep -q 'wifis:' "$LIVE" 2>/dev/null; then
+		echo "${ID^} ${VERSION_CODENAME^} \n \l wlan0:\4{wlan0} eth0:\4{eth0}" > /etc/issue
+	else
+		echo "${ID^} ${VERSION_CODENAME^} \n \l eth0:\4{eth0}" > /etc/issue
+	fi
+	echo >> /etc/issue
+	if [ -s $STATEDIR/issue.note ]; then
+		cat $STATEDIR/issue.note >> /etc/issue
+		echo >> /etc/issue
+	fi
 }
 
 # Says $1 in the kernel log (dmesg) as well as our own.
@@ -234,6 +453,16 @@ release_gate() {
 	mkdir -p /run/of-netplan && touch /run/of-netplan/mac-decided
 }
 
+# networkd sets the LAN MAC when it starts, which may be after us: wait for it (up to
+# 20 seconds), so /tmp/openframe.net records it.
+wait_lan_mac() {
+	local COUNT=0
+	while [ $COUNT -lt 100 ] && [ "$(cat /sys/class/net/$LAN/address 2>/dev/null)" != "${1,,}" ]; do
+		COUNT=$((COUNT+1))
+		sleep 0.2
+	done
+}
+
 # networkd sends its first DHCP DISCOVER within milliseconds of carrier, and on
 # the OpenFrame's r8169 that first frame is lost (frames ~50 ms later get through).
 # networkd then waits about 4 seconds to retry. Once carrier has settled, restart
@@ -256,35 +485,46 @@ kick_dhcp() {
 # Remove the network information file if present.
 [ -e /tmp/openframe.net ] && rm /tmp/openframe.net
 
-# See if there's a network.yaml config file on /boot.
+# /boot should be mounted before we start; give it a moment if not.
 COUNT=0
-while [ $COUNT -lt $CONFIGTIMEOUT -a ! -e /boot/$NETPLANCONFIG ]; do
+while [ $COUNT -lt $BOOTTIMEOUT ] && ! mountpoint -q /boot; do
 	COUNT=$((COUNT+1))
- 	sleep 1
+	sleep 1
 done
 
-# Configure what's shown on the text login prompt.
-if [ $(grep -c 'YOURWIFINAME:' /boot/$NETPLANCONFIG) -gt 0 ]; then
-	echo "${ID^} ${VERSION_CODENAME^} \n \l eth0:\4{eth0}" > /etc/issue
-else
-	echo "${ID^} ${VERSION_CODENAME^} \n \l wlan0:\4{wlan0} eth0:\4{eth0}" > /etc/issue
-fi
-echo >> /etc/issue
+mkdir -p $STATEDIR
+# Left by versions before the settings folder.
+rm -f $STATEDIR/boot.yaml
+
+migrate_legacy
+read_wifi
 
 # Unchanged since we last ran? Then the live config is already right.
-if [ -e /boot/$NETPLANCONFIG ] && [ -s $STATEDIR/lan.mac ] \
-	&& cmp -s /boot/$NETPLANCONFIG $STATEDIR/boot.yaml \
-	&& cmp -s /etc/netplan/$NETPLANCONFIG $STATEDIR/live.yaml; then
-	echo "No changes to $NETPLANCONFIG since last boot."
+if [ -s $STATEDIR/lan.mac ] && unchanged "$WIFITXT" wifi.txt && unchanged "$USERYAML" user.yaml \
+	&& [ -e $STATEDIR/live.yaml ] && cmp -s "$LIVE" $STATEDIR/live.yaml; then
+	echo "No changes to the network settings since last boot."
+	write_issue
 	LANMAC=$(cat $STATEDIR/lan.mac)
 	OLDWLAN=$(cat $STATEDIR/wlan.mac 2>/dev/null)
-	# No card noted last boot ('none', or no wlan.mac when the MAC came from network.yaml),
-	# on BirdsLikeWires firmware, and NVRAM already holds this LAN MAC (so it's generated,
-	# this unit's: with a card NVRAM holds the card's own 00 MAC, never the LAN's 02 one):
-	# unless a card turns up in the wait below, nothing needs storing. So let of-mac-gate
-	# go now, rather than hold the splash, login prompt and UI through the wait on every
-	# boot. A card fitted since (the unit has been opened) still gets its MAC stored, by
-	# a reboot once the UI is up.
+	if [ -e $STATEDIR/lan.user ]; then
+		# The MAC set in settings/network.yaml: nothing to decide. Note a card that's
+		# turned up, for the serial number.
+		WLANMAC=$(card_mac 0)
+		if [ -n "$WLANMAC" ] && [ "$WLANMAC" != "${OLDWLAN,,}" ]; then
+			echo "$WLANMAC" > $STATEDIR/wlan.mac
+		fi
+		update_bootnsh
+		wait_lan_mac "$LANMAC"
+		write_netinfo
+		kick_dhcp
+		exit 0
+	fi
+	# No card noted last boot ('none', or no wlan.mac), on BirdsLikeWires firmware, and
+	# NVRAM already holds this LAN MAC (so it's generated, this unit's: with a card NVRAM
+	# holds the card's own 00 MAC, never the LAN's 02 one): unless a card turns up in the
+	# wait below, nothing needs storing. So let of-mac-gate go now, rather than hold the
+	# splash, login prompt and UI through the wait on every boot. A card fitted since
+	# (the unit has been opened) still gets its MAC stored, by a reboot once the UI is up.
 	if ! is_mac "$OLDWLAN" && is_mac "$LANMAC" && [ "$(stored_mac)" = "${LANMAC,,}" ] &&
 	   [[ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" == "BirdsLikeWires" ]]; then
 		release_gate
@@ -309,40 +549,59 @@ if [ -e /boot/$NETPLANCONFIG ] && [ -s $STATEDIR/lan.mac ] \
 			echo "$WLANMAC" > $STATEDIR/wlan.mac
 		fi
 		# The MAC is settled: boot.nsh first (of-mac-gate waits for it, holding the login
-		# prompt), then the network. networkd sets the LAN MAC when it starts, which may be
-		# after us: wait for it (up to 20 seconds), so /tmp/openframe.net records it.
+		# prompt), then the network.
 		update_bootnsh
-		COUNT=0
-		while [ $COUNT -lt 100 ] && [ "$(cat /sys/class/net/$LAN/address 2>/dev/null)" != "$LANMAC" ]; do
-			COUNT=$((COUNT+1))
-			sleep 0.2
-		done
+		wait_lan_mac "$LANMAC"
 		write_netinfo
 		kick_dhcp
 		exit 0
 	fi
 fi
 
-# If we found one, copy it into the system.
-if [ -e /boot/$NETPLANCONFIG ]; then
-	cp /boot/$NETPLANCONFIG /etc/netplan/$NETPLANCONFIG
-	chmod 600 /etc/netplan/$NETPLANCONFIG
+# What the settings say. A network.yaml that can't be read isn't used; Ethernet and
+# wifi.txt still are.
+NOTES=()
+USEUSER=""
+USERMAC=""
+USERWIFI=""
+if [ -e "$USERYAML" ]; then
+	if read_user_yaml; then
+		USEUSER=1
+	else
+		USERMAC="" USERWIFI=""
+		klog "Could not read settings/network.yaml as a netplan configuration, so it isn't used."
+		NOTES+=("settings/network.yaml can't be read, so it isn't used.")
+	fi
+fi
+WIFIUSE=""
+if [ -n "$WIFINAME" ]; then
+	if [ "$USERWIFI" = "true" ]; then
+		echo "wifi.txt isn't used: settings/network.yaml sets up Wi-Fi itself."
+	elif ! wifi_pass_ok; then
+		klog "The Wi-Fi password in wifi.txt isn't 8 to 63 characters, so Wi-Fi isn't set up."
+		NOTES+=("Wi-Fi: the password in settings/wifi.txt must be 8 to 63 characters.")
+	else
+		WIFIUSE=1
+	fi
 fi
 
-# What network.yaml says now, what we last wrote there, and where that came from. If
-# yq can't read it, act as if it has no MAC; yaml_edit then won't touch the file.
-if ! YAMLMAC=$("$YQ" -r ".network.ethernets.${LAN}.macaddress // empty" /etc/netplan/$NETPLANCONFIG 2>/dev/null); then
-	klog "Could not read $NETPLANCONFIG with $YQ."
-	YAMLMAC=""
-fi
 OLDLAN=$(cat $STATEDIR/lan.mac 2>/dev/null)
 OLDWLAN=$(cat $STATEDIR/wlan.mac 2>/dev/null)
-LANMAC="$YAMLMAC"
 NEWWLAN="$OLDWLAN"
 
-if [[ -z "$YAMLMAC" ]]; then
+if [ -n "$USERMAC" ]; then
 
-	# No MAC yet: make one from the WLAN card if there is one.
+	# Set in settings/network.yaml, so it's theirs. Note the card if there is one;
+	# 'none' would let a card that turns up later replace it.
+	LANMAC="$USERMAC"
+	[ -n "$CARDCHECKED" ] || WLANMAC=$(card_mac 0)
+	if [ -n "$WLANMAC" ]; then NEWWLAN="$WLANMAC"; elif ! is_mac "$OLDWLAN"; then NEWWLAN=""; fi
+	echo "Hardware address $USERMAC for $LAN is set in settings/network.yaml; leaving it alone."
+
+elif ! is_mac "$OLDLAN" || [ -e $STATEDIR/lan.user ]; then
+
+	# No MAC yet (or the one set in network.yaml has been taken out of it): make one
+	# from the WLAN card if there is one.
 	[ -n "$CARDCHECKED" ] || WLANMAC=$(card_mac $WLANTIMEOUT)
 	if [ -n "$WLANMAC" ]; then
 		LANMAC=$(from_card $WLANMAC)
@@ -359,23 +618,16 @@ if [[ -z "$YAMLMAC" ]]; then
 		echo "Applying $LANMAC to $LAN (generated, this unit's)."
 	fi
 
-elif [ -n "$OLDLAN" ] && [ "${YAMLMAC,,}" != "${OLDLAN,,}" ]; then
-
-	# Not what we wrote last time, so someone set it. It's theirs from now on. Note the
-	# card if there is one; 'none' would let a card that turns up later replace it.
-	[ -n "$CARDCHECKED" ] || WLANMAC=$(card_mac 0)
-	if [ -n "$WLANMAC" ]; then NEWWLAN="$WLANMAC"; elif ! is_mac "$OLDWLAN"; then NEWWLAN=""; fi
-	echo "Hardware address $YAMLMAC for $LAN was set in $NETPLANCONFIG; leaving it alone."
-
 else
 
 	# Ours, someone else's from an earlier boot, or of unknown origin (from before
 	# wlan.mac). Look for the card: wait for it if we've seen one, otherwise just
 	# look, so an OpenFrame 2 isn't held up.
+	LANMAC="$OLDLAN"
 	if [ -z "$CARDCHECKED" ]; then
 		if is_mac "$OLDWLAN"; then WLANMAC=$(card_mac $WLANTIMEOUT); else WLANMAC=$(card_mac 0); fi
 	fi
-	if card_changed "$WLANMAC" "$OLDWLAN" "$YAMLMAC"; then
+	if card_changed "$WLANMAC" "$OLDWLAN" "$OLDLAN"; then
 		LANMAC=$(from_card $WLANMAC)
 		NEWWLAN="$WLANMAC"
 		if [ "$OLDWLAN" = "none" ]; then
@@ -384,19 +636,19 @@ else
 			klog "Hardware MAC change detected: WLAN card $WLANMAC replaces $OLDWLAN; $LAN MAC is now $LANMAC."
 		fi
 	else
-		[ -n "$WLANMAC" ] || nocard_lan "$YAMLMAC"
-		if [ -z "$WLANMAC" ] && [ -n "$NOCARDLAN" ] && [ "$NOCARDLAN" != "${YAMLMAC,,}" ]; then
+		[ -n "$WLANMAC" ] || nocard_lan "$OLDLAN"
+		if [ -z "$WLANMAC" ] && [ -n "$NOCARDLAN" ] && [ "$NOCARDLAN" != "${OLDLAN,,}" ]; then
 			# No card, on BirdsLikeWires firmware: the LAN MAC is this unit's (see the
 			# notes at the top), whatever this stick had.
 			LANMAC="$NOCARDLAN"
 			NEWWLAN="none"
-			klog "No WLAN card; $LAN MAC is now $LANMAC, this unit's (was ${YAMLMAC,,})."
-		elif [ -z "$WLANMAC" ] && [ -z "$NOCARDLAN" ] && card_made "$YAMLMAC" "$OLDWLAN"; then
+			klog "No WLAN card; $LAN MAC is now $LANMAC, this unit's (was ${OLDLAN,,})."
+		elif [ -z "$WLANMAC" ] && [ -z "$NOCARDLAN" ] && card_made "$OLDLAN" "$OLDWLAN"; then
 			# No card, and no NVRAM to ask: a MAC made from a card that isn't here may be
 			# another unit's now, so don't keep it.
 			LANMAC=$(gen_mac)
 			NEWWLAN="none"
-			klog "No WLAN card; $LAN MAC is now $LANMAC, generated (was ${YAMLMAC,,}, made from card ${OLDWLAN,,})."
+			klog "No WLAN card; $LAN MAC is now $LANMAC, generated (was ${OLDLAN,,}, made from card ${OLDWLAN,,})."
 		else
 			# The LAN MAC stays as it is: made from this card, someone else's, or, from
 			# before wlan.mac, of unknown origin. (Noting the card makes a MAC made from it
@@ -408,39 +660,46 @@ else
 
 fi
 
-# Write a new LAN MAC to the config file. If that can't be done, the MAC stays what the
-# file says, and that's what gets recorded.
-if [ "$LANMAC" != "$YAMLMAC" ]; then
-	yaml_edit --arg mac "$LANMAC" ".network.ethernets.${LAN}.macaddress = \$mac" || LANMAC="$YAMLMAC"
-fi
-
-# Copy the updated config file back to /boot for next time, only if it differs,
-# so an unchanged boot doesn't write to the FAT partition.
-cmp -s /etc/netplan/$NETPLANCONFIG /boot/$NETPLANCONFIG || boot_put /etc/netplan/$NETPLANCONFIG /boot/$NETPLANCONFIG
-
-# Record the MAC we wrote and where it came from straight away, even if 'netplan apply'
-# fails below: network.yaml already holds it, and next boot must see it as ours.
-mkdir -p $STATEDIR
+# Record the MAC and where it came from straight away, even if 'netplan apply' fails
+# below: next boot must see it as ours (or theirs).
 echo "$LANMAC" > $STATEDIR/lan.mac
 if [ -n "$NEWWLAN" ]; then echo "$NEWWLAN" > $STATEDIR/wlan.mac; else rm -f $STATEDIR/wlan.mac; fi
+if [ -n "$USERMAC" ]; then touch $STATEDIR/lan.user; else rm -f $STATEDIR/lan.user; fi
+
+# The live config, from the settings and the MAC (one set in network.yaml is already
+# there). Then the login prompt, before the gate lets it show.
+if [ -n "$USERMAC" ]; then LIVEMAC=""; else LIVEMAC="$LANMAC"; fi
+BUILT=""
+if [ -n "$USEUSER" ]; then
+	build_live "$USERYAML" "$LIVEMAC" && BUILT=user
+fi
+if [ -z "$BUILT" ]; then
+	build_live - "$LANMAC" && BUILT=default
+fi
+printf '%s\n' "${NOTES[@]}" | sed '/^$/d' > $STATEDIR/issue.note
+write_issue
 
 # The MAC is settled: bring boot.nsh's BlwMac.efi line into step now, before the slower
 # steps below, so a reboot for NVRAM (or none) is known as early as it can be.
 update_bootnsh
 
-# An unedited template still names YOURWIFINAME. Leave Wi-Fi out of the live config
-# then: netplan would start a WPA supplicant for wlan0, which waits 90 seconds for an
-# adapter that may not exist (the OpenFrame 2 has none) and then fails. /boot keeps
-# the full template, so Wi-Fi can still be filled in there.
-if grep -q 'YOURWIFINAME:' /etc/netplan/$NETPLANCONFIG; then
-	yaml_edit 'del(.network.wifis)'
+# Go live with the changes, then remember what we used for next boot. If netplan
+# refuses settings/network.yaml, go without it, so Ethernet works.
+APPLIED=""
+if [ -n "$BUILT" ] && netplan apply; then
+	APPLIED=1
+elif [ "$BUILT" = "user" ]; then
+	klog "netplan could not use settings/network.yaml, so it isn't used."
+	NOTES+=("settings/network.yaml isn't a configuration netplan can use, so it isn't used.")
+	printf '%s\n' "${NOTES[@]}" > $STATEDIR/issue.note
+	build_live - "$LANMAC" && netplan apply && APPLIED=1
+	write_issue
 fi
-
-# Go live with the changes, then remember what we left for next boot.
-if netplan apply; then
-	cp /boot/$NETPLANCONFIG $STATEDIR/boot.yaml
-	cp /etc/netplan/$NETPLANCONFIG $STATEDIR/live.yaml
-	chmod 600 $STATEDIR/*.yaml
+if [ -n "$APPLIED" ]; then
+	remember "$WIFITXT" wifi.txt
+	remember "$USERYAML" user.yaml
+	cp "$LIVE" $STATEDIR/live.yaml
+	chmod 600 $STATEDIR/live.yaml
 fi
 
 write_netinfo

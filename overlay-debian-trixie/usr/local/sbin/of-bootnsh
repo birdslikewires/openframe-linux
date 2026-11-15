@@ -43,7 +43,7 @@
 ##  from the card's as of-netplan makes it, or the generated one), so any OS started
 ##  on this unit sees it, and makes the SMBIOS UUID from the stored MAC
 ##  (00000000-0000-8000-8000-<MAC>), plus for a card the system's serial number. A
-##  LAN MAC typed into network.yaml stays Linux's business. Linux can't write NVRAM
+##  LAN MAC set in settings/network.yaml stays Linux's business. Linux can't write NVRAM
 ##  (the kernel has no efivarfs), so BlwMac.efi, run from boot.nsh, stores it; and
 ##  the line is there only while NVRAM doesn't hold this unit's MAC, as the UUID
 ##  shows. So a stick moved to another unit doesn't take its MAC along: on the new
