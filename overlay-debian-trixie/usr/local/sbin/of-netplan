@@ -5,15 +5,24 @@
 ##
 ##  The settings are in the settings folder on the boot volume (OF-BOOT/settings,
 ##  /boot/settings here), for anyone to edit from any computer:
-##    wifi.txt      name= and password= lines: the Wi-Fi network to join, if any.
-##    network.yaml  only if someone puts one there, for anything more (a fixed address,
-##                  several Wi-Fi networks): a netplan configuration, used as it is.
-##                  wifi.txt then adds Wi-Fi only if it has none. A MAC set in it for
-##                  eth0 is used too.
+##    wifi.txt      name= and password=: the Wi-Fi network to join, if any; and
+##                  address=, gateway=, dns= for a fixed address (empty: automatic).
+##    ethernet.txt  address=, gateway=, dns= for the wired network, the same way.
+##    network.yaml  only if someone puts one there, for anything more (several Wi-Fi
+##                  networks, other interfaces): a netplan configuration, used as it
+##                  is. The .txt files then fill in only what it doesn't set up. A MAC
+##                  set in it for eth0 is used too.
+##  An address is 192.168.1.50/24, or 192.168.1.50 (/24 is assumed), or with a mask,
+##  192.168.1.50/255.255.255.0. DNS servers are separated by commas or spaces; with a
+##  fixed address and none given, the gateway is asked (as home routers expect). DNS
+##  servers given with an automatic address replace the ones the router hands out.
+##  When both networks are up, the wired one carries the traffic (route metrics 100
+##  and 600).
 ##  From those we write /etc/netplan/network.yaml, adding the LAN MAC (below). Nothing
 ##  we decide goes back to the boot volume. A network.yaml that can't be used (not
-##  YAML, or netplan refuses it), or a Wi-Fi password that can't be right, is left out,
-##  so Ethernet still works, and the login prompt says what's wrong.
+##  YAML, or netplan refuses it), a Wi-Fi password that can't be right, or an address
+##  that isn't one, is left out, so the network still works (automatically), and the
+##  login prompt says what's wrong.
 ##
 ##  Images before November 2026 had network.yaml in the root of the boot volume, and
 ##  we wrote the LAN MAC into it. One found there, from an older system or copied there
@@ -31,7 +40,7 @@
 ##    lan.user  there if that MAC was set in settings/network.yaml
 ##    wlan.mac  the WLAN card's MAC when we last saw one, or 'none' if we haven't
 ##              and generated the LAN MAC
-##    wifi.txt, user.yaml, live.yaml, issue.note  the settings we last used, the
+##    wifi.txt, ethernet.txt, user.yaml, live.yaml, issue.note  the settings we last used, the
 ##              config we wrote from them, and anything the login prompt must say
 ##  A LAN MAC that is 02 then wlan.mac's last five octets was made from that card.
 ##  So when a different card turns up (swapped, or this stick moved to another
@@ -84,18 +93,20 @@ WLANTIMEOUT=15
 BOOTTIMEOUT=10
 SETDIR="/boot/settings"
 WIFITXT="$SETDIR/wifi.txt"
+ETHTXT="$SETDIR/ethernet.txt"
 USERYAML="$SETDIR/network.yaml"
 LEGACYYAML="/boot/network.yaml"
-# The blank wifi.txt that new images have (this package's copy).
+# The blank wifi.txt and ethernet.txt that new images have (this package's copies).
 WIFITEMPLATE="/usr/lib/openframe/settings/wifi.txt"
+ETHTEMPLATE="/usr/lib/openframe/settings/ethernet.txt"
 LIVE="/etc/netplan/network.yaml"
 STATEDIR="/var/lib/of-netplan"
 # Debian's yq (a jq wrapper; openframe-scripts depends on it), by its full path: a yq
 # earlier in PATH may be another program altogether.
 YQ="/usr/bin/yq"
-# The configuration without settings/network.yaml: DHCP on Ethernet. Wi-Fi from
-# wifi.txt and the LAN MAC are added to it.
-DEFAULTJSON='{"network":{"version":2,"renderer":"networkd","ethernets":{"eth0":{"dhcp4":true,"dhcp-identifier":"mac"}}}}'
+# The configuration without settings/network.yaml. Ethernet from ethernet.txt, Wi-Fi
+# from wifi.txt and the LAN MAC are added to it.
+DEFAULTJSON='{"network":{"version":2,"renderer":"networkd"}}'
 
 # Early mode, from udev: MAC first (while the link is down, so it's right from the
 # first frame and networkd has nothing to change), then link up. Nothing else.
@@ -236,14 +247,15 @@ mac_ours() {
 	[ -n "$S" ] && { [ "$M" = "$S" ] || [ "$M" = "$(from_card "$S")" ]; }
 }
 
-# wifi.txt's settings, in WIFINAME and WIFIPASS: its name= and password= lines. It's
-# read with bash alone, never run. Spaces around the names, the = and the values don't
-# count, nor do quotes around a value, Windows line endings, or the byte-order mark
-# some editors put at the start. Lines starting with # are notes.
-read_wifi() {
+# The settings in file $1 (wifi.txt or ethernet.txt), in variables named $2_ and the
+# setting: name, password, address, gateway and dns (empty if not set). It's read with
+# bash alone, never run. Spaces around the names, the = and the values don't count,
+# nor do quotes around a value, Windows line endings, or the byte-order mark some
+# editors put at the start. Lines starting with # are notes.
+read_txt() {
 	local line k v
-	WIFINAME="" WIFIPASS=""
-	[ -r "$WIFITXT" ] || return 0
+	for k in name password address gateway dns; do printf -v "$2_$k" '%s' ""; done
+	[ -r "$1" ] || return 0
 	while IFS= read -r line || [ -n "$line" ]; do
 		line="${line%$'\r'}"
 		line="${line#$'\xef\xbb\xbf'}"
@@ -258,10 +270,74 @@ read_wifi() {
 			v="${v:1:${#v}-2}"
 		fi
 		case "$k" in
-			name) WIFINAME="$v" ;;
-			password) WIFIPASS="$v" ;;
+			name|password|address|gateway|dns) printf -v "$2_$k" '%s' "$v" ;;
 		esac
-	done < "$WIFITXT"
+	done < "$1"
+}
+
+# True if $1 is an IPv4 address (four numbers 0-255 with dots).
+is_ip4() {
+	local IFS=. o
+	[[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+	for o in $1; do (( 10#$o <= 255 )) || return 1; done
+}
+
+# The prefix length for netmask $1 (255.255.255.0 is 24); false if it isn't one.
+mask_prefix() {
+	local IFS=. o v=0 n=0 i
+	is_ip4 "$1" || return 1
+	for o in $1; do (( v = v * 256 + 10#$o )); done
+	for (( i = 31; i >= 0; i-- )); do (( (v >> i) & 1 )) || break; (( n++ )); done
+	(( n >= 1 && (v & ((1 << (32 - n)) - 1)) == 0 )) || return 1
+	echo "$n"
+}
+
+# The address settings read_txt found under prefix $1 (from file $2, $3 naming the
+# network in notes), as netplan wants them: $1_ADDR (address/prefix, or empty for
+# automatic), $1_GW (or empty) and $1_DNS (a JSON list). Anything that isn't right is
+# left out with a note for the login prompt, and an address that isn't one leaves the
+# network automatic.
+static_settings() {
+	local p="$1" v a g d ip pre x dns=()
+	v="${p}_address"; a="${!v}"
+	v="${p}_gateway"; g="${!v}"
+	v="${p}_dns"; d="${!v}"
+	printf -v "${p}_ADDR" '%s' ""
+	printf -v "${p}_GW" '%s' ""
+	printf -v "${p}_DNS" '%s' "[]"
+	if [ -n "$a" ]; then
+		ip="${a%%/*}"
+		if [[ "$a" == */* ]]; then pre="${a#*/}"; else pre=24; fi
+		[[ "$pre" == *.* ]] && { pre=$(mask_prefix "$pre") || pre=""; }
+		if is_ip4 "$ip" && [[ "$pre" =~ ^[0-9]{1,2}$ ]] && (( 10#$pre >= 1 && 10#$pre <= 32 )); then
+			printf -v "${p}_ADDR" '%s' "$ip/$((10#$pre))"
+		else
+			NOTES+=("$3: the address in settings/$2 isn't one, so the address is automatic.")
+			return 0
+		fi
+	fi
+	if [ -n "$g" ]; then
+		if [ -z "$a" ]; then
+			NOTES+=("$3: the gateway in settings/$2 is only used with an address there.")
+		elif is_ip4 "$g"; then
+			printf -v "${p}_GW" '%s' "$g"
+		else
+			NOTES+=("$3: the gateway in settings/$2 isn't an address, so there's none.")
+		fi
+	fi
+	for x in ${d//,/ }; do
+		if is_ip4 "$x"; then
+			dns+=("\"$x\"")
+		else
+			NOTES+=("$3: '$x' in dns in settings/$2 isn't an address, so it's left out.")
+		fi
+	done
+	v="${p}_GW"
+	if (( ${#dns[@]} == 0 )) && [ -n "$a" ] && [ -n "${!v}" ]; then
+		dns=("\"${!v}\"")
+	fi
+	local IFS=,
+	printf -v "${p}_DNS" '[%s]' "${dns[*]}"
 }
 
 # True if WIFIPASS could be a WPA password: none (an open network), 8 to 63
@@ -272,7 +348,7 @@ wifi_pass_ok() {
 }
 
 # Writes wifi.txt on /boot with name $1 and password $2, from the blank one new images
-# have, so its notes are the same.
+# have, so its notes are the same. With it, ethernet.txt if there's none.
 write_wifi() {
 	local T=/tmp/of-netplan-wifi.txt line
 	{
@@ -289,6 +365,9 @@ write_wifi() {
 		fi
 	} > "$T" && boot_put "$T" "$WIFITXT"
 	rm -f "$T"
+	if [ ! -e "$ETHTXT" ] && [ -r "$ETHTEMPLATE" ]; then
+		boot_put "$ETHTEMPLATE" "$ETHTXT"
+	fi
 }
 
 # Moves an old network.yaml from the root of the boot volume into the settings folder
@@ -370,25 +449,40 @@ read_user_yaml() {
 	[ -z "$USERMAC" ] || is_mac "$USERMAC"
 }
 
-# Writes the live config: base $1 (settings/network.yaml, or - for DHCP on Ethernet),
-# with eth0's MAC set to $2 (none: as the base has it), any YOURWIFINAME template left
-# out, and the network from wifi.txt added if WIFIUSE says so and the base has no
-# Wi-Fi. Only a result that is still a netplan config replaces it, so a yq that fails
-# can't fill the file with its error message.
+# Writes the live config: base $1 (settings/network.yaml, or - for none), with eth0's
+# MAC set to $2 (none: as the base has it), Ethernet from ethernet.txt if the base
+# doesn't set eth0 up, any YOURWIFINAME template left out, and the network from
+# wifi.txt added if WIFIUSE says so and the base has no Wi-Fi. Only a result that is
+# still a netplan config replaces it, so a yq that fails can't fill the file with its
+# error message.
 build_live() {
 	local NAME="" T="$LIVE.new"
 	[ -n "$WIFIUSE" ] && NAME="$WIFINAME"
 	mkdir -p "${LIVE%/*}"
 	if { if [ "$1" = "-" ]; then echo "$DEFAULTJSON"; else cat "$1"; fi; } |
 	   "$YQ" -y --arg lan "$LAN" --arg wlan "$WLAN" --arg mac "$2" \
-	         --arg name "$NAME" --arg pass "$WIFIPASS" '
+	         --arg name "$NAME" --arg pass "$WIFIPASS" \
+	         --arg eaddr "$E_ADDR" --arg egw "$E_GW" --argjson edns "$E_DNS" \
+	         --arg waddr "$W_ADDR" --arg wgw "$W_GW" --argjson wdns "$W_DNS" '
+		def net($addr; $gw; $dns; $metric):
+			(if $addr == "" then {"dhcp4": true, "dhcp-identifier": "mac",
+				"dhcp4-overrides": {"route-metric": $metric}}
+			 else {"dhcp4": false, "addresses": [$addr]}
+				+ (if $gw != "" then {"routes": [{"to": "default", "via": $gw, "metric": $metric}]}
+				   else {} end) end)
+			+ (if ($dns | length) > 0 then {"nameservers": {"addresses": $dns}} else {} end)
+			| (if $addr == "" and ($dns | length) > 0
+			   then .["dhcp4-overrides"]["use-dns"] = false else . end);
 		(if $mac != "" then .network.ethernets[$lan].macaddress = $mac else . end)
+		| (if ((.network.ethernets[$lan] // {}) | del(.macaddress) | length) == 0
+		   then .network.ethernets[$lan] = ((.network.ethernets[$lan] // {}) + net($eaddr; $egw; $edns; 100))
+		   else . end)
 		| (if ((.network.wifis[$wlan]["access-points"] // {}) | type) == "object"
 		      and ((.network.wifis[$wlan]["access-points"] // {}) | has("YOURWIFINAME"))
 		   then del(.network.wifis) else . end)
 		| (if $name != "" and ((.network.wifis // {}) | length) == 0 then
-			.network.wifis[$wlan] = {"dhcp4": true, "dhcp-identifier": "mac",
-				"access-points": {($name): (if $pass == "" then {} else {"password": $pass} end)}}
+			.network.wifis[$wlan] = (net($waddr; $wgw; $wdns; 600)
+				+ {"access-points": {($name): (if $pass == "" then {} else {"password": $pass} end)}})
 		   else . end)' > "$T" 2>/dev/null &&
 	   [ -s "$T" ] && "$YQ" -e '.network | type == "object"' "$T" > /dev/null 2>&1; then
 		chmod 600 "$T"
@@ -497,10 +591,14 @@ mkdir -p $STATEDIR
 rm -f $STATEDIR/boot.yaml
 
 migrate_legacy
-read_wifi
+read_txt "$WIFITXT" W
+read_txt "$ETHTXT" E
+WIFINAME="$W_name"
+WIFIPASS="$W_password"
 
 # Unchanged since we last ran? Then the live config is already right.
-if [ -s $STATEDIR/lan.mac ] && unchanged "$WIFITXT" wifi.txt && unchanged "$USERYAML" user.yaml \
+if [ -s $STATEDIR/lan.mac ] && unchanged "$WIFITXT" wifi.txt && unchanged "$ETHTXT" ethernet.txt \
+	&& unchanged "$USERYAML" user.yaml \
 	&& [ -e $STATEDIR/live.yaml ] && cmp -s "$LIVE" $STATEDIR/live.yaml; then
 	echo "No changes to the network settings since last boot."
 	write_issue
@@ -584,6 +682,8 @@ if [ -n "$WIFINAME" ]; then
 		WIFIUSE=1
 	fi
 fi
+static_settings E ethernet.txt Ethernet
+static_settings W wifi.txt Wi-Fi
 
 OLDLAN=$(cat $STATEDIR/lan.mac 2>/dev/null)
 OLDWLAN=$(cat $STATEDIR/wlan.mac 2>/dev/null)
@@ -697,6 +797,7 @@ elif [ "$BUILT" = "user" ]; then
 fi
 if [ -n "$APPLIED" ]; then
 	remember "$WIFITXT" wifi.txt
+	remember "$ETHTXT" ethernet.txt
 	remember "$USERYAML" user.yaml
 	cp "$LIVE" $STATEDIR/live.yaml
 	chmod 600 $STATEDIR/live.yaml

@@ -39,9 +39,12 @@ sudo reboot
 
 The `settings` folder in the `OF-BOOT` volume holds everything meant to be changed from any computer before (or after) the OpenFrame boots:
 
-- `wifi.txt`: the name and password of the Wi-Fi network to join. Leave the password empty for an open network.
+- `wifi.txt`: the name and password of the Wi-Fi network to join (leave the password empty for an open network), and optionally a fixed address.
+- `ethernet.txt`: optionally a fixed address for the wired network.
 - `backlight.txt`: settings for automatic brightness (`of-backlight auto`), such as night hours and when the screen turns off in the dark. Changes take effect within ten seconds.
-- `network.yaml` (not there unless you add it): a full [netplan](https://netplan.io) configuration, for anything `wifi.txt` can't do, such as a fixed IP address or several Wi-Fi networks. It's used as it is, and `wifi.txt` only adds Wi-Fi if it sets up none. If netplan can't use it, Ethernet carries on with DHCP and the login prompt says what's wrong.
+- `network.yaml` (not there unless you add it): a full [netplan](https://netplan.io) configuration, for anything the `.txt` files can't do, such as several Wi-Fi networks. It's used as it is, and `wifi.txt` and `ethernet.txt` only fill in what it doesn't set up. If netplan can't use it, the network carries on without it and the login prompt says what's wrong.
+
+In `wifi.txt` and `ethernet.txt`, leave `address`, `gateway` and `dns` empty for an address from the router (DHCP). For a fixed one, give the address with its prefix or mask (`192.168.1.50/24`, `192.168.1.50/255.255.255.0`, or just `192.168.1.50` for a /24) and the gateway (usually your router's address). DNS is the gateway unless you list servers, separated by commas; servers listed with an automatic address replace the router's. A setting that isn't right is left out (the network stays automatic) and the login prompt says so. With both networks connected, the wired one carries the traffic.
 - `setup.txt` (not there unless you add it): see First-Boot Provisioning.
 
 Older images kept `network.yaml` and `backlight.txt` in the root of `OF-BOOT`. They move into `settings` once `openframe-scripts` is updated: a `network.yaml` with only the Wi-Fi name and password filled in becomes `wifi.txt`, and one with more in it becomes `settings/network.yaml`. The same happens to a `network.yaml` copied into the root of a new image. The MAC address isn't written into it any more.
