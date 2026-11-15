@@ -8,7 +8,7 @@
 ##  An installer stick is the exception: started for the first time with flash=yes
 ##  (or again) in OF-BOOT/settings/flash.txt, and carrying the image copy to install,
 ##  the rest of the stick becomes OF-BACKUP instead, an exFAT partition any computer
-##  can read, for the installer's backups (/usr/lib/openframe/installer). The system
+##  can read, for the installer's backups (/usr/lib/openframe/flash). The system
 ##  keeps its size, with /tmp and apt's files in RAM as on the internal memory. A stick
 ##  first started as a system grows into that space, so it can't become one later:
 ##  its flash.txt is removed as it grows, and so is the one on the internal memory,

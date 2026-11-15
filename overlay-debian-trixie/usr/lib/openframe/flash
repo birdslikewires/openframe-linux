@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## installer v26.11.8 (15th November 2026)
+## flash v26.11.9 (15th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-installer.service at every boot, and 'of-flash install|status|clean' by hand.
@@ -52,7 +52,7 @@
 ##  has grown can test the boot-time steps; OF_INSTALLER_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.8"
+VERSION="26.11.9"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -95,7 +95,7 @@ usage() {
 }
 
 log() {
-	echo "installer: $*"
+	echo "flash: $*"
 }
 
 # Says lines $@ on the terminal, by hand (at boot the panel has its own screens).
