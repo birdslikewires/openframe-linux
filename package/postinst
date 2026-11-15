@@ -280,6 +280,17 @@ case "$1" in
 			touch "$INSTALLERMARKER"
 		fi
 
+		# The clock's floor: systemd moves the clock forward to /usr/lib/clock-epoch's time
+		# as the system starts. OpenFrames have no clock battery, so they lose the time
+		# whenever they're off; this keeps a new system from starting months out (and
+		# naming an installer's backup folder after the wrong month) before the network
+		# puts it right. Brought up
+		# to now whenever this package is installed and the clock is known to be right:
+		# in an image build, or once it's synchronised.
+		if in_chroot || [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" = "yes" ]; then
+			touch /usr/lib/clock-epoch 2>/dev/null || true
+		fi
+
 		# Write changed data out within ten seconds (usr/lib/sysctl.d), from now on.
 		in_chroot || sysctl -q -p /usr/lib/sysctl.d/60-openframe-writeback.conf 2>/dev/null || true
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## installer v26.11.6 (15th November 2026)
+## installer v26.11.7 (15th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-installer.service at every boot, and 'of-flash install|status|clean' by hand.
@@ -51,7 +51,7 @@
 ##  has grown can test the boot-time steps; OF_INSTALLER_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.6"
+VERSION="26.11.7"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -528,9 +528,34 @@ power_off() {
 
 ## The steps.
 
+# The clock as a unit starts can be months out: OpenFrames have no clock battery at
+# all, so they lose the time whenever they're off, and there's no network yet (the
+# test Joggler's said 13 April on 15 November, and its folder was named so). The
+# image's build time is a floor already (systemd moves the clock up to /usr/lib/
+# clock-epoch's time as it starts; see the package's postinst), but a stick may be used
+# long after. Nothing on this stick can be newer than now, so the clock goes forward
+# to the newest of its settings files (saved on a computer that knew the time) and
+# what's on OF-BACKUP, if that's more than a day ahead of it. FAT keeps local time,
+# not UTC, so that can be hours out; the day's margin leaves a clock that's merely a
+# time zone off alone. CLOCKNOTE says what was done, for info.txt.
+CLOCKNOTE=""
+clock_floor() {
+	local NEWEST NOW
+	NEWEST=$(find "$SETDIR" "$BACKUPDIR" -maxdepth 2 -type f ! -name '._*' -printf '%T@\n' 2>/dev/null | sort -n | tail -1)
+	NEWEST=${NEWEST%.*}
+	NOW=$(date +%s)
+	[[ "$NEWEST" =~ ^[0-9]+$ ]] || return 0
+	(( NEWEST > NOW + 86400 )) || return 0
+	if date -s "@$NEWEST" >/dev/null 2>&1; then
+		CLOCKNOTE="moved forward from $(date -d "@$NOW" '+%F %T') to $(date '+%F %T'), this stick's newest file"
+		log "the clock was $CLOCKNOTE"
+	fi
+}
+
 # Step 1: a new unit's folder, and its settings kept aside.
 new_unit() {
 	local MAC NAME N=1 MODEL
+	clock_floor
 	MAC=$(lan_mac)
 	NAME="$(date +%Y%m%d-%H%M)-${MAC//:/}"
 	[ -n "$MAC" ] || NAME="$(date +%Y%m%d-%H%M)-unknown"
@@ -546,6 +571,7 @@ new_unit() {
 		echo "mac=$MAC"
 		echo "model=${MODEL:-OpenFrame 1}"
 		echo "started=$(date '+%F %T')"
+		[ -n "$CLOCKNOTE" ] && echo "clock=$CLOCKNOTE"
 		echo "installer=$VERSION"
 		echo "image=$(kv "$BUNDLEINFO" name)"
 		echo "state=new"
@@ -778,8 +804,11 @@ finish() {
 	kv_set "$UDIR/info.txt" finished "$(date '+%F %T')"
 	if [ "$MODE" = "boot" ]; then
 		/usr/lib/openframe/bootrw open
-		for F in "$SETDIR"/*; do
-			[ "${F##*/}" = "flash.txt" ] && continue
+		# The settings, and a Mac's companion files for them (._wifi.txt and so on),
+		# all but flash.txt's.
+		for F in "$SETDIR"/* "$SETDIR"/._*; do
+			[ -e "$F" ] || continue
+			case "${F##*/}" in flash.txt|._flash.txt) continue ;; esac
 			rm -f "$F"
 		done
 		for F in "$TEMPLATES"/*.txt; do
