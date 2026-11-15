@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## installer v26.11.4 (15th November 2026)
+## installer v26.11.5 (15th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-installer.service at every boot, and 'of-flash install|status|clean' by hand.
@@ -51,7 +51,7 @@
 ##  has grown can test the boot-time steps; OF_INSTALLER_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.4"
+VERSION="26.11.5"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -184,6 +184,15 @@ panel_clear() {
 	tty_out $'\033[0m\033[2J\033[?25l'
 }
 
+# Seconds since the unit started: unlike the clock (and bash's SECONDS, which follows
+# it), this never jumps. A unit can start months out and be put right by the network
+# part way through a step (seen on the test Joggler: 837027 minutes left).
+uptime_s() {
+	local U
+	read -r U _ < /proc/uptime
+	echo "${U%.*}"
+}
+
 seconds_left() {
 	local S="$1"
 	if (( S >= 60 )); then printf '%d min %02d s left' $((S / 60)) $((S % 60)); else printf '%d s left' "$S"; fi
@@ -202,7 +211,7 @@ to_go() {
 phase() {
 	[ -n "$SCREEN" ] || return 0
 	local i S=0 R MARK COL OUT FW MAC
-	P_ID="$1"; P_LABEL="${2:-${PH_LABEL[$1]}}"; P_T0=$SECONDS
+	P_ID="$1"; P_LABEL="${2:-${PH_LABEL[$1]}}"; P_T0=$(uptime_s)
 	S=${PH_STEP[$P_ID]}
 	[ -n "$P_DRAWN" ] || { panel_clear; P_DRAWN=1; }
 	OUT=$(band "$B_BLU" "$(kv "$BUNDLEINFO" name)")
@@ -232,7 +241,7 @@ progress() {
 	[ -n "$SCREEN" ] && [ -n "$P_ID" ] || return 0
 	local F R OUT EL LEFT DONE=0 ALL=0 AFTER=0 SEEN="" p
 	F=$(( $2 > 0 ? $1 * 1000 / $2 : 0 )); (( F > 1000 )) && F=1000
-	EL=$(( SECONDS - P_T0 ))
+	EL=$(( $(uptime_s) - P_T0 ))
 	R=$((R_STEPS + 1 + 3 * ${PH_STEP[$P_ID]}))
 	OUT=$(at $R 10 "$P_LABEL" "$C_LCY" 1)
 	case "$P_ID" in
@@ -241,6 +250,9 @@ progress() {
 			OUT+=$(at $R 75 "$(printf '%3d%%' $((F / 10)))" "$C_WHT")
 			if (( F >= 50 && EL >= 4 )); then LEFT=$(( EL * (1000 - F) / F ))
 			else LEFT=$(( ${PH_EST[$P_ID]} * (1000 - F) / 1000 )); fi
+			# Never more than an hour: anything longer is a guess gone wrong, and would
+			# run off the end of the line.
+			(( LEFT > 3600 )) && LEFT=3600
 			OUT+=$(at $R 81 "$(seconds_left $LEFT)" "$C_GRY") ;;
 		*)
 			LEFT=$(( ${PH_EST[$P_ID]:-0} * (1000 - F) / 1000 )) ;;
