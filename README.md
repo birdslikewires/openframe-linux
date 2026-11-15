@@ -46,7 +46,7 @@ The image is also a flash stick, with OpenFrame Flash. Written to a USB stick (4
 
 Firmware the updater doesn't recognise is never touched, and the install stops before writing anything. Anything else that stops it says why on the screen and in the unit's `info.txt`. A power cut or restart part way through carries on from where it got to.
 
-A stick that has been started as a system (without `flash=yes` the first time) grows into the space `OF-BACKUP` would have had, so it can't install by itself, and its `flash.txt` is removed. From it, `sudo of-flash install` can still install by hand, with the backups on the stick's own system in `/var/lib/openframe-flash/backups`. `sudo of-flash backup` backs a unit up without installing anything; `sudo of-flash status` shows what the stick can do and what it has installed; `sudo of-flash clean` removes the copy of the image the stick carries (about 130 MB), which also happens by itself on a stick in use as a system that's running short of space.
+A stick that has been started as a system (without `flash=yes` the first time) grows into the space `OF-BACKUP` would have had, so it can't install by itself, and its `flash.txt` is removed. From it, `sudo of-flash flash` can still flash by hand, with the backups on the stick's own system in `/var/lib/openframe-flash/backups`. `sudo of-flash backup` backs a unit up without installing anything; `sudo of-flash status` shows what the stick can do and what it has installed; `sudo of-flash clean` removes the copy of the image the stick carries (about 130 MB), which also happens by itself on a stick in use as a system that's running short of space.
 
 
 ## Configuration

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-## of-flash v26.11.8 (15th November 2026) by Andrew Davison
+## of-flash v26.11.9 (15th November 2026) by Andrew Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
 ##
-##  of-flash install | backup | status | clean
+##  of-flash flash | backup | status | clean
 ##    OpenFrame Flash, which release images carry: installs this system onto an OpenFrame
 ##    1's internal memory with its firmware brought up to date, after backing both up.
 ##    A flash stick (flash=yes in OF-BOOT/settings/flash.txt) does this by
@@ -17,7 +17,7 @@
 ##    https://github.com/birdslikewires/openframe-firmware.
 
 case "${1:-}" in
-	boot|install|backup|status|clean) exec /usr/lib/openframe/flash/flash "$@" ;;
+	boot|flash|backup|status|clean) exec /usr/lib/openframe/flash/flash "$@" ;;
 esac
 
 if [ "$(id -u)" -ne 0 ]; then

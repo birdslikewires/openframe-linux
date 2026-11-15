@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-## flash v26.11.12 (15th November 2026)
+## flash v26.11.13 (15th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
-##  of-flash.service at every boot, and 'of-flash install|status|clean' by hand.
+##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
 ##
 ##  A flash stick is one written from a release image and first started with
 ##  flash=yes in OF-BOOT/settings/flash.txt: of-expand then makes the rest of the
@@ -36,7 +36,7 @@
 ##
 ##  With flash=yes on a stick that has been started as a system (no OF-BACKUP: the
 ##  system grew into that space), nothing is installed: the screen says so, and the
-##  boot carries on. 'of-flash install' still works there while the image copy is on
+##  boot carries on. 'of-flash flash' still works there while the image copy is on
 ##  the stick: the same steps, by hand, with the backups on the root filesystem
 ##  (/var/lib/openframe-flash/backups), the firmware update by a restart and running
 ##  it again, and this stick's settings left as they are.
@@ -53,7 +53,7 @@
 ##  has grown can test the boot-time steps; OF_FLASH_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.12"
+VERSION="26.11.13"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -85,9 +85,9 @@ W=""           # work directory
 export LC_ALL=C.UTF-8
 
 usage() {
-	echo "Usage: of-flash install | backup | status | clean"
+	echo "Usage: of-flash flash | backup | status | clean"
 	echo
-	echo "  install   install this system onto this OpenFrame 1's internal memory, after"
+	echo "  flash     install this system onto this OpenFrame 1's internal memory, after"
 	echo "            backing it up (see 'status' for where the backups go)"
 	echo "  backup    back up this OpenFrame 1's firmware and internal memory, and stop"
 	echo "  status    what this stick can do, and the units it has installed"
@@ -116,7 +116,7 @@ progress_line() {
 ## for each step done, the current one with what it's doing, a bar and the time it has
 ## left, then a bar for the whole install and the time to go. Messages (done, already
 ## installed, stopped) get a screen of their own with a coloured band. By hand
-## ('of-flash install') it's plain lines on the terminal instead.
+## ('of-flash flash') it's plain lines on the terminal instead.
 
 # White for what's happening now and what to do, grey for the rest, yellow for what
 # needs heeding; dark grey only for the steps still to come, as placeholders (it's
@@ -685,7 +685,7 @@ firmware() {
 			echo
 			echo "The backups are done. The firmware needs updating first: restart the"
 			echo "OpenFrame (the update runs as it starts, then it restarts again), then run"
-			echo "'sudo of-flash install' again to carry on."
+			echo "'sudo of-flash flash' again to carry on."
 			cleanup
 			exit 0 ;;
 		3)
@@ -951,7 +951,7 @@ boot_mode() {
 		if [ -f "$BUNDLE" ]; then
 			message "$B_BRN" "Not a flash stick" "flash=yes is set, but this stick has been started as a system before, so it can't install by itself any more." "" \
 				"Write the image to it again to use it as a flash stick. Nothing has been changed." "" \
-				"${C_GRY}('sudo of-flash install' can still install from it by hand.)"
+				"${C_GRY}('sudo of-flash flash' can still flash from it by hand.)"
 		else
 			message "$B_BRN" "Not a flash stick" "flash=yes is set, but this stick no longer carries the image to install." "" \
 				"Write the image to it again to use it as a flash stick. Nothing has been changed."
@@ -966,7 +966,7 @@ boot_mode() {
 	run_unit
 }
 
-cli_install() {
+cli_flash() {
 	MODE=cli
 	W=$(mktemp -d /tmp/of-flash.XXXXXX)
 	trap cleanup EXIT
@@ -1028,7 +1028,7 @@ status() {
 		echo "Flash stick: yes, backups on $BACKUPLABEL ($P, $(( $(free_bytes "$BACKUPMNT") / 1048576 )) MB free)"
 		D="$BACKUPMNT"
 	else
-		echo "Flash stick: no (started as a system); 'of-flash install' backs up to $STATEDIR/backups"
+		echo "Flash stick: no (started as a system); 'of-flash flash' backs up to $STATEDIR/backups"
 		D="$STATEDIR/backups"
 	fi
 	if [ -s "$D/installed.txt" ]; then
@@ -1055,7 +1055,7 @@ fi
 
 case "${1:-}" in
 	boot) boot_mode ;;
-	install) cli_install ;;
+	flash) cli_flash ;;
 	backup) cli_backup ;;
 	status) status ;;
 	clean) clean ;;

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-expand v26.11.6 (15th November 2026)
+## of-expand v26.11.7 (15th November 2026)
 ##  Expands the root partition and filesystem to fill the drive. On ext4 the
 ##  filesystem grows in about a second (the new inode tables are filled in later,
 ##  in the background), so there's no message on screen.
@@ -12,7 +12,7 @@
 ##  keeps its size, with /tmp and apt's files in RAM as on the internal memory. A stick
 ##  first started as a system grows into that space, so it can't become one later:
 ##  its flash.txt is removed as it grows, and so is the one on the internal memory,
-##  which can't install onto itself. ('sudo of-flash install' still works by hand.)
+##  which can't install onto itself. ('sudo of-flash flash' still works by hand.)
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."
