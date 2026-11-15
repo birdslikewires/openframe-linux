@@ -19,6 +19,7 @@ on:
       - 'overlay-*/usr/lib/systemd/timesyncd.conf.d/**'
       - 'overlay-*/etc/dpkg/dpkg.cfg.d/openframe-*'
       - 'overlay-*/etc/apt/apt.conf.d/50openframe-*'
+      - 'overlay-*/etc/sensors.d/openframe.conf'
       - 'overlay-*/usr/share/keyrings/**'
       - 'package/**'
       - '.github/workflows/package.yml'
@@ -171,13 +172,14 @@ jobs:
               mkdir -p "${PKG}/usr/lib/sysctl.d"
               install -m 644 "${overlay_dir}usr/lib/sysctl.d/"*.conf "${PKG}/usr/lib/sysctl.d/"
             fi
-            # dpkg and apt settings, as conffiles so local changes are kept: the /boot hook
-            # (openframe-boot), no translated messages (openframe-nolocale), and apt's
-            # small lists and caches (50openframe-slim). Images get the same files from the
+            # dpkg, apt and lm-sensors settings, as conffiles so local changes are kept: the
+            # /boot hook (openframe-boot), no translated messages (openframe-nolocale), apt's
+            # small lists and caches (50openframe-slim), and names for the temperature
+            # readings (sensors.d/openframe.conf). Images get the same files from the
             # overlay, so dpkg finds them identical and doesn't ask.
             : > "${PKG}/DEBIAN/conffiles"
             for conf in etc/dpkg/dpkg.cfg.d/openframe-boot etc/dpkg/dpkg.cfg.d/openframe-nolocale \
-                        etc/apt/apt.conf.d/50openframe-slim; do
+                        etc/apt/apt.conf.d/50openframe-slim etc/sensors.d/openframe.conf; do
               [ -f "${overlay_dir}${conf}" ] || continue
               mkdir -p "${PKG}/${conf%/*}"
               install -m 644 "${overlay_dir}${conf}" "${PKG}/${conf}"
