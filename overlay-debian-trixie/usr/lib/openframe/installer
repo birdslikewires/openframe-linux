@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## installer v26.11.5 (15th November 2026)
+## installer v26.11.6 (15th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-installer.service at every boot, and 'of-flash install|status|clean' by hand.
@@ -51,7 +51,7 @@
 ##  has grown can test the boot-time steps; OF_INSTALLER_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.5"
+VERSION="26.11.6"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -165,7 +165,7 @@ R_INTRO=$((BAND_ROWS + 3)); R_STEPS=$((BAND_ROWS + 7)); R_SEP=24; R_ALL=26; R_FO
 
 # The coloured band across the top: background $1, the title with $2 at the right.
 band() {
-	local L="  OpenFrame Flash" R="$2  " PAD BLANK i
+	local L="  OpenFrame Flash v$VERSION" R="$2  " PAD BLANK i
 	PAD=$(( 100 - ${#L} - ${#R} ))
 	BLANK=$(printf '%100s' '')
 	for ((i = 1; i <= BAND_ROWS; i++)); do
@@ -231,7 +231,7 @@ phase() {
 	OUT+=$(at $R_SEP 4 "$(printf '─%.0s' {1..94})" "$C_GRY" 1)
 	FW=$(cat /sys/class/dmi/id/bios_version 2>/dev/null)
 	MAC=$(cat /var/lib/of-netplan/lan.mac 2>/dev/null)
-	OUT+=$(at $R_FOOT 4 "This OpenFrame: ${MAC^^}   Firmware: ${FW:-unknown}   Installer $VERSION" "$C_GRY" 1)
+	OUT+=$(at $R_FOOT 4 "This OpenFrame: ${MAC^^}   Firmware: ${FW:-unknown}" "$C_GRY" 1)
 	tty_out "$OUT"
 	progress 0 1
 }
