@@ -1,13 +1,13 @@
 Package: openframe-scripts
-Version: 1:26.11.56
+Version: 1:26.11.62
 Architecture: all
 Maintainer: OpenFrame <andy@dvsn.net>
 Depends: bash, dosfstools, e2fsprogs, yq
-Filename: pool/trixie/openframe-scripts_26.11.56_all.deb
-Size: 223932
-MD5sum: 23c3fa27c2dcab3ad22dbee1d131d3a9
-SHA1: acf05771b39f65585040edb1db00c4cd8859ea7c
-SHA256: 071e5a55d28255312785556d72fd107f9d9376156106a35e7e426fcf3739dfa4
+Filename: pool/trixie/openframe-scripts_26.11.62_all.deb
+Size: 236960
+MD5sum: 344bfb3915fdc447b06e18ae7476d80a
+SHA1: c7dadc42f75162c327025d303c4f5f14850f1977
+SHA256: 25b1b497e060749bee0c0f40c96346ca2dfc55613dcb264b6e574e0cdede65d1
 Section: admin
 Priority: optional
 Description: OpenFrame management scripts
