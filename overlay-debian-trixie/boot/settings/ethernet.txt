@@ -1,6 +1,9 @@
-# Wired network. Leave these empty and the router gives the address. For a fixed
-# one, give it with the gateway (your router), e.g. 192.168.1.50/24 and
-# 192.168.1.1. DNS is the gateway unless you list others, separated by commas.
+## Wired network settings.
+
+# Leave these empty and the router assigns the address.
+# For a fixed IP, enter it below, along with your router's address:
+# e.g. 192.168.1.50 and 192.168.1.1. The DNS setting is optional.
+
 address=
 gateway=
 dns=

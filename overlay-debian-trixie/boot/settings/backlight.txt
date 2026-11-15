@@ -1,5 +1,6 @@
-# Automatic brightness ('of-backlight auto'). Remove a # to change a setting;
-# changes take effect within 10 seconds.
+## Automatic brightness settings ('of-backlight auto').
+
+# Remove the '#' in front of the variable to change a setting.
 
 # Room light at which the screen is fully bright (a lit room is about 20).
 # Lower makes every level brighter.

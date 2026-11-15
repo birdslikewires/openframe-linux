@@ -1,6 +1,16 @@
-# Set install=yes to install this system onto an OpenFrame 1's internal memory, with
-# the latest firmware, when it starts from this stick. What it has now is backed up
-# to the OF-BACKUP drive on this stick first, and the other settings in this folder
-# go with the new system. Only a stick that hasn't been started as a system yet can
-# do this. install=again installs a unit this stick has already done.
+## System reflash setting.
+
+# Set install=yes to install a fresh system onto an OpenFrame's internal memory.
+
+# The internal memory will be backed up to a new OF-BACKUP volume on this stick.
+# The settings specified in the backlight.txt, ethernet.txt, and wifi.txt files
+# will be moved to that new system.
+
+# This option will be removed if you intend to use this stick as your operating
+# system, as there will no longer be space to create the backup volume once
+# the drive has been expanded.
+
+# This reflash tool can be used multiple times, so long as space remains for
+# the system backups. Each device backed up uses 1GB at most.
+
 install=no
