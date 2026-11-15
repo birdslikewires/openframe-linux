@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## installer v26.11.1 (15th November 2026)
+## installer v26.11.2 (15th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-installer.service at every boot, and 'of-flash install|status|clean' by hand.
@@ -51,7 +51,7 @@
 ##  has grown can test the boot-time steps; OF_INSTALLER_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.1"
+VERSION="26.11.2"
 SETDIR="/boot/settings"
 INSTALLTXT="$SETDIR/install.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -345,10 +345,11 @@ keep_settings() {
 }
 
 # Step 2: the backups. The chip is read twice and the reads compared. The MMC is read
-# into mmc.img.gz, and read again for its md5 alone: the two must agree (an old MMC can
-# return a bit or two differently now and then: seen once on the study unit, two
-# single-bit differences between reads), up to three tries. Then mmc.img.gz's contents
-# are checked against them.
+# once, into mmc.img.gz and an md5 together, and mmc.img.gz's contents are checked
+# against that md5. It isn't read a second time to compare: an old MMC can return a bit
+# or two differently now and then (seen once on the study unit), but the backup is a
+# courtesy for a unit whose owner has chosen to wipe it, and the second read cost over
+# a minute on every unit (Andy, 2026-11-15).
 backup() {
 	local FW="$UDIR/firmware.bin" IMG="$UDIR/mmc.img.gz" FIFO RAWMD5 GZMD5 i CUR NEED
 	kv_set "$UDIR/info.txt" state backing-up
@@ -384,26 +385,13 @@ backup() {
 
 	kv_set "$UDIR/info.txt" mmc_before "$(lsblk -l -n -o NAME,SIZE,FSTYPE,LABEL "$MMC" | tr -s ' ' | sed 's/ *$//' | paste -sd ';' -)"
 	FIFO="$W/raw.fifo"
-	RAWMD5=""
-	for i in 1 2 3; do
-		rm -f "$FIFO"
-		mkfifo "$FIFO"
-		md5sum < "$FIFO" > "$W/raw.md5" &
-		with_progress "Internal memory" \
-			"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | tee '$FIFO' | gzip -1 > '$IMG.new'" \
-			"$OF1MMC" || fail "The internal memory couldn't be backed up."
-		wait
-		with_progress "Reading it again" \
-			"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | md5sum > '$W/raw2.md5'" \
-			"$OF1MMC" || fail "The internal memory couldn't be read again."
-		if [ "$(cut -d' ' -f1 "$W/raw.md5")" = "$(cut -d' ' -f1 "$W/raw2.md5")" ]; then
-			RAWMD5=$(cut -d' ' -f1 "$W/raw.md5")
-			break
-		fi
-		log "two reads of the internal memory differ (try $i)"
-		kv_set "$UDIR/info.txt" mmc_reads_differed "$i"
-	done
-	[ -n "$RAWMD5" ] || fail "The internal memory doesn't read the same twice, so it can't be backed up reliably."
+	mkfifo "$FIFO"
+	md5sum < "$FIFO" > "$W/raw.md5" &
+	with_progress "Internal memory" \
+		"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | tee '$FIFO' | gzip -1 > '$IMG.new'" \
+		"$OF1MMC" || fail "The internal memory couldn't be backed up."
+	wait
+	RAWMD5=$(cut -d' ' -f1 "$W/raw.md5")
 	sync
 	with_progress "Checking the backup" \
 		"gzip -dc '$IMG.new' | dd bs=1M iflag=fullblock status=progress 2>\"\$P\" | md5sum > '$W/check.md5'" \
@@ -453,6 +441,23 @@ firmware() {
 	esac
 }
 
+# Erases the whole MMC; true if that worked and 16 spots across it then read as zeros.
+erase_mmc() {
+	local N=$(( OF1MMC / 4096 )) i
+	progress_line "Erasing"
+	blkdiscard -f "$MMC" >/dev/null 2>&1 || { log "the internal memory wouldn't erase: writing all of it"; return 1; }
+	for i in $(seq 0 15); do
+		if dd if="$MMC" bs=4096 skip=$(( N * i / 16 + i )) count=1 iflag=direct status=none | od -An -tx1 | grep -q '[1-9a-f]'; then
+			log "the erased internal memory doesn't read as zeros: writing all of it"
+			return 1
+		fi
+	done
+	progress_line "Erasing: done"
+	[ -n "$SCREEN" ] && [ -w "$TTY" ] && echo > "$TTY"
+	[ -n "$SCREEN" ] || echo
+	return 0
+}
+
 # Step 4: the image onto the MMC, read back and compared; three tries.
 write_mmc() {
 	local SIZE MD5 GZMD5 TRY PART
@@ -473,13 +478,28 @@ write_mmc() {
 
 	kv_set "$UDIR/info.txt" state writing
 	for TRY in 1 2 3; do
-		with_progress "Writing (try $TRY)" \
-			"gzip -dc '$BUNDLE' | dd of='$MMC' bs=1M iflag=fullblock oflag=direct conv=fsync status=progress 2>\"\$P\"" \
-			"$SIZE" || continue
+		# First try: erase the MMC, then write only the image's blocks that hold data
+		# (about 360 of its 981 MB): about 2.5 minutes instead of 7 on the study unit's
+		# MMC (4.2, 2008; 14 s to erase it all). An MMC this old doesn't say what erased
+		# blocks read as; ours read as zeros. If an erase fails, or a few spots then
+		# don't read as zeros, or the read-back doesn't match, the next try writes the
+		# whole image.
+		if [ $TRY = 1 ] && erase_mmc; then
+			kv_set "$UDIR/info.txt" write_method "erase, data blocks only"
+			with_progress "Writing (try $TRY)" \
+				"gzip -dc '$BUNDLE' | dd of='$MMC' bs=1M iflag=fullblock oflag=direct conv=sparse,fsync status=progress 2>\"\$P\"" \
+				"$SIZE" || continue
+		else
+			kv_set "$UDIR/info.txt" write_method "whole image"
+			with_progress "Writing (try $TRY)" \
+				"gzip -dc '$BUNDLE' | dd of='$MMC' bs=1M iflag=fullblock oflag=direct conv=fsync status=progress 2>\"\$P\"" \
+				"$SIZE" || continue
+		fi
 		with_progress "Checking" \
 			"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | head -c $SIZE | md5sum > '$W/mmc.md5'" \
 			"$SIZE" || continue
-		# A read that doesn't match is read again before the write is blamed (see backup).
+		# A read that doesn't match is read again before the write is blamed: an old MMC
+		# can return a bit or two differently now and then (seen once on the study unit).
 		if [ "$(cut -d' ' -f1 "$W/mmc.md5")" != "$MD5" ]; then
 			log "the internal memory didn't read back as written (try $TRY): reading it again"
 			with_progress "Checking again" \
