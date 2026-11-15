@@ -1,0 +1,11 @@
+## Software setup.
+
+# Enter a project's web address to have it installed when this system first
+# starts, e.g. https://github.com/birdslikewires/openframe-hamclock
+# For a particular release or branch of a project on GitHub, give that address,
+# e.g. https://github.com/owner/project/tree/v1.2
+
+project=
+
+# If the project asks for settings of its own, add them below, as its
+# instructions describe (e.g. name=Kitchen).

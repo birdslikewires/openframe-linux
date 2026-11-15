@@ -4,7 +4,7 @@
 
 # The internal memory will be backed up to a new OF-BACKUP volume on this stick.
 # The settings specified in the backlight.txt, ethernet.txt, and wifi.txt files
-# will be moved to that new system.
+# will be moved to that new system, as will setup.txt if you have added one.
 
 # This option will be removed if you intend to use this stick as your operating
 # system, as there will no longer be space to create the backup volume once
