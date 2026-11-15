@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 
-## of-imgbundle.sh v26.11.1 (15th November 2026)
+## of-imgbundle.sh v26.11.2 (15th November 2026)
 ##  Puts a compressed copy of an OpenFrame image inside that image's own root filesystem,
 ##  so one download is both a system and an installer: the installer (of-flash) writes
 ##  the copy to an OpenFrame 1's internal memory without needing a network. The copy is
 ##  the image as it was before this, so what gets installed is exactly the image that was
 ##  built, with no copy inside it.
 ##
-##  The copy goes to /usr/lib/openframe/install/image.img.gz, with image.info beside it:
+##  The copy goes to /usr/lib/openframe/flash/image.img.gz, beside OpenFrame Flash, with
+##  image.info:
 ##    name=   the image's file name, without .img
 ##    size=   its size in bytes
 ##    md5=    the md5 of the image (what the internal memory reads back after writing)
@@ -30,7 +31,7 @@ fi
 
 IMG="$1"
 NAME="$(basename "$IMG" .img)"
-DEST="usr/lib/openframe/install"
+DEST="usr/lib/openframe/flash"
 LOOP="/dev/of-loop2"
 WORK="$(mktemp -d)"
 MOUNTED=""

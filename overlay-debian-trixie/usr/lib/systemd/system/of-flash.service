@@ -1,6 +1,6 @@
 # OpenFrame Flash, on a flash stick (flash=yes in OF-BOOT/settings/flash.txt):
 # installs this system onto an OpenFrame 1's internal memory, after backing it and the
-# firmware up (/usr/lib/openframe/flash). At every other start it does nothing, in
+# firmware up (/usr/lib/openframe/flash/flash). At every other start it does nothing, in
 # a moment, but remove the image copy from a stick in use as a system that's short of
 # room (of-expand removes such a stick's flash.txt as it grows, hence the second
 # condition). Before the firmware update: the backup comes first, and it's the
@@ -8,14 +8,14 @@
 [Unit]
 Description=OpenFrame Flash, for the internal memory
 ConditionPathExists=|/boot/settings/flash.txt
-ConditionPathExists=|/usr/lib/openframe/install/image.img.gz
+ConditionPathExists=|/usr/lib/openframe/flash/image.img.gz
 After=local-fs.target systemd-udevd.service
 Before=of-firmware.service of-mac-reboot.service getty@tty1.service of-provision.service
 Before=systemd-user-sessions.service display-manager.service startx.service xinit.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/lib/openframe/flash boot
+ExecStart=/usr/lib/openframe/flash/flash boot
 # Backing up and writing the internal memory takes minutes.
 TimeoutStartSec=infinity
 StandardOutput=journal

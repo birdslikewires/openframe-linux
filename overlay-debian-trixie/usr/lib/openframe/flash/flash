@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## flash v26.11.10 (15th November 2026)
+## flash v26.11.11 (15th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash install|status|clean' by hand.
@@ -9,7 +9,8 @@
 ##  flash=yes in OF-BOOT/settings/flash.txt: of-expand then makes the rest of the
 ##  stick an exFAT partition, OF-BACKUP, that any computer can read, instead of growing
 ##  the system into it. Release images carry a compressed copy of themselves
-##  (/usr/lib/openframe/install, see of-imgbundle.sh), which is what gets written.
+##  (/usr/lib/openframe/flash, beside this script, see of-imgbundle.sh), which is what
+##  gets written.
 ##
 ##  At boot, with flash=yes (or 'again') on an installer stick, in an OpenFrame 1, for a
 ##  unit not already done, in this order (each step is noted in the unit's folder on
@@ -52,13 +53,14 @@
 ##  has grown can test the boot-time steps; OF_INSTALLER_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.10"
+VERSION="26.11.11"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
-BUNDLEDIR="/usr/lib/openframe/install"
-BUNDLE="$BUNDLEDIR/image.img.gz"
-BUNDLEINFO="$BUNDLEDIR/image.info"
+# The image copy lives beside this script, in /usr/lib/openframe/flash.
+FLASHDIR="/usr/lib/openframe/flash"
+BUNDLE="$FLASHDIR/image.img.gz"
+BUNDLEINFO="$FLASHDIR/image.info"
 STATEDIR="/var/lib/openframe-install"
 BACKUPLABEL="OF-BACKUP"
 BACKUPMNT="/mnt/of-backup"
@@ -927,7 +929,7 @@ boot_mode() {
 		# Not installing. A stick in use as a system gives up the image copy when it's
 		# short of room.
 		if [ -f "$BUNDLE" ] && [ -z "$(backup_part)" ] && [ "$(free_bytes /)" -lt "$MINFREE" ]; then
-			rm -rf "$BUNDLEDIR"
+			rm -f "$BUNDLE" "$BUNDLEINFO"
 			log "the root filesystem had less than $((MINFREE / 1048576)) MB free: removed the image copy"
 		fi
 		exit 0
@@ -1036,13 +1038,13 @@ status() {
 }
 
 clean() {
-	if [ ! -d "$BUNDLEDIR" ]; then
+	if [ ! -f "$BUNDLE" ]; then
 		echo "There's no image copy on this stick."
 		exit 0
 	fi
-	read -r -p "Remove the image copy ($(du -sh "$BUNDLEDIR" | cut -f1)), so this stick can't install any more? Type yes: " ANSWER
+	read -r -p "Remove the image copy ($(du -sh "$BUNDLE" | cut -f1)), so this stick can't install any more? Type yes: " ANSWER
 	[ "$ANSWER" = "yes" ] || exit 0
-	rm -rf "$BUNDLEDIR"
+	rm -f "$BUNDLE" "$BUNDLEINFO"
 	echo "Removed."
 }
 

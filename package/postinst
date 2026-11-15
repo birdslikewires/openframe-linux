@@ -270,6 +270,16 @@ case "$1" in
 			touch "$UNUSEDMARKER"
 		fi
 
+		# The image copy a flash stick carries lives in /usr/lib/openframe/flash, beside
+		# OpenFrame Flash; the first release with it had it in /usr/lib/openframe/install.
+		# Moved across, so such a stick can still flash.
+		if [ -f /usr/lib/openframe/install/image.img.gz ] && [ ! -e /usr/lib/openframe/flash/image.img.gz ]; then
+			mkdir -p /usr/lib/openframe/flash
+			mv /usr/lib/openframe/install/image.img.gz /usr/lib/openframe/install/image.info \
+				/usr/lib/openframe/flash/ 2>/dev/null || true
+			rmdir /usr/lib/openframe/install 2>/dev/null || true
+		fi
+
 		# Once per system: OpenFrame Flash's boot service (of-flash.service), which on a
 		# flash stick (flash=yes in OF-BOOT/settings/flash.txt) installs the system onto
 		# an OpenFrame 1's internal memory, and otherwise does nothing in a moment.

@@ -135,6 +135,15 @@ jobs:
             if [ -d "${overlay_dir}usr/lib/openframe" ]; then
               mkdir -p "${PKG}/usr/lib/openframe"
               for f in "${overlay_dir}usr/lib/openframe/"*; do
+                if [ -d "$f" ]; then
+                  # A folder of its own, one level deep: flash/ (OpenFrame Flash).
+                  mkdir -p "${PKG}/usr/lib/openframe/${f##*/}"
+                  for g in "$f"/*; do
+                    [ -x "$g" ] && mode=755 || mode=644
+                    install -m "$mode" "$g" "${PKG}/usr/lib/openframe/${f##*/}/"
+                  done
+                  continue
+                fi
                 [ -x "$f" ] && mode=755 || mode=644
                 install -m "$mode" "$f" "${PKG}/usr/lib/openframe/"
               done

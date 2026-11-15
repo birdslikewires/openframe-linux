@@ -83,7 +83,7 @@ read_setup() {
 }
 
 # True on an installer stick (flash=yes or again in settings/flash.txt): its settings,
-# setup.txt included, are for the unit it installs (/usr/lib/openframe/flash), not
+# setup.txt included, are for the unit it installs (/usr/lib/openframe/flash/flash), not
 # for this stick.
 installer_stick() {
 	local M
