@@ -7,15 +7,14 @@ ConditionPathExists=|/boot/setup.txt
 After=of-identifier.service network-online.target time-sync.target getty@tty1.service
 Wants=network-online.target time-sync.target
 
+# Not tty1's: a getty (re)starting there hangs tty1 up, which would kill us if it were
+# our controlling terminal. With a project to install, of-provision writes to tty1
+# itself (the getty is held back then); otherwise it never touches tty1.
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/of-provision
-StandardInput=tty
-StandardOutput=tty
-StandardError=tty
-TTYPath=/dev/tty1
-TTYReset=yes
-TTYVHangup=yes
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-provision v26.11.5 (15th November 2026)
+## of-provision v26.11.6 (15th November 2026)
 ##  Installs a project named in setup.txt on the boot volume (in its settings folder,
 ##  /boot/settings, or in its root as on older images) when the system first starts:
 ##  downloads the project's install.sh and runs it as the normal user. Lets community
@@ -31,6 +31,10 @@
 ##
 ##  'of-provision --check' says (exit 0) whether there's a project to install at this
 ##  start: the getty on tty1 stays away for it (getty@tty1.service.d/of-provision.conf).
+##
+##  tty1 isn't the service's (a getty starting there would hang it up and kill us, as
+##  the blank setup.txt the images ship once let it): only with a project to install,
+##  while the getty is held back, does this write to tty1, and never as its terminal.
 ##
 ##  Must not act before getty@tty1 (its unit is ordered after it). On a boot where
 ##  the unit is about to restart to store its MAC in NVRAM, of-mac-gate holds the
@@ -164,6 +168,14 @@ URL="$PROJECT"
 if [[ -z "$URL" ]]; then
 	echo "of-provision: no project in setup.txt; nothing to install."
 	give_up 0
+fi
+
+# A project to install: what follows goes on tty1 (the getty stays away for it), from a
+# clear screen, with no input (an installer that asks a question gets no answer rather
+# than waiting for a keyboard the unit may not have).
+if [ -w /dev/tty1 ]; then
+	printf '\033c' > /dev/tty1
+	exec < /dev/null > /dev/tty1 2>&1
 fi
 
 : > "$LOGFILE"
