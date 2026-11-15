@@ -51,6 +51,17 @@ boot_rw() {
 
 [ -f "$SETUPFILE" ] || exit 0
 
+# On an installer stick (install=yes or again in settings/install.txt) the settings,
+# setup.txt included, are for the unit it installs (/usr/lib/openframe/installer), not
+# for this stick: leave them be, and give tty1 its login prompt back.
+INSTALL=$(sed -n 's/^[[:space:]]*install[[:space:]]*=//Ip' /boot/settings/install.txt 2>/dev/null |
+	tr -d '\r"'"'"' \t' | tr 'A-Z' 'a-z' | tail -1)
+if [ "$INSTALL" = "yes" ] || [ "$INSTALL" = "again" ]; then
+	echo "of-provision: this is an installer stick; its setup.txt is for the unit it installs."
+	systemctl start --no-block getty@tty1.service >/dev/null 2>&1
+	exit 0
+fi
+
 # Say we've started (for this boot only: /run is emptied at every boot) before
 # disabling ourselves. The getty on tty1 stays away while we're enabled or have
 # started (getty@tty1.service.d/of-provision.conf), and it may check after we've

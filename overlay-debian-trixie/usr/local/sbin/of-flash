@@ -1,13 +1,24 @@
 #!/usr/bin/env bash
 
-## of-flash v26.11.3 (14th November 2026) by Andrew Davison
+## of-flash v26.11.4 (15th November 2026) by Andrew Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
-##  Writes the .img.gz in the image directory (default /boot/reflash) to the
-##  internal MMC after checking it against its .img.gz.md5, then reads the MMC back
-##  to check the write. Firmware (EFI chip) images are no longer handled here: see
-##  https://github.com/birdslikewires/openframe-firmware.
 ##
-##  Usage: of-flash [image directory]
+##  of-flash install | backup | status | clean
+##    The installer that release images carry: installs this system onto an OpenFrame
+##    1's internal memory with its firmware brought up to date, after backing both up.
+##    An installer stick (install=yes in OF-BOOT/settings/install.txt) does this by
+##    itself as it starts ('of-flash boot', from of-installer.service). See
+##    /usr/lib/openframe/installer.
+##
+##  of-flash [image directory]
+##    Writes the .img.gz in the image directory (default /boot/reflash) to the
+##    internal MMC after checking it against its .img.gz.md5, then reads the MMC back
+##    to check the write. Firmware (EFI chip) images are no longer handled here: see
+##    https://github.com/birdslikewires/openframe-firmware.
+
+case "${1:-}" in
+	boot|install|backup|status|clean) exec /usr/lib/openframe/installer "$@" ;;
+esac
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."

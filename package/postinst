@@ -39,6 +39,7 @@ I2CMARKER="/var/lib/openframe-scripts/i2c-open-default"
 BACKLIGHTMARKER="/var/lib/openframe-scripts/backlight-service-default"
 UNUSEDMARKER="/var/lib/openframe-scripts/unused-default"
 SETTINGSMARKER="/var/lib/openframe-scripts/settings-folder-default"
+INSTALLERMARKER="/var/lib/openframe-scripts/installer-service-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -267,6 +268,16 @@ case "$1" in
 			fi
 			mkdir -p "${UNUSEDMARKER%/*}"
 			touch "$UNUSEDMARKER"
+		fi
+
+		# Once per system: the installer's boot service (of-installer.service), which on an
+		# installer stick (install=yes in OF-BOOT/settings/install.txt) installs the system
+		# onto an OpenFrame 1's internal memory, and otherwise does nothing in a moment.
+		# Disabling it afterwards sticks.
+		if [ ! -e "$INSTALLERMARKER" ]; then
+			systemctl enable --quiet of-installer.service 2>/dev/null || true
+			mkdir -p "${INSTALLERMARKER%/*}"
+			touch "$INSTALLERMARKER"
 		fi
 
 		# Write changed data out within ten seconds (usr/lib/sysctl.d), from now on.

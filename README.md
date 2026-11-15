@@ -33,6 +33,20 @@ sudo reboot
 ```
 
 
+## Installing onto an OpenFrame 1's Internal Memory
+
+The image is also an installer. Written to a USB stick (4 GB or more), it can install itself onto an OpenFrame 1's internal memory and bring the firmware up to date, without a network, and then go on to the next unit:
+
+1. Write the image to the stick. In the `settings` folder of `OF-BOOT`, set `install=yes` in `install.txt`, and fill in any other settings for the unit (`wifi.txt`, `ethernet.txt`, `setup.txt` and so on).
+2. Put the stick in the OpenFrame and switch it on. The first time, the rest of the stick becomes a drive called `OF-BACKUP`. The screen says what's happening; don't switch off. The firmware and the internal memory are backed up to `OF-BACKUP` first, in a folder for the unit, and checked. If the firmware needs updating, that happens next and the OpenFrame restarts by itself. Then the new system is written to the internal memory and checked, and the stick's settings are copied onto it.
+3. When it says it's done and switches off, remove the stick. The OpenFrame starts its new system, with the settings from step 1.
+4. Back on the computer, the stick's settings are blank again (`install.txt` still says yes), and `OF-BACKUP` has the unit's folder: `mmc.img.gz` (the internal memory as it was), `firmware.bin` and `info.txt`. Fill in the next unit's settings and repeat. A unit the stick has already done is left alone; set `install=again` to install it again.
+
+Firmware the updater doesn't recognise is never touched, and the install stops before writing anything. Anything else that stops it says why on the screen and in the unit's `info.txt`. A power cut or restart part way through carries on from where it got to.
+
+A stick that has been started as a system (without `install=yes` the first time) grows into the space `OF-BACKUP` would have had, so it can't install by itself. From it, `sudo of-flash install` can still install by hand, with the backups on the stick's own system in `/var/lib/openframe-install/backups`. `sudo of-flash backup` backs a unit up without installing anything; `sudo of-flash status` shows what the stick can do and what it has installed; `sudo of-flash clean` removes the copy of the image the stick carries (about 130 MB), which also happens by itself on a stick in use as a system that's running short of space.
+
+
 ## Configuration
 
 ### Settings on OF-BOOT
@@ -46,6 +60,7 @@ The `settings` folder in the `OF-BOOT` volume holds everything meant to be chang
 
 In `wifi.txt` and `ethernet.txt`, leave `address`, `gateway` and `dns` empty for an address from the router (DHCP). For a fixed one, give the address with its prefix or mask (`192.168.1.50/24`, `192.168.1.50/255.255.255.0`, or just `192.168.1.50` for a /24) and the gateway (usually your router's address). DNS is the gateway unless you list servers, separated by commas; servers listed with an automatic address replace the router's. A setting that isn't right is left out (the network stays automatic) and the login prompt says so. With both networks connected, the wired one carries the traffic.
 - `setup.txt` (not there unless you add it): see First-Boot Provisioning.
+- `install.txt`: `install=yes` makes the stick install itself onto an OpenFrame 1's internal memory; see above.
 
 Older images kept `network.yaml` and `backlight.txt` in the root of `OF-BOOT`. They move into `settings` once `openframe-scripts` is updated: a `network.yaml` with only the Wi-Fi name and password filled in becomes `wifi.txt`, and one with more in it becomes `settings/network.yaml`. The same happens to a `network.yaml` copied into the root of a new image. The MAC address isn't written into it any more.
 

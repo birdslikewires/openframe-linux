@@ -1,0 +1,768 @@
+#!/usr/bin/env bash
+
+## installer v26.11.1 (15th November 2026)
+##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
+##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
+##  of-installer.service at every boot, and 'of-flash install|status|clean' by hand.
+##
+##  An installer stick is one written from a release image and first started with
+##  install=yes in OF-BOOT/settings/install.txt: of-expand then makes the rest of the
+##  stick an exFAT partition, OF-BACKUP, that any computer can read, instead of growing
+##  the system into it. Release images carry a compressed copy of themselves
+##  (/usr/lib/openframe/install, see of-imgbundle.sh), which is what gets written.
+##
+##  At boot, with install=yes (or 'again') on an installer stick, in an OpenFrame 1, for a
+##  unit not already done, in this order (each step is noted in the unit's folder on
+##  OF-BACKUP, so after a restart or a power cut the next boot carries on from it):
+##    1. A folder on OF-BACKUP for the unit (date and MAC), with info.txt. The unit is
+##       known by its MMC's CID, which every unit has, whatever its firmware. This
+##       stick's settings are kept aside (/var/lib/openframe-install) for the unit.
+##    2. Back up the firmware chip (firmware.bin) and the MMC (mmc.img.gz), each read
+##       back and checked. Until this is done no firmware update may start: the update
+##       the openframe-firmware package marks pending waits for us.
+##    3. Firmware: of-firmware-update says whether it's current. If not, the update is
+##       marked pending and of-firmware.service (which runs after us) does it, and
+##       restarts the unit. Firmware it doesn't recognise is never touched: we stop.
+##    4. Write the image to the MMC and read it back (three tries).
+##    5. Put the kept settings into the MMC's OF-BOOT/settings (all but install.txt),
+##       setup.txt included, so provisioning runs on the new system's first start.
+##    6. Mark the unit done, reset this stick's settings to the blank ones (install.txt
+##       stays; 'again' becomes 'yes'), play a sound, say so, and power off.
+##  A unit already done gets "already installed" and a power-off. Anything that stops the
+##  install says why on the screen and in info.txt, keeps the login prompt off the
+##  screen so the message stays (SSH still works), and changes nothing more.
+##
+##  With install=yes on a stick that has been started as a system (no OF-BACKUP: the
+##  system grew into that space), nothing is installed: the screen says so, and the
+##  boot carries on. 'of-flash install' still works there while the image copy is on
+##  the stick: the same steps, by hand, with the backups on the root filesystem
+##  (/var/lib/openframe-install/backups), the firmware update by a restart and running
+##  it again, and this stick's settings left as they are.
+##
+##  'of-flash backup' backs up the firmware chip and the internal memory the same way and
+##  stops there, writing nothing: a folder whose state is 'backup', which an install
+##  doesn't carry on from (it backs up afresh).
+##
+##  The image copy is removed by 'of-flash clean', or at boot when it isn't an
+##  installer stick and the root filesystem has less than 256 MB free.
+##
+##  Testing only, never in normal use (set in a drop-in for of-installer.service):
+##  OF_INSTALLER_TEST_BACKUPDIR=<directory> stands in for OF-BACKUP, so a stick that
+##  has grown can test the boot-time steps; OF_INSTALLER_TEST_NOPOWEROFF=1 stays on
+##  where it would switch off.
+
+VERSION="26.11.1"
+SETDIR="/boot/settings"
+INSTALLTXT="$SETDIR/install.txt"
+TEMPLATES="/usr/lib/openframe/settings"
+BUNDLEDIR="/usr/lib/openframe/install"
+BUNDLE="$BUNDLEDIR/image.img.gz"
+BUNDLEINFO="$BUNDLEDIR/image.info"
+STATEDIR="/var/lib/openframe-install"
+BACKUPLABEL="OF-BACKUP"
+BACKUPMNT="/mnt/of-backup"
+FWUPDATE="/usr/local/sbin/of-firmware-update"
+FWPENDING="/var/lib/openframe-firmware/pending"
+RUNDIR="/run/of-installer"
+HOLD="$RUNDIR/hold"
+TTY="/dev/tty1"
+SOUNDS="/usr/local/share/sounds"
+# Room left on the root filesystem below which the image copy goes, on a stick in use
+# as a system.
+MINFREE=$((256 * 1024 * 1024))
+# The MMC must be exactly an OpenFrame 1's (the OpenFrame 2's is twice the size).
+OF1MMC=1028128768
+
+MODE=""        # boot or cli
+FORCE=""       # set: install a unit already done (by hand)
+SCREEN=""      # set: messages go to the panel too
+W=""           # work directory
+
+usage() {
+	echo "Usage: of-flash install | backup | status | clean"
+	echo
+	echo "  install   install this system onto this OpenFrame 1's internal memory, after"
+	echo "            backing it up (see 'status' for where the backups go)"
+	echo "  backup    back up this OpenFrame 1's firmware and internal memory, and stop"
+	echo "  status    what this stick can do, and the units it has installed"
+	echo "  clean     remove the copy of the image this stick carries, to free its space"
+	echo
+	exit 1
+}
+
+log() {
+	echo "installer: $*"
+}
+
+# Says lines $@ on the panel (from a clear screen, the boot splash put away) and in
+# the journal; on the terminal by hand.
+screen() {
+	if [ -n "$SCREEN" ]; then
+		command -v plymouth >/dev/null && plymouth --ping 2>/dev/null && plymouth quit 2>/dev/null
+		[ -w "$TTY" ] && { printf '\033c'; printf '%s\n' "$@"; } > "$TTY"
+		log "$(printf '%s ' "$@" | tr -s ' ')"
+	else
+		printf '%s\n' "$@"
+	fi
+}
+
+# Updates the last line on the panel (or terminal) in place.
+progress_line() {
+	if [ -n "$SCREEN" ]; then
+		[ -w "$TTY" ] && printf '\r  %s\033[K' "$1" > "$TTY"
+	else
+		printf '\r  %s\033[K' "$1"
+	fi
+}
+
+sound() {
+	[ -n "$SCREEN" ] || return 0
+	command -v aplay >/dev/null || return 0
+	amixer -q -c 0 sset Master 20% unmute >/dev/null 2>&1
+	aplay -q -f a_law -r 44100 "$SOUNDS/$1.au" >/dev/null 2>&1 &
+}
+
+# install.txt's install= setting, lower case: yes, again, or anything else (off). Read
+# with bash alone, the way of-netplan reads wifi.txt.
+install_mode() {
+	local line k v
+	[ -r "$INSTALLTXT" ] || return 0
+	while IFS= read -r line || [ -n "$line" ]; do
+		line="${line%$'\r'}"
+		line="${line#$'\xef\xbb\xbf'}"
+		[[ "$line" == *=* ]] || continue
+		k="${line%%=*}"
+		v="${line#*=}"
+		k="${k//[[:space:]]/}"
+		v="${v//[[:space:]]/}"
+		v="${v//[\"\']/}"
+		[ "${k,,}" = "install" ] && echo "${v,,}"
+	done < "$INSTALLTXT" | tail -1
+}
+
+# Sets install= in install.txt to $1, keeping everything else.
+set_install_mode() {
+	local T="$W/install.txt"
+	sed -E "s/^([[:space:]]*install[[:space:]]*=).*/\1$1/I" "$INSTALLTXT" > "$T" &&
+		/usr/lib/openframe/bootrw open && cp "$T" "$INSTALLTXT.new" && sync &&
+		mv -f "$INSTALLTXT.new" "$INSTALLTXT" && sync
+	/usr/lib/openframe/bootrw close
+}
+
+# The internal memory: the one MMC (not SD) device. Its name depends on the kernel and
+# the boot (mmcblk0, 1 or 2), so it's found, not assumed.
+internal_mmc() {
+	local B FOUND=""
+	for B in /sys/block/mmcblk*; do
+		[ -e "$B/device/type" ] || continue
+		case "${B##*/}" in *boot*|*rpmb*) continue ;; esac
+		[ "$(cat "$B/device/type")" == "MMC" ] || continue
+		[ -z "$FOUND" ] || return 1
+		FOUND="/dev/${B##*/}"
+	done
+	[ -n "$FOUND" ] && echo "$FOUND"
+}
+
+# The disk the root filesystem is on (/dev/sda for /dev/sda2).
+root_disk() {
+	local P
+	P=$(findmnt -n -o SOURCE /)
+	echo "/dev/$(lsblk -n -o PKNAME "$P" 2>/dev/null | head -1)"
+}
+
+# The OF-BACKUP partition on the root filesystem's disk, if there is one.
+backup_part() {
+	lsblk -l -n -p -o NAME,LABEL "$(root_disk)" 2>/dev/null |
+		awk -v l="$BACKUPLABEL" '$2 == l { print $1; exit }'
+}
+
+# Mounts OF-BACKUP at BACKUPMNT (if it isn't already); false if there's none.
+mount_backup() {
+	local P
+	P=$(backup_part)
+	[ -n "$P" ] || return 1
+	findmnt -n "$BACKUPMNT" >/dev/null 2>&1 && return 0
+	mkdir -p "$BACKUPMNT"
+	mount -o noatime "$P" "$BACKUPMNT"
+}
+
+# Bytes free in the filesystem holding directory $1.
+free_bytes() {
+	df -B1 --output=avail "$1" 2>/dev/null | tail -1 | tr -d ' '
+}
+
+# A value from a key=value file ($1), key $2.
+kv() {
+	sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -1
+}
+
+# Sets key $2 to value $3 in the unit's info.txt ($1), keeping its other lines and their
+# order; a power cut leaves the old file or the new one.
+kv_set() {
+	local F="$1" T="$1.new"
+	if grep -q "^$2=" "$F" 2>/dev/null; then
+		awk -v k="$2" -v v="$3" 'index($0, k "=") == 1 { print k "=" v; next } { print }' "$F" > "$T"
+	else
+		{ cat "$F" 2>/dev/null; echo "$2=$3"; } > "$T"
+	fi
+	sync
+	mv -f "$T" "$F"
+	sync
+}
+
+# The unit's MMC CID (its serial number is in it): how the unit is known, whatever
+# firmware it has.
+unit_cid() {
+	cat "/sys/block/${MMC##*/}/device/cid" 2>/dev/null
+}
+
+# The folder for this unit (CID $1) under BACKUPDIR that isn't finished, if any; with
+# $2 = done, the last one that is.
+unit_dir() {
+	local D S FOUND=""
+	for D in "$BACKUPDIR"/*/; do
+		[ -f "$D/info.txt" ] || continue
+		[ "$(kv "$D/info.txt" cid)" = "$1" ] || continue
+		S=$(kv "$D/info.txt" state)
+		if [ "$2" = "done" ]; then
+			[ "$S" = "done" ] && FOUND="${D%/}"
+		else
+			[ "$S" != "done" ] && [ "$S" != "backup" ] && FOUND="${D%/}"
+		fi
+	done
+	[ -n "$FOUND" ] && echo "$FOUND"
+}
+
+# This stick's LAN MAC as of-netplan settled it (it may still be deciding at boot).
+lan_mac() {
+	local i=0
+	while [ $i -lt 60 ] && [ ! -e /run/of-netplan/mac-decided ]; do
+		sleep 1
+		i=$((i + 1))
+	done
+	cat /var/lib/of-netplan/lan.mac 2>/dev/null
+}
+
+# Runs pipeline $2 (a string for bash -c) whose dd writes progress to $P, showing $1 and
+# a percentage of $3 bytes. False if the pipeline fails.
+with_progress() {
+	local LABEL="$1" CMD="$2" TOTAL="$3" PID B PCT
+	P="$W/progress"
+	: > "$P"
+	P="$P" bash -o pipefail -c "$CMD" &
+	PID=$!
+	while kill -0 $PID 2>/dev/null; do
+		B=$(tr '\r' '\n' < "$P" | awk '/bytes/ { b = $1 } END { print b + 0 }')
+		PCT=$(( B * 100 / TOTAL ))
+		(( PCT > 100 )) && PCT=100
+		progress_line "$LABEL: $PCT%"
+		sleep 2
+	done
+	wait $PID
+	local RC=$?
+	[ $RC -eq 0 ] && progress_line "$LABEL: done" || progress_line "$LABEL: FAILED"
+	[ -n "$SCREEN" ] && [ -w "$TTY" ] && echo > "$TTY"
+	[ -n "$SCREEN" ] || echo
+	return $RC
+}
+
+# Stops the install: says why (on the panel, in the unit's info.txt) and keeps the
+# message on the panel. Nothing further is changed.
+fail() {
+	local WHY="$1"
+	[ -n "${UDIR:-}" ] && [ -f "$UDIR/info.txt" ] && kv_set "$UDIR/info.txt" stopped "$(date '+%F %T'): $WHY"
+	if [ "$MODE" = "boot" ]; then
+		mkdir -p "$RUNDIR" && touch "$HOLD"
+		screen "" "  The install has stopped:" "" "  $WHY" "" \
+			"  ${2:-Nothing was written to the internal memory.}" \
+			"  The details are in the OF-BACKUP drive on the stick." \
+			"  You can switch off now."
+		sound failure
+	else
+		echo
+		echo "STOPPED: $WHY"
+		echo "${2:-Nothing was written to the internal memory.}"
+		cleanup
+		exit 1
+	fi
+	cleanup
+	exit 0
+}
+
+cleanup() {
+	[ -n "$W" ] && rm -rf "$W"
+	W=""
+}
+
+power_off() {
+	if [ -n "${OF_INSTALLER_TEST_NOPOWEROFF:-}" ]; then
+		log "test: would switch off now"
+		return 0
+	fi
+	systemctl poweroff
+}
+
+## The steps.
+
+# Step 1: a new unit's folder, and its settings kept aside.
+new_unit() {
+	local MAC NAME N=1 MODEL
+	MAC=$(lan_mac)
+	NAME="$(date +%Y%m%d-%H%M)-${MAC//:/}"
+	[ -n "$MAC" ] || NAME="$(date +%Y%m%d-%H%M)-unknown"
+	UDIR="$BACKUPDIR/$NAME"
+	while [ -e "$UDIR" ]; do N=$((N + 1)); UDIR="$BACKUPDIR/$NAME-$N"; done
+	mkdir -p "$UDIR"
+	MODEL=$(cat /sys/class/dmi/id/product_name 2>/dev/null)
+	{
+		echo "# This OpenFrame's backup by the installer on this stick, and the install of a new"
+		echo "# system onto its internal memory if one was done (state, written, finished)."
+		echo "# firmware.bin and mmc.img.gz are what it had before."
+		echo "cid=$CID"
+		echo "mac=$MAC"
+		echo "model=${MODEL:-OpenFrame 1}"
+		echo "started=$(date '+%F %T')"
+		echo "installer=$VERSION"
+		echo "image=$(kv "$BUNDLEINFO" name)"
+		echo "state=new"
+	} > "$UDIR/info.txt"
+	sync
+	keep_settings
+}
+
+# This stick's settings, as they are now, kept for the unit (all but install.txt),
+# until it's done: the stick's own are reset at the end, maybe before a power cut.
+keep_settings() {
+	local K="$STATEDIR/units/$CID/settings" F
+	rm -rf "$K"
+	mkdir -p "$K"
+	for F in "$SETDIR"/*; do
+		[ -f "$F" ] || continue
+		[ "${F##*/}" = "install.txt" ] && continue
+		cp "$F" "$K/"
+	done
+	sync
+}
+
+# Step 2: the backups. The chip is read twice and the reads compared. The MMC is read
+# into mmc.img.gz, and read again for its md5 alone: the two must agree (an old MMC can
+# return a bit or two differently now and then: seen once on the study unit, two
+# single-bit differences between reads), up to three tries. Then mmc.img.gz's contents
+# are checked against them.
+backup() {
+	local FW="$UDIR/firmware.bin" IMG="$UDIR/mmc.img.gz" FIFO RAWMD5 GZMD5 i CUR NEED
+	kv_set "$UDIR/info.txt" state backing-up
+	NEED=$(( OF1MMC + 64 * 1024 * 1024 ))
+	[ "$(free_bytes "$UDIR")" -ge "$NEED" ] ||
+		fail "There isn't room for the backups: they need $((NEED / 1048576)) MB."
+
+	if [ -n "${BACKUP_ONLY:-}" ]; then
+		screen "" "  Backing up this OpenFrame's firmware and internal memory." ""
+	else
+		screen "" "  Installing onto this OpenFrame's internal memory." "" \
+			"  Please don't switch off or unplug it, or remove the stick." "" \
+			"  Backing up the firmware and the internal memory first."
+	fi
+	[ -n "$SCREEN" ] || echo
+
+	[ -e /sys/module/fh ] || modprobe fh 2>/dev/null
+	for i in 1 2 3 4 5; do [ -e /dev/fh ] && break; sleep 0.2; done
+	[ -e /dev/fh ] || fail "The firmware chip can't be read (no /dev/fh)."
+	dd if=/dev/fh of="$W/fw1.bin" bs=64k iflag=fullblock status=none &&
+		dd if=/dev/fh of="$W/fw2.bin" bs=64k iflag=fullblock status=none ||
+		fail "The firmware chip can't be read."
+	cmp -s "$W/fw1.bin" "$W/fw2.bin" || fail "Two reads of the firmware chip differ."
+	[ "$(stat -c %s "$W/fw1.bin")" = 1048576 ] || fail "The firmware chip didn't read as 1 MB."
+	cp "$W/fw1.bin" "$FW.new" && sync && mv -f "$FW.new" "$FW" && sync
+	cmp -s "$W/fw1.bin" "$FW" || fail "The firmware backup doesn't read back."
+	md5sum < "$FW" | sed "s/ .*/  firmware.bin/" > "$FW.md5"
+	CUR=$(grep -aoE 'BirdsLikeWires OpenFrame EFI [0-9]+\.[0-9]+\.[0-9]+(-dev[0-9]+)? \(OF1\)' "$FW" | head -1 | awk '{print $4}')
+	kv_set "$UDIR/info.txt" firmware_before "${CUR:-not BirdsLikeWires} (md5 $(cut -d' ' -f1 "$FW.md5"))"
+	progress_line "Firmware: done"
+	[ -n "$SCREEN" ] && [ -w "$TTY" ] && echo > "$TTY"
+	[ -n "$SCREEN" ] || echo
+
+	kv_set "$UDIR/info.txt" mmc_before "$(lsblk -l -n -o NAME,SIZE,FSTYPE,LABEL "$MMC" | tr -s ' ' | sed 's/ *$//' | paste -sd ';' -)"
+	FIFO="$W/raw.fifo"
+	RAWMD5=""
+	for i in 1 2 3; do
+		rm -f "$FIFO"
+		mkfifo "$FIFO"
+		md5sum < "$FIFO" > "$W/raw.md5" &
+		with_progress "Internal memory" \
+			"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | tee '$FIFO' | gzip -1 > '$IMG.new'" \
+			"$OF1MMC" || fail "The internal memory couldn't be backed up."
+		wait
+		with_progress "Reading it again" \
+			"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | md5sum > '$W/raw2.md5'" \
+			"$OF1MMC" || fail "The internal memory couldn't be read again."
+		if [ "$(cut -d' ' -f1 "$W/raw.md5")" = "$(cut -d' ' -f1 "$W/raw2.md5")" ]; then
+			RAWMD5=$(cut -d' ' -f1 "$W/raw.md5")
+			break
+		fi
+		log "two reads of the internal memory differ (try $i)"
+		kv_set "$UDIR/info.txt" mmc_reads_differed "$i"
+	done
+	[ -n "$RAWMD5" ] || fail "The internal memory doesn't read the same twice, so it can't be backed up reliably."
+	sync
+	with_progress "Checking the backup" \
+		"gzip -dc '$IMG.new' | dd bs=1M iflag=fullblock status=progress 2>\"\$P\" | md5sum > '$W/check.md5'" \
+		"$OF1MMC" || fail "The internal memory backup can't be read back."
+	[ "$(cut -d' ' -f1 "$W/check.md5")" = "$RAWMD5" ] || fail "The internal memory backup doesn't match the internal memory."
+	mv -f "$IMG.new" "$IMG" && sync
+	GZMD5=$(md5sum < "$IMG" | cut -d' ' -f1)
+	echo "$GZMD5  mmc.img.gz" > "$IMG.md5"
+	kv_set "$UDIR/info.txt" mmc_md5 "$RAWMD5 (the internal memory; mmc.img.gz is $GZMD5)"
+	kv_set "$UDIR/info.txt" state backed-up
+	sync
+}
+
+# Step 3: the firmware. Current: on to the write. Not: marked pending for
+# of-firmware.service (after us), which updates it and restarts the unit.
+firmware() {
+	local OUT RC
+	[ -x "$FWUPDATE" ] || fail "The firmware updater isn't installed (openframe-firmware)."
+	OUT=$("$FWUPDATE" --check 2>&1); RC=$?
+	log "$OUT"
+	case $RC in
+		0)
+			kv_set "$UDIR/info.txt" firmware_after "$(cat /sys/class/dmi/id/bios_version 2>/dev/null) ($(cat /sys/class/dmi/id/bios_vendor 2>/dev/null))"
+			kv_set "$UDIR/info.txt" state firmware-ok
+			return 0 ;;
+		5)
+			kv_set "$UDIR/info.txt" state backed-up
+			mkdir -p "${FWPENDING%/*}" && touch "$FWPENDING" && sync
+			if [ "$MODE" = "boot" ]; then
+				screen "" "  The backups are done. The firmware is updated next;" \
+					"  the OpenFrame then restarts and carries on with the install." "" \
+					"  Please don't switch off or unplug it, or remove the stick."
+				log "firmware update marked pending for of-firmware.service"
+				cleanup
+				exit 0
+			fi
+			echo
+			echo "The backups are done. The firmware needs updating first: restart the"
+			echo "OpenFrame (the update runs as it starts, then it restarts again), then run"
+			echo "'sudo of-flash install' again to carry on."
+			cleanup
+			exit 0 ;;
+		3)
+			fail "This OpenFrame's firmware isn't one the updater knows, so it's left alone." ;;
+		*)
+			fail "The firmware couldn't be checked (of-firmware-update exit $RC)." ;;
+	esac
+}
+
+# Step 4: the image onto the MMC, read back and compared; three tries.
+write_mmc() {
+	local SIZE MD5 GZMD5 TRY PART
+	SIZE=$(kv "$BUNDLEINFO" size)
+	MD5=$(kv "$BUNDLEINFO" md5)
+	GZMD5=$(kv "$BUNDLEINFO" gzmd5)
+	[ "$SIZE" = "$OF1MMC" ] || fail "The image on this stick isn't the size of an OpenFrame 1's internal memory."
+	screen "" "  Installing onto this OpenFrame's internal memory." "" \
+		"  Please don't switch off or unplug it, or remove the stick." "" \
+		"  Writing the new system."
+	[ -n "$SCREEN" ] || echo
+	[ "$(md5sum < "$BUNDLE" | cut -d' ' -f1)" = "$GZMD5" ] || fail "The image on this stick is damaged (its md5 doesn't match)."
+
+	# Nothing may have the MMC's partitions mounted while it's written.
+	for PART in $(lsblk -l -n -p -o NAME "$MMC" | tail -n +2); do
+		findmnt -n -S "$PART" >/dev/null 2>&1 && umount "$PART"
+	done
+
+	kv_set "$UDIR/info.txt" state writing
+	for TRY in 1 2 3; do
+		with_progress "Writing (try $TRY)" \
+			"gzip -dc '$BUNDLE' | dd of='$MMC' bs=1M iflag=fullblock oflag=direct conv=fsync status=progress 2>\"\$P\"" \
+			"$SIZE" || continue
+		with_progress "Checking" \
+			"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | head -c $SIZE | md5sum > '$W/mmc.md5'" \
+			"$SIZE" || continue
+		# A read that doesn't match is read again before the write is blamed (see backup).
+		if [ "$(cut -d' ' -f1 "$W/mmc.md5")" != "$MD5" ]; then
+			log "the internal memory didn't read back as written (try $TRY): reading it again"
+			with_progress "Checking again" \
+				"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | head -c $SIZE | md5sum > '$W/mmc.md5'" \
+				"$SIZE" || continue
+		fi
+		if [ "$(cut -d' ' -f1 "$W/mmc.md5")" = "$MD5" ]; then
+			kv_set "$UDIR/info.txt" written "$(date '+%F %T') ($(kv "$BUNDLEINFO" name), md5 $MD5, try $TRY)"
+			kv_set "$UDIR/info.txt" state written
+			return 0
+		fi
+		log "the internal memory didn't read back as written (try $TRY)"
+	done
+	fail "The new system wouldn't write to the internal memory correctly." \
+		"The internal memory may not start by itself now: leave the stick in, and the next start tries again."
+}
+
+# Step 5: the unit's settings onto the new system's OF-BOOT.
+settings_to_mmc() {
+	local K="$STATEDIR/units/$CID/settings" P1 M="$W/mmcboot" i F
+	[ -d "$K" ] || keep_settings
+	blockdev --rereadpt "$MMC" 2>/dev/null || partx -u "$MMC" 2>/dev/null
+	udevadm settle 2>/dev/null
+	P1=$(lsblk -l -n -p -o NAME "$MMC" | sed -n 2p)
+	for i in 1 2 3 4 5 6 7 8 9 10; do [ -b "$P1" ] && break; sleep 0.5; done
+	[ -b "$P1" ] || fail "The new system's boot volume didn't appear." \
+		"The new system is installed, without this unit's settings. Leave the stick in to try again."
+	mkdir -p "$M"
+	mount -t vfat -o rw "$P1" "$M" || fail "The new system's boot volume wouldn't mount." \
+		"The new system is installed, without this unit's settings. Leave the stick in to try again."
+	mkdir -p "$M/settings"
+	for F in "$K"/*; do
+		[ -f "$F" ] || continue
+		cp "$F" "$M/settings/${F##*/}.new" && sync && mv -f "$M/settings/${F##*/}.new" "$M/settings/${F##*/}" && sync
+	done
+	umount "$M"
+	kv_set "$UDIR/info.txt" settings "$(ls "$K" | paste -sd ' ' -)"
+}
+
+# Step 6: done. At boot this stick's settings go back to the blank ones for the next
+# unit (install.txt stays, 'again' becoming 'yes').
+finish() {
+	local F
+	kv_set "$UDIR/info.txt" finished "$(date '+%F %T')"
+	if [ "$MODE" = "boot" ]; then
+		/usr/lib/openframe/bootrw open
+		for F in "$SETDIR"/*; do
+			[ "${F##*/}" = "install.txt" ] && continue
+			rm -f "$F"
+		done
+		for F in "$TEMPLATES"/*.txt; do
+			[ "${F##*/}" = "install.txt" ] && continue
+			cp "$F" "$SETDIR/${F##*/}"
+		done
+		sync
+		/usr/lib/openframe/bootrw close
+		[ "$(install_mode)" = "again" ] && set_install_mode yes
+	fi
+	kv_set "$UDIR/info.txt" state done
+	echo "$(date '+%F %T') $CID ${UDIR##*/}" >> "$BACKUPDIR/installed.txt"
+	sync
+	rm -rf "$STATEDIR/units/$CID"
+}
+
+# The steps from where this unit got to.
+run_unit() {
+	local STATE
+	UDIR=$(unit_dir "$CID")
+	if [ -z "$UDIR" ]; then
+		if [ -z "$FORCE" ] && [ -n "$(unit_dir "$CID" done)" ] && [ "$(install_mode)" != "again" ]; then
+			already
+		fi
+		# A new unit. The firmware update the image's packages marked waits until the
+		# backups are done (step 3 marks it again if it's needed).
+		rm -f "$FWPENDING"
+		new_unit
+	fi
+	STATE=$(kv "$UDIR/info.txt" state)
+	log "unit $CID (${UDIR##*/}): $STATE"
+	case "$STATE" in
+		new|backing-up) rm -f "$FWPENDING"; backup; firmware; write_mmc; settings_to_mmc ;;
+		backed-up) firmware; write_mmc; settings_to_mmc ;;
+		firmware-ok|writing) firmware; write_mmc; settings_to_mmc ;;
+		written) settings_to_mmc ;;
+		*) fail "This unit's install is in a state the installer doesn't know ($STATE)." ;;
+	esac
+	finish
+	if [ "$MODE" = "boot" ]; then
+		screen "" "  Done: the new system is installed on the internal memory," \
+			"  with this stick's settings. The backups are in the OF-BACKUP" \
+			"  drive on the stick." "" \
+			"  Remove the stick once the OpenFrame has switched off; it starts" \
+			"  the new system next time. Switching off in 20 seconds."
+		sound success
+		sleep 20
+		power_off
+	else
+		echo
+		echo "Done: the new system is installed on the internal memory, with this stick's"
+		echo "settings. The backups are in ${UDIR}."
+		echo "Switch off, remove the stick, and the OpenFrame starts the new system."
+	fi
+}
+
+# The unit is already done: say so, and switch off (at boot).
+already() {
+	local D
+	D=$(unit_dir "$CID" done)
+	if [ "$MODE" = "boot" ]; then
+		screen "" "  This OpenFrame has already been installed from this stick" \
+			"  (${D##*/})." "" \
+			"  Remove the stick and it starts its own system. To install it" \
+			"  again, set install=again in the stick's settings/install.txt." "" \
+			"  Switching off in 60 seconds."
+		sound success
+		sleep 60
+		power_off
+		exit 0
+	fi
+	echo "This OpenFrame has already been installed from this stick (${D##*/})."
+	read -r -p "Install it again? Type yes: " ANSWER
+	[ "$ANSWER" = "yes" ] || exit 0
+	FORCE=1
+}
+
+# The checks every install starts with: an OpenFrame 1, its MMC, the image copy.
+checks() {
+	[[ "$(findmnt -n -o SOURCE /)" == /dev/mmcblk* ]] && fail "This system is running from the internal memory, so it can't install onto it."
+	[[ "$(cat /sys/class/dmi/id/product_name 2>/dev/null)" == *"OpenFrame 2"* ]] && fail "This is an OpenFrame 2: the installer is for the OpenFrame 1."
+	local i
+	for i in $(seq 1 20); do MMC=$(internal_mmc) && break; sleep 0.5; done
+	[ -n "$MMC" ] || fail "No internal memory found (or more than one)."
+	[ "$(blockdev --getsize64 "$MMC")" = "$OF1MMC" ] ||
+		fail "The internal memory isn't an OpenFrame 1's ($(blockdev --getsize64 "$MMC") bytes)."
+	CID=$(unit_cid)
+	[[ "$CID" =~ ^[0-9a-f]{32}$ ]] || fail "The internal memory has no serial number (CID) to know this unit by."
+	if [ -z "${BACKUP_ONLY_NO_IMAGE:-}" ] && { [ ! -f "$BUNDLE" ] || [ ! -f "$BUNDLEINFO" ]; }; then
+		fail "This stick doesn't carry the image to install any more."
+	fi
+}
+
+## Modes.
+
+boot_mode() {
+	local M
+	MODE=boot
+	M=$(install_mode)
+	if [ "$M" != "yes" ] && [ "$M" != "again" ]; then
+		# Not installing. A stick in use as a system gives up the image copy when it's
+		# short of room.
+		if [ -f "$BUNDLE" ] && [ -z "$(backup_part)" ] && [ "$(free_bytes /)" -lt "$MINFREE" ]; then
+			rm -rf "$BUNDLEDIR"
+			log "the root filesystem had less than $((MINFREE / 1048576)) MB free: removed the image copy"
+		fi
+		exit 0
+	fi
+	[[ "$(findmnt -n -o SOURCE /)" == /dev/mmcblk* ]] && exit 0
+	SCREEN=1
+	setterm -blank 0 -powersave off > "$TTY" 2>/dev/null < "$TTY"
+	W=$(mktemp -d /tmp/of-installer.XXXXXX)
+	trap cleanup EXIT
+
+	# Not an installer stick: say so for a while, change nothing, and let it start as a
+	# system. The firmware update the image marked waits too: an install backs up first.
+	if [ -n "${OF_INSTALLER_TEST_BACKUPDIR:-}" ] && [ -f "$BUNDLE" ]; then
+		BACKUPMNT="$OF_INSTALLER_TEST_BACKUPDIR"
+		mkdir -p "$BACKUPMNT"
+		log "test: backups in $BACKUPMNT"
+	elif ! mount_backup || [ ! -f "$BUNDLE" ]; then
+		rm -f "$FWPENDING"
+		if [ -f "$BUNDLE" ]; then
+			screen "" "  install=yes is set, but this stick has been started as a system" \
+				"  before, so it can't install by itself any more: write the image to" \
+				"  it again to use it as an installer. Nothing has been changed." "" \
+				"  ('sudo of-flash install' can still install from it by hand.)" "" \
+				"  Carrying on in 30 seconds."
+		else
+			screen "" "  install=yes is set, but this stick no longer carries the image to" \
+				"  install: write the image to it again to use it as an installer." \
+				"  Nothing has been changed." "" "  Carrying on in 30 seconds."
+		fi
+		sound failure
+		sleep 30
+		exit 0
+	fi
+	BACKUPDIR="$BACKUPMNT"
+	checks
+	run_unit
+}
+
+cli_install() {
+	MODE=cli
+	W=$(mktemp -d /tmp/of-installer.XXXXXX)
+	trap cleanup EXIT
+	checks
+	if mount_backup; then
+		BACKUPDIR="$BACKUPMNT"
+	else
+		BACKUPDIR="$STATEDIR/backups"
+		mkdir -p "$BACKUPDIR"
+	fi
+	if [ -z "$(unit_dir "$CID")" ]; then
+		[ -n "$(unit_dir "$CID" done)" ] && already
+		echo "This installs $(kv "$BUNDLEINFO" name) onto this OpenFrame's internal memory ($MMC),"
+		echo "erasing what's there, and brings its firmware up to date. Both are backed up first,"
+		echo "to $BACKUPDIR$([ "$BACKUPDIR" != "$BACKUPMNT" ] && echo " (on this stick's ext4 system: copy them off it yourself)")."
+		echo "This stick's settings are copied onto the new system; the stick's own stay as they are."
+		read -r -p "Carry on? Type yes: " ANSWER
+		[ "$ANSWER" = "yes" ] || exit 0
+	fi
+	run_unit
+}
+
+# Backs this unit up, as an install's first steps do, and stops.
+cli_backup() {
+	MODE=cli
+	BACKUP_ONLY=1
+	W=$(mktemp -d /tmp/of-installer.XXXXXX)
+	trap cleanup EXIT
+	[ -f "$BUNDLE" ] || BACKUP_ONLY_NO_IMAGE=1
+	checks
+	if mount_backup; then
+		BACKUPDIR="$BACKUPMNT"
+	else
+		BACKUPDIR="$STATEDIR/backups"
+		mkdir -p "$BACKUPDIR"
+	fi
+	new_unit
+	kv_set "$UDIR/info.txt" image "(backup only)"
+	backup
+	kv_set "$UDIR/info.txt" state backup
+	kv_set "$UDIR/info.txt" finished "$(date '+%F %T')"
+	rm -rf "$STATEDIR/units/$CID"
+	echo
+	echo "Backed up to $UDIR:"
+	ls -l "$UDIR"
+}
+
+status() {
+	local M P D
+	M=$(install_mode)
+	echo "install.txt: install=${M:-no}"
+	if [ -f "$BUNDLEINFO" ]; then
+		echo "Image copy: $(kv "$BUNDLEINFO" name) ($(( $(stat -c %s "$BUNDLE" 2>/dev/null || echo 0) / 1048576 )) MB)"
+	else
+		echo "Image copy: none (removed, or not a release image)"
+	fi
+	P=$(backup_part)
+	if [ -n "$P" ] && mount_backup; then
+		echo "Installer stick: yes, backups on $BACKUPLABEL ($P, $(( $(free_bytes "$BACKUPMNT") / 1048576 )) MB free)"
+		D="$BACKUPMNT"
+	else
+		echo "Installer stick: no (started as a system); 'of-flash install' backs up to $STATEDIR/backups"
+		D="$STATEDIR/backups"
+	fi
+	if [ -s "$D/installed.txt" ]; then
+		echo "Installed:"
+		sed 's/^/  /' "$D/installed.txt"
+	fi
+}
+
+clean() {
+	if [ ! -d "$BUNDLEDIR" ]; then
+		echo "There's no image copy on this stick."
+		exit 0
+	fi
+	read -r -p "Remove the image copy ($(du -sh "$BUNDLEDIR" | cut -f1)), so this stick can't install any more? Type yes: " ANSWER
+	[ "$ANSWER" = "yes" ] || exit 0
+	rm -rf "$BUNDLEDIR"
+	echo "Removed."
+}
+
+if [ "$(id -u)" -ne 0 ]; then
+	echo "You need to run this with superuser privileges. Try 'sudo of-flash ${1:-}'."
+	exit 1
+fi
+
+case "${1:-}" in
+	boot) boot_mode ;;
+	install) cli_install ;;
+	backup) cli_backup ;;
+	status) status ;;
+	clean) clean ;;
+	*) usage ;;
+esac
+exit 0

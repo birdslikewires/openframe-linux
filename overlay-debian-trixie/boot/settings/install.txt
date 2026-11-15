@@ -1,0 +1,6 @@
+# Set install=yes to install this system onto an OpenFrame 1's internal memory, with
+# the latest firmware, when it starts from this stick. What it has now is backed up
+# to the OF-BACKUP drive on this stick first, and the other settings in this folder
+# go with the new system. Only a stick that hasn't been started as a system yet can
+# do this. install=again installs a unit this stick has already done.
+install=no
