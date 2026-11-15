@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-## of-flash v26.11.7 (15th November 2026) by Andrew Davison
+## of-flash v26.11.8 (15th November 2026) by Andrew Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
 ##
 ##  of-flash install | backup | status | clean
-##    The installer that release images carry: installs this system onto an OpenFrame
+##    OpenFrame Flash, which release images carry: installs this system onto an OpenFrame
 ##    1's internal memory with its firmware brought up to date, after backing both up.
-##    An installer stick (flash=yes in OF-BOOT/settings/flash.txt) does this by
+##    A flash stick (flash=yes in OF-BOOT/settings/flash.txt) does this by
 ##    itself as it starts ('of-flash boot', from of-flash.service). See
 ##    /usr/lib/openframe/flash/flash.
 ##

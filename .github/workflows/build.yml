@@ -120,9 +120,9 @@ jobs:
           img=$(ls *.img)
           mv "$img" "${img%.img}-${{ steps.kernel.outputs.version }}.img"
 
-      # A compressed copy of the image inside its own root filesystem, which the installer
-      # (of-flash) writes to an OpenFrame 1's internal memory: one download is both the
-      # system and its installer, and installing needs no network.
+      # A compressed copy of the image inside its own root filesystem, which OpenFrame
+      # Flash (of-flash) writes to an OpenFrame 1's internal memory: one download is both
+      # the system and its flash stick, and flashing needs no network.
       - name: Bundle a copy for installing to internal memory
         run: |
           img=$(ls *.img)

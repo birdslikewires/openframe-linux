@@ -35,9 +35,9 @@ sudo reboot
 ```
 
 
-## Installing onto an OpenFrame 1's Internal Memory
+## OpenFrame Flash: Installing onto an OpenFrame 1's Internal Memory
 
-The image is also an installer. Written to a USB stick (4 GB or more), it can install itself onto an OpenFrame 1's internal memory and bring the firmware up to date, without a network, and then go on to the next unit:
+The image is also a flash stick, with OpenFrame Flash. Written to a USB stick (4 GB or more), it can install itself onto an OpenFrame 1's internal memory and bring the firmware up to date, without a network, and then go on to the next unit:
 
 1. Write the image to the stick. In the `settings` folder of `OF-BOOT`, set `flash=yes` in `flash.txt`, and fill in any other settings for the unit (`wifi.txt`, `ethernet.txt`, `setup.txt` and so on).
 2. Put the stick in the OpenFrame and switch it on. The first time, the rest of the stick becomes a drive called `OF-BACKUP`. The screen says what's happening; don't switch off. The firmware and the internal memory are backed up to `OF-BACKUP` first, in a folder for the unit, and checked. If the firmware needs updating, that happens next and the OpenFrame restarts by itself. Then the new system is written to the internal memory and checked, and the stick's settings are copied onto it.
@@ -46,7 +46,7 @@ The image is also an installer. Written to a USB stick (4 GB or more), it can in
 
 Firmware the updater doesn't recognise is never touched, and the install stops before writing anything. Anything else that stops it says why on the screen and in the unit's `info.txt`. A power cut or restart part way through carries on from where it got to.
 
-A stick that has been started as a system (without `flash=yes` the first time) grows into the space `OF-BACKUP` would have had, so it can't install by itself, and its `flash.txt` is removed. From it, `sudo of-flash install` can still install by hand, with the backups on the stick's own system in `/var/lib/openframe-install/backups`. `sudo of-flash backup` backs a unit up without installing anything; `sudo of-flash status` shows what the stick can do and what it has installed; `sudo of-flash clean` removes the copy of the image the stick carries (about 130 MB), which also happens by itself on a stick in use as a system that's running short of space.
+A stick that has been started as a system (without `flash=yes` the first time) grows into the space `OF-BACKUP` would have had, so it can't install by itself, and its `flash.txt` is removed. From it, `sudo of-flash install` can still install by hand, with the backups on the stick's own system in `/var/lib/openframe-flash/backups`. `sudo of-flash backup` backs a unit up without installing anything; `sudo of-flash status` shows what the stick can do and what it has installed; `sudo of-flash clean` removes the copy of the image the stick carries (about 130 MB), which also happens by itself on a stick in use as a system that's running short of space.
 
 
 ## Configuration

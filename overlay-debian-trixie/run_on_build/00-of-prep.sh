@@ -196,10 +196,10 @@ echo "Installing OpenFrame scripts..."
 apt-get install -y openframe-scripts
 echo
 
-# The firmware updater and the firmware release (openframe-firmware), for the installer
+# The firmware updater and the firmware release (openframe-firmware), for OpenFrame Flash
 # (of-flash), which brings an OpenFrame 1's firmware up to date as it installs, offline.
 # The package's postinst marks an update pending, which would flash the firmware as a
-# new stick first starts. That's left to the installer, which marks it once it has
+# new stick first starts. That's left to OpenFrame Flash, which marks it once it has
 # backed the chip up; later releases of the package mark it as usual.
 echo "Installing OpenFrame firmware updater..."
 apt-get install -y openframe-firmware

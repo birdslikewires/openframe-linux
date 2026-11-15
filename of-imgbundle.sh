@@ -2,8 +2,8 @@
 
 ## of-imgbundle.sh v26.11.2 (15th November 2026)
 ##  Puts a compressed copy of an OpenFrame image inside that image's own root filesystem,
-##  so one download is both a system and an installer: the installer (of-flash) writes
-##  the copy to an OpenFrame 1's internal memory without needing a network. The copy is
+##  so one download is both a system and a flash stick: OpenFrame Flash (of-flash)
+##  writes the copy to an OpenFrame 1's internal memory without needing a network. The copy is
 ##  the image as it was before this, so what gets installed is exactly the image that was
 ##  built, with no copy inside it.
 ##

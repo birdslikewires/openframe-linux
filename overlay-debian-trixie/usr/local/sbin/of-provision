@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-provision v26.11.6 (15th November 2026)
+## of-provision v26.11.7 (15th November 2026)
 ##  Installs a project named in setup.txt on the boot volume (in its settings folder,
 ##  /boot/settings, or in its root as on older images) when the system first starts:
 ##  downloads the project's install.sh and runs it as the normal user. Lets community
@@ -82,10 +82,10 @@ read_setup() {
 	done < "$1"
 }
 
-# True on an installer stick (flash=yes or again in settings/flash.txt): its settings,
+# True on a flash stick (flash=yes or again in settings/flash.txt): its settings,
 # setup.txt included, are for the unit it installs (/usr/lib/openframe/flash/flash), not
 # for this stick.
-installer_stick() {
+flash_stick() {
 	local M
 	M=$(sed -n 's/^[[:space:]]*flash[[:space:]]*=//Ip' /boot/settings/flash.txt 2>/dev/null |
 		tr -d '\r"'"'"' \t' | tr 'A-Z' 'a-z' | tail -1)
@@ -93,7 +93,7 @@ installer_stick() {
 }
 
 if [ "${1:-}" = "--check" ]; then
-	installer_stick && exit 1
+	flash_stick && exit 1
 	read_setup "$SETUPFILE"
 	[ -n "$PROJECT" ]
 	exit
@@ -147,8 +147,8 @@ boot_rw() {
 
 [ -f "$SETUPFILE" ] || exit 0
 
-if installer_stick; then
-	echo "of-provision: this is an installer stick; its setup.txt is for the unit it installs."
+if flash_stick; then
+	echo "of-provision: this is a flash stick; its setup.txt is for the unit it installs."
 	give_up 0
 fi
 
