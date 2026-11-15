@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## installer v26.11.7 (15th November 2026)
+## installer v26.11.8 (15th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-installer.service at every boot, and 'of-flash install|status|clean' by hand.
@@ -23,7 +23,8 @@
 ##    3. Firmware: of-firmware-update says whether it's current. If not, the update is
 ##       marked pending and of-firmware.service (which runs after us) does it, and
 ##       restarts the unit. Firmware it doesn't recognise is never touched: we stop.
-##    4. Write the image to the MMC and read it back (three tries).
+##    4. Write the image to the MMC and read it back (three tries). A restart during
+##       the read-back checks it again rather than writing it again.
 ##    5. Put the kept settings into the MMC's OF-BOOT/settings (all but flash.txt),
 ##       setup.txt included, so provisioning runs on the new system's first start.
 ##    6. Mark the unit done, reset this stick's settings to the blank ones (flash.txt
@@ -51,7 +52,7 @@
 ##  has grown can test the boot-time steps; OF_INSTALLER_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.7"
+VERSION="26.11.8"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -709,7 +710,42 @@ erase_mmc() {
 	return 0
 }
 
-# Step 4: the image onto the MMC, read back and compared; three tries.
+# Reads the MMC back and compares it with the image. A read that doesn't match is
+# read again before the write is blamed: an old MMC can return a bit or two
+# differently now and then (seen once on the study unit). True if it matches, and
+# then it's recorded as written ($1: which write, for info.txt).
+check_mmc() {
+	local SIZE MD5
+	SIZE=$(kv "$BUNDLEINFO" size)
+	MD5=$(kv "$BUNDLEINFO" md5)
+	phase check
+	with_progress "Checking" \
+		"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | head -c $SIZE | md5sum > '$W/mmc.md5'" \
+		"$SIZE" || return 1
+	if [ "$(cut -d' ' -f1 "$W/mmc.md5")" != "$MD5" ]; then
+		log "the internal memory didn't read back as written: reading it again"
+		phase check "Checking the new system again"
+		with_progress "Checking again" \
+			"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | head -c $SIZE | md5sum > '$W/mmc.md5'" \
+			"$SIZE" || return 1
+	fi
+	[ "$(cut -d' ' -f1 "$W/mmc.md5")" = "$MD5" ] || return 1
+	kv_set "$UDIR/info.txt" written "$(date '+%F %T') ($(kv "$BUNDLEINFO" name), md5 $MD5, $1)"
+	kv_set "$UDIR/info.txt" state written
+}
+
+# Step 4 after a restart during the check (state 'checking'): the write had finished,
+# so check it first, and only write it again if it doesn't match. Saves the MMC a
+# write, and a couple of minutes.
+recheck_mmc() {
+	log "the write had finished before the restart: checking it"
+	check_mmc "checked after a restart" && return 0
+	log "it didn't match: writing it again"
+	write_mmc
+}
+
+# Step 4: the image onto the MMC, read back and compared (state 'writing', then
+# 'checking' once it's written); three tries.
 write_mmc() {
 	local SIZE MD5 GZMD5 TRY PART
 	SIZE=$(kv "$BUNDLEINFO" size)
@@ -727,8 +763,8 @@ write_mmc() {
 		findmnt -n -S "$PART" >/dev/null 2>&1 && umount "$PART"
 	done
 
-	kv_set "$UDIR/info.txt" state writing
 	for TRY in 1 2 3; do
+		kv_set "$UDIR/info.txt" state writing
 		# First try: erase the MMC, then write only the image's blocks that hold data
 		# (about 360 of its 981 MB): about 2.5 minutes instead of 7 on the study unit's
 		# MMC (4.2, 2008; 14 s to erase it all). An MMC this old doesn't say what erased
@@ -750,24 +786,9 @@ write_mmc() {
 				"gzip -dc '$BUNDLE' | dd of='$MMC' bs=1M iflag=fullblock oflag=direct conv=fsync status=progress 2>\"\$P\"" \
 				"$SIZE" || continue
 		fi
-		phase check
-		with_progress "Checking" \
-			"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | head -c $SIZE | md5sum > '$W/mmc.md5'" \
-			"$SIZE" || continue
-		# A read that doesn't match is read again before the write is blamed: an old MMC
-		# can return a bit or two differently now and then (seen once on the study unit).
-		if [ "$(cut -d' ' -f1 "$W/mmc.md5")" != "$MD5" ]; then
-			log "the internal memory didn't read back as written (try $TRY): reading it again"
-			phase check "Checking the new system again"
-			with_progress "Checking again" \
-				"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | head -c $SIZE | md5sum > '$W/mmc.md5'" \
-				"$SIZE" || continue
-		fi
-		if [ "$(cut -d' ' -f1 "$W/mmc.md5")" = "$MD5" ]; then
-			kv_set "$UDIR/info.txt" written "$(date '+%F %T') ($(kv "$BUNDLEINFO" name), md5 $MD5, try $TRY)"
-			kv_set "$UDIR/info.txt" state written
-			return 0
-		fi
+		# Written: from here a restart checks it rather than writing it again.
+		kv_set "$UDIR/info.txt" state checking
+		check_mmc "try $TRY" && return 0
 		log "the internal memory didn't read back as written (try $TRY)"
 	done
 	fail "The new system wouldn't write to the internal memory correctly." \
@@ -845,6 +866,7 @@ run_unit() {
 		new|backing-up) rm -f "$FWPENDING"; backup; firmware; write_mmc; settings_to_mmc ;;
 		backed-up) firmware; write_mmc; settings_to_mmc ;;
 		firmware-ok|writing) firmware; write_mmc; settings_to_mmc ;;
+		checking) recheck_mmc; settings_to_mmc ;;
 		written) settings_to_mmc ;;
 		*) fail "This unit's install is in a state the installer doesn't know ($STATE)." ;;
 	esac
