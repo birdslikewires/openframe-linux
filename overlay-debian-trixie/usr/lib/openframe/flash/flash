@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## flash v26.11.13 (15th November 2026)
+## flash v26.11.14 (15th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
@@ -53,7 +53,7 @@
 ##  has grown can test the boot-time steps; OF_FLASH_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.13"
+VERSION="26.11.14"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -179,6 +179,25 @@ band() {
 		fi
 	done
 	printf '%s' "$C_RST"
+}
+
+# Other things' messages on the console, which would land on top of the panel (seen:
+# systemd's "Failed to start netplan-wpa-wlan0.service" part way through a flash): off
+# while the panel is ours, and back as they were for a boot that carries on. systemd's
+# status messages go through its SetShowStatus call ("" puts back what it was started
+# with), or else its signal for off; the kernel's through the console log level.
+CONSOLE_LEVEL=""
+console_quiet() {
+	busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 \
+		org.freedesktop.systemd1.Manager SetShowStatus s no >/dev/null 2>&1 ||
+		kill -s RTMIN+21 1 2>/dev/null
+	CONSOLE_LEVEL=$(cut -f1 /proc/sys/kernel/printk 2>/dev/null)
+	dmesg -n 1 2>/dev/null
+}
+console_restore() {
+	busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 \
+		org.freedesktop.systemd1.Manager SetShowStatus s "" >/dev/null 2>&1
+	[ -n "$CONSOLE_LEVEL" ] && dmesg -n "$CONSOLE_LEVEL" 2>/dev/null
 }
 
 # Puts the boot splash away and clears the panel, with no cursor.
@@ -936,6 +955,7 @@ boot_mode() {
 	fi
 	[[ "$(findmnt -n -o SOURCE /)" == /dev/mmcblk* ]] && exit 0
 	SCREEN=1
+	console_quiet
 	setterm -blank 0 -powersave off > "$TTY" 2>/dev/null < "$TTY"
 	W=$(mktemp -d /tmp/of-flash.XXXXXX)
 	trap cleanup EXIT
@@ -959,6 +979,7 @@ boot_mode() {
 		sound failure
 		countdown 30 "Starting the system from this stick"
 		tty_out $'\033[0m\033[?25h\n'
+		console_restore
 		exit 0
 	fi
 	BACKUPDIR="$BACKUPMNT"
