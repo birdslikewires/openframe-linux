@@ -9,12 +9,13 @@ ConditionPathExists=/sys/class/backlight/openframe-bl
 # After systemd puts back the level saved at shutdown, when it's due by then (the
 # backlight can appear later; the service checks the real level as it goes).
 After=systemd-backlight@backlight:openframe-bl.service
+# Restarts after a crash, but not forever if it can't start at all.
+StartLimitIntervalSec=120
+StartLimitBurst=5
 
 [Service]
 ExecStart=/usr/local/bin/of-backlight daemon
 DynamicUser=yes
-# For OpenPeak's readlightsensor, on a kernel without the sensor's driver.
-SupplementaryGroups=i2c
 RuntimeDirectory=of-backlight
 StateDirectory=of-backlight
 Restart=on-failure
