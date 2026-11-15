@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.12 (15th November 2026)
+## of-netplan v26.11.13 (15th November 2026)
 ##  Manages the network configuration and MAC addresses on OpenFrame devices.
 ##
 ##  The settings are in the settings folder on the boot volume (OF-BOOT/settings,
@@ -509,11 +509,15 @@ remember() {
 	fi
 }
 
-# The text login prompt: the addresses (wlan0's only if Wi-Fi is set up), then anything
-# about the settings that someone needs to put right (issue.note).
+# The text login prompt: the addresses (wlan0's only if Wi-Fi is set up, or "missing"
+# if wifi.txt has a network but there's no wlan0 to join it with: no card, or this
+# stick is in a unit without one), then anything about the settings that someone needs
+# to put right (issue.note).
 write_issue() {
 	if grep -q 'wifis:' "$LIVE" 2>/dev/null; then
 		echo "${ID^} ${VERSION_CODENAME^} \n \l wlan0:\4{wlan0} eth0:\4{eth0}" > /etc/issue
+	elif [ -n "$WIFINAME" ] && [ ! -e /sys/class/net/$WLAN ]; then
+		echo "${ID^} ${VERSION_CODENAME^} \n \l wlan0:missing eth0:\4{eth0}" > /etc/issue
 	else
 		echo "${ID^} ${VERSION_CODENAME^} \n \l eth0:\4{eth0}" > /etc/issue
 	fi
@@ -640,6 +644,12 @@ if [ -s $STATEDIR/lan.mac ] && unchanged "$WIFITXT" wifi.txt && unchanged "$ETHT
 		# A different card (or a first one), or no card and this unit's LAN MAC is
 		# another: carry on below and make the LAN MAC again.
 		CARDCHECKED=1
+	elif { grep -q 'wifis:' "$LIVE" && [ ! -e /sys/class/net/$WLAN ]; } ||
+	     { [ -n "$WIFINAME" ] && ! grep -q 'wifis:' "$LIVE" && [ -e /sys/class/net/$WLAN ]; }; then
+		# Wi-Fi set up with no Wi-Fi interface now (the card's gone, or this stick has
+		# moved to a unit without one), or left out for want of one that's here now:
+		# carry on below and make the live config again.
+		CARDCHECKED=1
 	else
 		# A card we haven't noted (installed before wlan.mac existed, or the LAN MAC
 		# is someone else's): note it, for the serial number.
@@ -760,6 +770,15 @@ else
 
 fi
 
+# Wi-Fi from wifi.txt but no Wi-Fi interface to use it (no card, or this stick has moved
+# to a unit without one): left out, and the login prompt says "wlan0:missing" (see
+# write_issue). Otherwise netplan's wpa_supplicant service waits
+# 90 s for a wlan0 that doesn't come, then fails, on the console, at every boot.
+if [ -n "$WIFIUSE" ] && [ ! -e /sys/class/net/$WLAN ]; then
+	WIFIUSE=""
+	echo "Wi-Fi is set in wifi.txt, but there's no $WLAN, so it isn't set up."
+fi
+
 # Record the MAC and where it came from straight away, even if 'netplan apply' fails
 # below: next boot must see it as ours (or theirs).
 echo "$LANMAC" > $STATEDIR/lan.mac
@@ -782,6 +801,26 @@ write_issue
 # The MAC is settled: bring boot.nsh's BlwMac.efi line into step now, before the slower
 # steps below, so a reboot for NVRAM (or none) is known as early as it can be.
 update_bootnsh
+
+# Wi-Fi set up last boot but not now: netplan's services were made at boot from last
+# boot's config, before it changed, so a start of its wpa_supplicant may still be
+# queued, waiting for a Wi-Fi interface that isn't there. Left alone, 'netplan apply'
+# reloads systemd, the service goes, and its queued start fails ("Failed to start
+# netplan-wpa-wlan0.service" on the console: seen on a flash stick moved to a unit
+# with no card); or it times out after 90 s. So cancel those starts first, for any
+# Wi-Fi interface the new config doesn't have.
+if [ -n "$BUILT" ]; then
+	systemctl list-jobs --no-legend 2>/dev/null | awk '{print $1, $2}' |
+	while read -r ID UNIT; do
+		case "$UNIT" in
+			netplan-wpa-wl*.service) IF="${UNIT#netplan-wpa-}"; IF="${IF%.service}" ;;
+			sys-subsystem-net-devices-wl*.device) IF="${UNIT#sys-subsystem-net-devices-}"; IF="${IF%.device}" ;;
+			*) continue ;;
+		esac
+		"$YQ" -e --arg i "$IF" '.network.wifis[$i]' "$LIVE" >/dev/null 2>&1 && continue
+		systemctl cancel "$ID" 2>/dev/null && echo "Cancelled the wait for $IF ($UNIT): it isn't set up now."
+	done
+fi
 
 # Go live with the changes, then remember what we used for next boot. If netplan
 # refuses settings/network.yaml, go without it, so Ethernet works.
