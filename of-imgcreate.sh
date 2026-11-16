@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofimgcreate v26.11.1 (13th November 2026)
+# ofimgcreate v26.11.2 (16th November 2026)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -294,6 +294,24 @@ mmc_cfg() {
 	fi
 }
 
+# The host's /dev, /proc, /sys, /tmp and kernel directory, bound into the build directory
+# for its chroot, taken out again: whichever are still there.
+unbind_chroot() {
+	local D
+	for D in mnt tmp sys proc dev/pts dev; do
+		if mountpoint -q "$BLDLOC/$D" 2>/dev/null; then
+			umount "$BLDLOC/$D" 2>/dev/null || umount -l "$BLDLOC/$D"
+		fi
+	done
+}
+
+# True if nothing at all is mounted under the build directory. It's removed with rm -rf,
+# which would otherwise go on into the host's /dev and /tmp and the kernel packages (a
+# chroot step that failed used to leave them bound there, for the next run to find).
+bldloc_unmounted() {
+	! findmnt -rn -o TARGET | grep -q "^${BLDLOC%/}/"
+}
+
 cleanup() {
 	trap '' INT
 	sleep 5
@@ -492,7 +510,7 @@ if [[ "$INSTALL" != "" ]]; then
 						echo
 						echo "Running $f in chroot..."
 						chmod +x $BLDLOC/run_on_build/$f
-						chroot $BLDLOC /run_on_build/$f || { echo "Error: $f failed in chroot. Aborting."; exit 1; }
+						chroot $BLDLOC /run_on_build/$f || { echo "Error: $f failed in chroot. Aborting."; unbind_chroot; exit 1; }
 						sync
 					done
 					rm -rf $BLDLOC/run_on_build
@@ -510,14 +528,10 @@ if [[ "$INSTALL" != "" ]]; then
 				sync
 				sync
 
-				[[ "$KERNELDIR" != "" ]] && umount $BLDLOC/mnt
-				umount $BLDLOC/tmp
-				umount $BLDLOC/sys
-				umount -l $BLDLOC/proc
-				umount $BLDLOC/dev/pts
-				umount -l $BLDLOC/dev
+				unbind_chroot
 
-				rm -rf $BLDLOC/tmp/*
+				# Only the image's own /tmp, never the host's (if it wouldn't let go).
+				mountpoint -q $BLDLOC/tmp || rm -rf $BLDLOC/tmp/*
 				rm -rf $BLDLOC/var/log/*
 				rm -rf $BLDLOC/var/tmp/*
 
@@ -550,6 +564,12 @@ if [[ "$INSTALL" != "" ]]; then
 			2>/dev/null
 		echo
 		echo -n "Moving prepared ${DISTNAME^} ${CODENAME^} from '$BLDLOC' to image file on '$MP'..."
+		unbind_chroot
+		if ! bldloc_unmounted; then
+			echo
+			echo "Error: something is still mounted under $BLDLOC (see findmnt): not copying or removing it."
+			exit 1
+		fi
 		rsync -a $BLDLOC/ $MP
 		sleep 2
 		sync
