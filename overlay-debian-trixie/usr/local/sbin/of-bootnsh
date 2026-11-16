@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.15 (16th November 2026)
+## of-bootnsh v26.11.16 (16th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on, and
 ##  startup.nsh, which runs it.
 ##
@@ -77,25 +77,24 @@
 ##  On the internal memory (MMC), the firmware's MMC driver reads the wrong sectors
 ##  past the first megabyte of a file, so the stock firmware starts a corrupted
 ##  kernel there, which hangs; GRUB reads in small pieces and is fine. BirdsLikeWires
-##  firmware fixes the driver, and the kernel starts directly as from a stick. With
-##  any other firmware boot.nsh first runs BlwMmcFix.efi, which
-##  fixes the driver until the next reset, and starts the kernel only if that
-##  worked: if the app doesn't recognise the driver (or finds it already fixed) it
-##  fails, and the shell goes on to GRUB. If the firmware can't be identified, or
-##  BlwMmcFix.efi isn't installed, the internal memory boots through GRUB. 'of-bootnsh
-##  mac' (every boot) redoes these lines if the firmware has changed since they were
-##  written. An image for the internal memory ('mmc', for an image build) can't know
-##  its firmware, so it gets the BlwMmcFix.efi lines: on firmware that fixes the
-##  driver itself its first boot goes through GRUB, and then starts the kernel
-##  directly.
+##  firmware fixes the driver. boot.nsh first runs BlwMmcFix.efi, on any firmware,
+##  and starts the kernel only if that worked, else GRUB. The app (from 2026-11-16)
+##  succeeds if it fixed the driver (stock firmware: until the next reset) or found
+##  it fixed already (ours, from 26.11.22; or an earlier run), and fails only if it
+##  doesn't recognise the driver. So the same boot.nsh starts the kernel directly
+##  whatever is on the firmware chip, ours or stock, even after a change this system
+##  never saw (a chip rewritten by other means, or an update cut off part way). It
+##  costs a few milliseconds per boot. Without BlwMmcFix.efi installed, the kernel
+##  starts directly on BirdsLikeWires firmware, and through GRUB on any other or if
+##  the firmware can't be identified. 'of-bootnsh mac' (every boot) redoes these
+##  lines if they don't suit. An image for the internal memory ('mmc', for an image
+##  build) gets the BlwMmcFix.efi lines too.
 ##
 ##  While the firmware chip is being written (of-firmware-update, openframe-firmware,
-##  v26.11.5 on, keeps /var/lib/openframe-firmware/writing from before its first write
-##  until the chip is verified), the internal memory gets the BlwMmcFix.efi lines on
-##  any firmware, or GRUB without BlwMmcFix.efi. Part way through an update the chip
-##  starts like stock firmware (without our driver, so without its MMC fix), and these
-##  lines start the kernel on either: directly on stock firmware, through GRUB on ours.
-##  The file outlives a power cut, so the boot after one keeps them too.
+##  v26.11.6 on, keeps /var/lib/openframe-firmware/writing from before its first write
+##  until the chip is verified), the internal memory never starts the kernel directly
+##  without BlwMmcFix.efi: part way through an update the chip starts like stock
+##  firmware. With BlwMmcFix.efi installed that is so anyway; without it, GRUB.
 ##
 ##  The shell numbers volumes (fs0, fs1, ...) in the order the firmware set them up,
 ##  and runs the first startup.nsh it finds on fs0, then fs1, and so on. A file named
@@ -340,22 +339,17 @@ on_mmc() {
 }
 
 # How the kernel can start from the internal memory (see the notes at the top):
-# 'direct' (BirdsLikeWires firmware), 'fix' (other firmware, an image, or while the
-# firmware chip is being written, through BlwMmcFix.efi), or nothing (unknown
-# firmware, or no BlwMmcFix.efi): GRUB.
+# 'fix' (through BlwMmcFix.efi, on any firmware, whenever it's installed), 'direct'
+# (no BlwMmcFix.efi, BirdsLikeWires firmware, and its chip not being written), or
+# nothing: GRUB.
 mmc_start() {
-	local VENDOR
-	if [[ "$BOOTDIR" != "/boot" ]] || [ -e "$FWWRITING" ]; then
-		[ -f "$MMCFIXEFI" ] && echo fix
+	if [ -f "$MMCFIXEFI" ]; then
+		echo fix
 		return 0
 	fi
-	VENDOR=$(fw_vendor)
-	[[ "$VENDOR" != "" ]] || return 0
-	if [[ "$VENDOR" == "BirdsLikeWires" ]]; then
-		echo direct
-	elif [ -f "$MMCFIXEFI" ]; then
-		echo fix
-	fi
+	[[ "$BOOTDIR" == "/boot" ]] && [ ! -e "$FWWRITING" ] || return 0
+	[[ "$(fw_vendor)" == "BirdsLikeWires" ]] && echo direct
+	return 0
 }
 
 # Puts the new boot.nsh ($NEWNSH, built outside /boot) in place, unless it's the
