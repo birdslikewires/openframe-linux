@@ -169,11 +169,18 @@ bar() {
 }
 
 # The screen's rows: the band across the top (BAND_ROWS deep, its title on row
-# BAND_TITLE), then the intro, the steps (three rows each), the line, the overall bar and
-# this unit's details.
+# BAND_TITLE), then the intro, the steps (three rows each, the firmware's four: its
+# blocks have a line of their own), the line, the overall bar and this unit's details.
 BAND_ROWS=2; BAND_TITLE=2
 # Two blank lines under the band on every screen.
-R_INTRO=$((BAND_ROWS + 3)); R_STEPS=$((BAND_ROWS + 7)); R_SEP=24; R_ALL=26; R_FOOT=29
+R_INTRO=$((BAND_ROWS + 3)); R_STEPS=$((BAND_ROWS + 7)); R_SEP=25; R_ALL=27; R_FOOT=29
+# The row step $1 (0-4) starts on.
+step_row() {
+	echo $(( R_STEPS + 3 * $1 + ($1 > 1 ? 1 : 0) ))
+}
+# The firmware step's blocks line, kept once the step is done (the blocks written, or
+# that there was nothing to write), drawn by phase().
+FW_DONE_ROW=""
 
 # The coloured band across the top: background $1, the title with $2 at the right.
 band() {
@@ -280,7 +287,7 @@ phase() {
 		OUT+=$(at $((R_INTRO + 1)) 4 "Please leave it switched on, with the stick in." "$C_YEL" 1)
 	fi
 	for i in "${!STEPS[@]}"; do
-		R=$((R_STEPS + 3 * i))
+		R=$(step_row $i)
 		if (( i < S )); then MARK="√"; COL="$C_LGN"
 		elif (( i == S )); then MARK="►"; COL="$C_YEL"
 		else MARK="·"; COL="$C_DGR"; fi
@@ -292,6 +299,7 @@ phase() {
 		OUT+=$(at $((R + 1)) 1 "" "" 1)
 		OUT+=$(at $((R + 2)) 1 "" "" 1)
 	done
+	(( S > ${PH_STEP[fw]} )) && OUT+="$FW_DONE_ROW"
 	OUT+=$(at $R_SEP 4 "$(printf '─%.0s' {1..94})" "$C_GRY" 1)
 	FW=$(fw_name)
 	[ -n "$FW_WRITTEN" ] && FW="$FW, $FW_WRITTEN from the next start"
@@ -308,7 +316,7 @@ progress() {
 	local F R OUT EL LEFT DONE=0 ALL=0 AFTER=0 SEEN="" p
 	F=$(( $2 > 0 ? $1 * 1000 / $2 : 0 )); (( F > 1000 )) && F=1000
 	EL=$(( $(uptime_s) - P_T0 ))
-	R=$((R_STEPS + 1 + 3 * ${PH_STEP[$P_ID]}))
+	R=$(( $(step_row ${PH_STEP[$P_ID]}) + 1 ))
 	OUT=$(at $R 10 "$P_LABEL" "$C_LCY" 1)
 	case "$P_ID" in
 		mmcbackup|verify|fwupdate|write|check)
@@ -807,7 +815,7 @@ FW_WRITTEN=""
 # part way comes back to the check, which the updater carries on from.
 fw_update() {
 	local LOG="$UDIR/firmware-update.txt" PARTS DONE LAST PID RC TRY=0 T TPLAN TLAST EST FRAC WHY NEW
-	local ROW=$(( R_STEPS + 2 + 3 * PH_STEP[fwupdate] ))
+	local ROW=$(( $(step_row ${PH_STEP[fwupdate]}) + 2 ))
 	fw_detail "$1"
 	PARTS=${#FW_PARTS[@]}
 	(( PARTS > 0 )) || PARTS=6
@@ -859,6 +867,7 @@ fw_update() {
 				kv_set "$UDIR/info.txt" firmware_after "${NEW:-see firmware-update.txt} (written; it runs from the next start)"
 				kv_set "$UDIR/info.txt" state firmware-ok
 				FW_WRITTEN="$NEW"
+				(( ${#FW_PARTS[@]} > 0 )) && FW_DONE_ROW=$(fw_blocks_row $ROW ${#FW_PARTS[@]} "")
 				progress 1 1
 				progress_line "Firmware: written and checked$([ -n "$NEW" ] && echo " ($NEW, from the next start)")"
 				[ -n "$SCREEN" ] || echo
@@ -912,6 +921,7 @@ firmware() {
 		0)
 			kv_set "$UDIR/info.txt" firmware_after "$(cat /sys/class/dmi/id/bios_version 2>/dev/null) ($(cat /sys/class/dmi/id/bios_vendor 2>/dev/null))"
 			kv_set "$UDIR/info.txt" state firmware-ok
+			FW_DONE_ROW=$(at $(( $(step_row ${PH_STEP[fw]}) + 2 )) 10 "Nothing to write: the firmware is up to date." "$C_GRY" 1)
 			return 0 ;;
 		5)
 			kv_set "$UDIR/info.txt" state backed-up
