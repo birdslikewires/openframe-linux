@@ -236,25 +236,26 @@ uptime_s() {
 	echo "${U%.*}"
 }
 
-# The firmware, for the panel's bottom line: our firmware's version, or "stock" for the
+# The firmware, for the panel's bottom line: our firmware's version, or "OpenPeak" for the
 # firmware the units came with (which reports no version of its own).
 fw_name() {
 	local V
 	V=$(cat /sys/class/dmi/id/bios_version 2>/dev/null)
 	if [ -n "$V" ]; then echo "$V"
-	elif [ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" != "BirdsLikeWires" ]; then echo "stock"
+	elif [ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" != "BirdsLikeWires" ]; then echo "OpenPeak"
 	else echo "unknown"; fi
 }
 
 # Stock firmware by the carrier it came from, as the firmware updater's manifest names it
 # ($1: o2-stock, verizon or telstra), for the panel and info.txt: just the carrier, as
-# it has no version of its own; "stock" if it isn't known which.
+# it has no version of its own; "OpenPeak" (where they all came from) if it isn't known
+# which.
 stock_name() {
 	case "$1" in
 		o2-stock) echo "O2" ;;
 		verizon) echo "Verizon" ;;
 		telstra) echo "Telstra" ;;
-		*) echo "stock" ;;
+		*) echo "OpenPeak" ;;
 	esac
 }
 
