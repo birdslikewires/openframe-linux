@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## flash v26.11.16 (16th November 2026)
+## flash v26.11.17 (16th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
@@ -53,7 +53,7 @@
 ##  has grown can test the boot-time steps; OF_FLASH_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.16"
+VERSION="26.11.17"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -182,15 +182,20 @@ band() {
 }
 
 # Other things' messages on the console, which would land on top of the panel (seen:
-# systemd's "Failed to start netplan-wpa-wlan0.service" part way through a flash): off
-# while the panel is ours, and back as they were for a boot that carries on. systemd's
-# status messages go through its SetShowStatus call ("" puts back what it was started
-# with), or else its signal for off; the kernel's through the console log level.
+# systemd's "Failed to start netplan-wpa-wlan0.service" and "[FAILED] ... wait-online"
+# part way through a flash): off while the panel is ours, and back as they were for a
+# boot that carries on. systemd's status messages go off with its signal for that
+# (SIGRTMIN+21), sent again at every update of the panel (console_hush): the boot's
+# own systemd reloads (netplan apply, of-identifier) can put them back, and sending
+# it once at the start didn't keep "[FAILED]" off the screen. The kernel's go off
+# through the console log level. Afterwards systemd's SetShowStatus call ("") puts
+# its setting back to what it was started with, if D-Bus is up by then.
 CONSOLE_LEVEL=""
+console_hush() {
+	[ -n "$SCREEN" ] && kill -s RTMIN+21 1 2>/dev/null
+}
 console_quiet() {
-	busctl call org.freedesktop.systemd1 /org/freedesktop/systemd1 \
-		org.freedesktop.systemd1.Manager SetShowStatus s no >/dev/null 2>&1 ||
-		kill -s RTMIN+21 1 2>/dev/null
+	console_hush
 	CONSOLE_LEVEL=$(cut -f1 /proc/sys/kernel/printk 2>/dev/null)
 	dmesg -n 1 2>/dev/null
 }
@@ -283,6 +288,7 @@ phase() {
 # How the current phase is getting on: $1 of $2 (bytes, say).
 progress() {
 	[ -n "$SCREEN" ] && [ -n "$P_ID" ] || return 0
+	console_hush
 	local F R OUT EL LEFT DONE=0 ALL=0 AFTER=0 SEEN="" p
 	F=$(( $2 > 0 ? $1 * 1000 / $2 : 0 )); (( F > 1000 )) && F=1000
 	EL=$(( $(uptime_s) - P_T0 ))
@@ -329,6 +335,7 @@ message() {
 		for L in "$@"; do [[ "$L" == $'\033'* ]] && L="${L#*m}"; echo "$L"; done
 		return 0
 	fi
+	console_hush
 	panel_clear; P_DRAWN=1
 	OUT=$(band "$BG" "$TITLE")
 	for L in "$@"; do
@@ -377,6 +384,7 @@ screen_stopped() {
 countdown() {
 	local N="$1" WHAT="$2"
 	while [ "$N" -gt 0 ]; do
+		console_hush
 		if [ "$N" = 1 ]; then tty_out $'\r   '"$C_YEL$WHAT in 1 second.$C_RST"$'\033[K'
 		else tty_out $'\r   '"$C_YEL$WHAT in $N seconds.$C_RST"$'\033[K'; fi
 		sleep 1
