@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.14 (16th November 2026)
+## of-bootnsh v26.11.15 (16th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on, and
 ##  startup.nsh, which runs it.
 ##
@@ -89,6 +89,14 @@
 ##  driver itself its first boot goes through GRUB, and then starts the kernel
 ##  directly.
 ##
+##  While the firmware chip is being written (of-firmware-update, openframe-firmware,
+##  v26.11.5 on, keeps /var/lib/openframe-firmware/writing from before its first write
+##  until the chip is verified), the internal memory gets the BlwMmcFix.efi lines on
+##  any firmware, or GRUB without BlwMmcFix.efi. Part way through an update the chip
+##  starts like stock firmware (without our driver, so without its MMC fix), and these
+##  lines start the kernel on either: directly on stock firmware, through GRUB on ours.
+##  The file outlives a power cut, so the boot after one keeps them too.
+##
 ##  The shell numbers volumes (fs0, fs1, ...) in the order the firmware set them up,
 ##  and runs the first startup.nsh it finds on fs0, then fs1, and so on. A file named
 ##  without a volume (boot, vmlinuz, grubq, BlwMac.efi) is looked for the same way:
@@ -131,6 +139,7 @@ MMCFIXEFI="$LIBDIR/BlwMmcFix.efi"
 MACRUN="/run/of-bootnsh"                     # this boot: mac-pending once a store has been asked for
 GRUBQEFI="$LIBDIR/grubq.efi"
 KEEPINITRD="/var/lib/openframe-scripts/keep-initrd"
+FWWRITING="/var/lib/openframe-firmware/writing"   # of-firmware-update: the chip is being written
 NEWNSH=""
 
 for arg in "$@"; do
@@ -331,11 +340,12 @@ on_mmc() {
 }
 
 # How the kernel can start from the internal memory (see the notes at the top):
-# 'direct' (BirdsLikeWires firmware), 'fix' (other firmware, or an image, through
-# BlwMmcFix.efi), or nothing (unknown firmware, or no BlwMmcFix.efi): GRUB.
+# 'direct' (BirdsLikeWires firmware), 'fix' (other firmware, an image, or while the
+# firmware chip is being written, through BlwMmcFix.efi), or nothing (unknown
+# firmware, or no BlwMmcFix.efi): GRUB.
 mmc_start() {
 	local VENDOR
-	if [[ "$BOOTDIR" != "/boot" ]]; then
+	if [[ "$BOOTDIR" != "/boot" ]] || [ -e "$FWWRITING" ]; then
 		[ -f "$MMCFIXEFI" ] && echo fix
 		return 0
 	fi
@@ -421,7 +431,7 @@ if [[ $MACONLY -eq 1 ]] && [[ "$BOOTDIR" == "/boot" ]] && grep -q 'vmlinuz' "$BO
 	case "$(mmc_start)" in
 		direct) [ $HASFIX -eq 0 ] || MACONLY=0 ;;
 		fix) [ $HASFIX -eq 1 ] || MACONLY=0 ;;
-		*) [[ "$(fw_vendor)" == "" ]] || MACONLY=0 ;;	# unknown firmware (kexec): leave it
+		*) [[ "$(fw_vendor)" == "" ]] && [ ! -e "$FWWRITING" ] || MACONLY=0 ;;	# unknown firmware (kexec): leave it
 	esac
 fi
 
