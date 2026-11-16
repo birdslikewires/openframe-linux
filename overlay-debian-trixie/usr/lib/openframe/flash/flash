@@ -336,7 +336,7 @@ phase() {
 	FW=${FW_SHOWN:-$(fw_name)}
 	[ -n "$FW_WRITTEN" ] && FW="$FW, $FW_WRITTEN from the next start"
 	MAC=$(cat /var/lib/of-netplan/lan.mac 2>/dev/null)
-	OUT+=$(at $R_FOOT 4 "This OpenFrame: ${MAC^^}   Firmware: ${FW:-unknown}" "$C_GRY" 1)
+	OUT+=$(at $R_FOOT 4 "${MAC:+MAC: ${MAC^^}   }Firmware: ${FW:-unknown}" "$C_GRY" 1)
 	tty_out "$OUT"
 	progress 0 1
 }
