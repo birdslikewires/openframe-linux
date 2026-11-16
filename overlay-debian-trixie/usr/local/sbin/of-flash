@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-flash v26.11.9 (15th November 2026) by Andrew Davison
+## of-flash v26.11.10 (16th November 2026) by Andrew Davison
 ##  Script to handle automated reflashing of internal memory on an OpenFrame device.
 ##
 ##  of-flash flash | backup | status | clean
@@ -19,6 +19,17 @@
 case "${1:-}" in
 	boot|flash|backup|status|clean) exec /usr/lib/openframe/flash/flash "$@" ;;
 esac
+
+# The reflash below ends by switching the unit off, whatever it finds, so it only runs for
+# an image directory that's there: anything else (a typo, --help, or no argument without
+# /boot/reflash) gets the usage, and the unit stays on.
+if { [ -n "${1:-}" ] && [ ! -d "$1" ]; } || { [ -z "${1:-}" ] && [ ! -d /boot/reflash ]; }; then
+	echo "Usage: of-flash flash | backup | status | clean"
+	echo "       of-flash [image directory]   (the older reflash: default /boot/reflash)"
+	echo
+	echo "  See 'sudo of-flash status', and /usr/lib/openframe/flash/flash."
+	exit 1
+fi
 
 if [ "$(id -u)" -ne 0 ]; then
 	echo "You need to run this with superuser privileges. Try 'sudo $0'."

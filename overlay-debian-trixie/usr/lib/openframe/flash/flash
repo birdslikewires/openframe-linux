@@ -540,9 +540,21 @@ kv_set() {
 	else
 		{ cat "$F" 2>/dev/null; echo "$2=$3"; } > "$T"
 	fi
-	sync
-	mv -f "$T" "$F"
-	sync
+	# Only a whole new file takes the old one's place (a full or failing stick can leave
+	# it short): it has the new line, and no fewer lines than before. Otherwise the old one
+	# stays, and a step that can't be recorded stops the install where it is.
+	if [ -s "$T" ] && grep -qxF -- "$2=$3" "$T" &&
+	   [ "$(wc -l < "$T")" -ge "$( { wc -l < "$F"; } 2>/dev/null || echo 0)" ]; then
+		sync
+		mv -f "$T" "$F"
+		sync
+		return 0
+	fi
+	rm -f "$T"
+	log "couldn't record $2=$3 in $F"
+	[ "$2" = "state" ] && fail "The stick couldn't record how the install is going: OF-BACKUP may be full or failing." \
+		"Leave the stick in: the next start carries on from the last step it recorded."
+	return 1
 }
 
 # The unit's MMC CID (its serial number is in it): how the unit is known, whatever
@@ -623,8 +635,16 @@ fail() {
 }
 
 cleanup() {
-	[ -n "$W" ] && rm -rf "$W"
+	# --one-file-system: never into anything mounted under it.
+	[ -n "$W" ] && rm -rf --one-file-system "$W"
 	W=""
+}
+
+# Drops what the kernel has cached of files, so what's read next comes from the stick
+# itself: a backup read back from the cache would pass on a stick that's lost the write.
+drop_cache() {
+	sync
+	echo 3 > /proc/sys/vm/drop_caches 2>/dev/null
 }
 
 power_off() {
@@ -735,6 +755,7 @@ backup() {
 	cmp -s "$W/fw1.bin" "$W/fw2.bin" || fail "Two reads of the firmware chip differ."
 	[ "$(stat -c %s "$W/fw1.bin")" = 1048576 ] || fail "The firmware chip didn't read as 1 MB."
 	cp "$W/fw1.bin" "$FW.new" && sync && mv -f "$FW.new" "$FW" && sync
+	drop_cache
 	cmp -s "$W/fw1.bin" "$FW" || fail "The firmware backup doesn't read back."
 	md5sum < "$FW" | sed "s/ .*/  firmware.bin/" > "$FW.md5"
 	CUR=$(fw_identify "$FW")
@@ -753,7 +774,7 @@ backup() {
 		"$OF1MMC" || fail "The internal memory couldn't be backed up."
 	wait
 	RAWMD5=$(cut -d' ' -f1 "$W/raw.md5")
-	sync
+	drop_cache
 	phase verify
 	with_progress "Checking the backup" \
 		"gzip -dc '$IMG.new' | dd bs=1M iflag=fullblock status=progress 2>\"\$P\" | md5sum > '$W/check.md5'" \
@@ -1102,9 +1123,13 @@ write_mmc() {
 
 # Step 5: the unit's settings onto the new system's OF-BOOT.
 settings_to_mmc() {
-	local K="$STATEDIR/units/$CID/settings" P1 M="$W/mmcboot" i F
+	local K="$STATEDIR/units/$CID/settings" P1 M="$RUNDIR/mmcboot" i F
 	phase settings
-	[ -d "$K" ] || keep_settings
+	# The stick's settings as they are now, unless this unit's finish had begun (it resets
+	# the stick's to the blank ones): after a stop, someone may have put them right.
+	if [ -z "$(kv "$UDIR/info.txt" finished)" ] || [ ! -d "$K" ]; then
+		keep_settings
+	fi
 	blockdev --rereadpt "$MMC" 2>/dev/null || partx -u "$MMC" 2>/dev/null
 	udevadm settle 2>/dev/null
 	P1=$(lsblk -l -n -p -o NAME "$MMC" | sed -n 2p)
@@ -1119,7 +1144,9 @@ settings_to_mmc() {
 		[ -f "$F" ] || continue
 		cp "$F" "$M/settings/${F##*/}.new" && sync && mv -f "$M/settings/${F##*/}.new" "$M/settings/${F##*/}" && sync
 	done
-	umount "$M"
+	sync
+	umount "$M" || { sleep 2; umount "$M"; } || fail "The new system's boot volume couldn't be put away." \
+		"The new system is installed, with this unit's settings. Leave the stick in: the next start finishes."
 	kv_set "$UDIR/info.txt" settings "$(ls "$K" | paste -sd ' ' -)"
 }
 
@@ -1246,6 +1273,10 @@ boot_mode() {
 		exit 0
 	fi
 	[[ "$(findmnt -n -o SOURCE /)" == /dev/mmcblk* ]] && exit 0
+	# The firmware update the image's packages marked pending waits for the flash, which
+	# backs the unit up first and then does it itself (step 3): never of-firmware.service,
+	# whether the flash goes on or stops at its checks (no internal memory found, say).
+	rm -f "$FWPENDING"
 	SCREEN=1
 	console_quiet
 	setterm -blank 0 -powersave off > "$TTY" 2>/dev/null < "$TTY"
