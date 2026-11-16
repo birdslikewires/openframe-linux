@@ -2,7 +2,7 @@ name: image-publish
 run-name: image publish from run ${{ inputs.run_id }}
 
 # Publishes an image an earlier push build already made, as the GitHub Release for
-# its kernel, replacing any release that kernel already has. For when the image
+# its kernel, replacing the image any release that kernel already has (the release itself stays). For when the image
 # changes but the kernel version doesn't (the daily check only builds for a new
 # kernel tag): test the build's artifact, then publish that same image instead of
 # building another.
@@ -78,17 +78,40 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           ls -l
 
+      # The release itself is never deleted: deleting it first, then failing to create or upload
+      # its replacement, left no release for the kernel, and the daily check would then build and
+      # publish a fresh, untested image in its place. So the new files go up beside the old under
+      # temporary names (.new), the old ones go, the new ones take their names, and the notes and
+      # the tag follow. A failure part way leaves the old image, or both; the release stays.
       - name: Replace the release
         env:
           TAG: ${{ steps.image.outputs.tag }}
           SHA: ${{ steps.run.outputs.sha }}
         run: |
-          if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
-            echo "Replacing the $TAG release."
-            gh release delete "$TAG" --repo "$REPO" --yes --cleanup-tag
+          TITLE="OpenFrame Trixie $TAG"
+          NOTES="Debian Trixie image built with kernel $TAG, from ${SHA:0:7} (build run $RUN_ID)."
+          if ! gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+            gh release create "$TAG" image/*.img.gz image/*.img.gz.md5 \
+              --repo "$REPO" --target "$SHA" --title "$TITLE" --notes "$NOTES"
+            exit 0
           fi
-          gh release create "$TAG" image/*.img.gz image/*.img.gz.md5 \
-            --repo "$REPO" \
-            --target "$SHA" \
-            --title "OpenFrame Trixie $TAG" \
-            --notes "Debian Trixie image built with kernel $TAG, from ${SHA:0:7} (build run $RUN_ID)."
+          echo "Replacing the $TAG release's image."
+          mkdir -p staged
+          for f in image/*.img.gz image/*.img.gz.md5; do cp "$f" "staged/${f##*/}.new"; done
+          gh release upload "$TAG" staged/* --repo "$REPO" --clobber
+          gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets[] | "\(.id) \(.name)"' > assets.txt
+          cat assets.txt
+          # Every new file must be there before any old one goes.
+          for f in staged/*; do
+            grep -q " ${f##*/}\$" assets.txt || { echo "${f##*/} didn't upload; the release is as it was."; exit 1; }
+          done
+          while read -r id name; do
+            case "$name" in *.new) ;; *) gh api -X DELETE "repos/$REPO/releases/assets/$id" < /dev/null ;; esac
+          done < assets.txt
+          while read -r id name; do
+            case "$name" in *.new) gh api -X PATCH "repos/$REPO/releases/assets/$id" -f name="${name%.new}" < /dev/null > /dev/null ;; esac
+          done < assets.txt
+          gh release edit "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NOTES"
+          # The tag moves to the commit the image was built from.
+          gh api -X PATCH "repos/$REPO/git/refs/tags/$TAG" -f sha="$SHA" -F force=true > /dev/null
+          gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name'
