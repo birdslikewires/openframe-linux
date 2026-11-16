@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.15 (16th November 2026)
+## of-netplan v26.11.16 (16th November 2026)
 ##  Manages the network configuration and MAC addresses on OpenFrame devices.
 ##
 ##  The settings are in the settings folder on the boot volume (OF-BOOT/settings,
@@ -665,6 +665,14 @@ if [ -s $STATEDIR/lan.mac ] && unchanged "$WIFITXT" wifi.txt && unchanged "$ETHT
 	# (the unit has been opened) still gets its MAC stored, by a reboot once the UI is up.
 	if ! is_mac "$OLDWLAN" && is_mac "$LANMAC" && [ "$(stored_mac)" = "${LANMAC,,}" ] &&
 	   [[ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" == "BirdsLikeWires" ]]; then
+		release_gate
+	# Likewise on other firmware, when last boot found no card ('none'): the LAN MAC is the
+	# one generated and kept for this stick (there's no NVRAM to ask), so it stays unless a
+	# card turns up in the wait below, and the address networkd has is this boot's. (A card
+	# that does turn up changes the MAC, and the address, after the prompt has shown: as
+	# rare as fitting one.)
+	elif [ "$OLDWLAN" = "none" ] && is_mac "$LANMAC" &&
+	     [[ "$(cat /sys/class/dmi/id/bios_vendor 2>/dev/null)" != "BirdsLikeWires" ]]; then
 		release_gate
 	fi
 	# The WLAN adapter may not have appeared yet. Give it up to 8 seconds; the
