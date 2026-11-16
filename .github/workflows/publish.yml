@@ -62,6 +62,10 @@ jobs:
           img=$(ls *.img.gz)
           [ "$(echo "$img" | wc -l)" -eq 1 ] || { echo "Expected one image, found: $img"; exit 1; }
           base="${img%.img.gz}"
+          # A push build names its image by its commit too (...-v6.18.63-eeff360): not the release.
+          case "${base##*-}" in
+            [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) base="${base%-*}" ;;
+          esac
           version="${base##*-}"
           version="${version#v}"
           if ! echo "$version" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then

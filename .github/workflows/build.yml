@@ -145,6 +145,21 @@ jobs:
           gzip "$img"
           md5sum "${img}.gz" > "${img}.gz.md5"
 
+      # An image that isn't published (a push build's artifact) carries its commit in its
+      # name too, so it can't be mistaken for the release's (which has the same kernel and so
+      # the same name): of-ext4-...-v6.18.63-eeff360.img.gz. Only the file's name: the image
+      # inside is as built. publish.yml drops the commit again when it publishes one.
+      - name: Name the artifact by its commit
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.kernel_version == ''
+        run: |
+          sha=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          img=$(ls *.img.gz)
+          new="${img%.img.gz}-${sha}.img.gz"
+          mv "$img" "$new"
+          rm -f "$img.md5"
+          md5sum "$new" > "$new.md5"
+          ls -l
+
       - name: Upload image artifact
         if: github.event_name != 'workflow_dispatch' || github.event.inputs.kernel_version == ''
         uses: actions/upload-artifact@v7
