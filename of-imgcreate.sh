@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofimgcreate v26.11.3 (16th November 2026)
+# ofimgcreate v26.11.4 (16th November 2026)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -257,7 +257,7 @@ filesystems_create() {
 		echo "ext2 configuration."
 		MKFS="mkfs.ext2"
 		TUNEFS="tune2fs -i 0 $ROOTLOOP"
-		FSCK="e2fsck -f $ROOTLOOP"
+		FSCK="e2fsck -f -n $ROOTLOOP"
 		;;
 	ext4)
 		# With a journal, a power cut costs a moment's replay at the next mount instead of
@@ -265,7 +265,7 @@ filesystems_create() {
 		echo "ext4 configuration."
 		MKFS="mkfs.ext4 -J size=32"
 		TUNEFS="tune2fs -i 0 $ROOTLOOP"
-		FSCK="e2fsck -f $ROOTLOOP"
+		FSCK="e2fsck -f -n $ROOTLOOP"
 		;;
 	esac
 
@@ -273,8 +273,9 @@ filesystems_create() {
 	$TUNEFS
 	sync
 	sleep 2
-	# e2fsck: 1 means it put something right; more than that, it couldn't.
-	if [ -n "$FSCK" ]; then $FSCK; [ $? -le 1 ] || die "the new root filesystem doesn't check."; fi
+	# Checked only (-n): with no terminal, as in CI, e2fsck won't repair, and on a filesystem
+	# made a moment ago anything to repair is a fault. 0 is clean.
+	if [ -n "$FSCK" ]; then $FSCK; [ $? -eq 0 ] || die "the new root filesystem doesn't check."; fi
 	sync
 	sleep 2
 }
@@ -610,7 +611,8 @@ if [[ "$INSTALL" != "" ]]; then
 			echo "Error: something is still mounted under $BLDLOC (see findmnt): not copying or removing it."
 			exit 1
 		fi
-		rsync -a $BLDLOC/ $MP || die "couldn't copy the build into the image."
+		# (24: some files vanished while copying, which can only be ones nothing needs.)
+		rsync -a $BLDLOC/ $MP || [ $? -eq 24 ] || die "couldn't copy the build into the image."
 		sleep 2
 		sync
 		sync
