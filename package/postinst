@@ -40,6 +40,7 @@ BACKLIGHTMARKER="/var/lib/openframe-scripts/backlight-service-default"
 UNUSEDMARKER="/var/lib/openframe-scripts/unused-default"
 SETTINGSMARKER="/var/lib/openframe-scripts/settings-folder-default"
 FLASHMARKER="/var/lib/openframe-scripts/flash-service-default"
+SSHKEYSMARKER="/var/lib/openframe-scripts/ssh-keys-service-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -290,6 +291,16 @@ case "$1" in
 			systemctl enable --quiet of-flash.service 2>/dev/null || true
 			mkdir -p "${FLASHMARKER%/*}"
 			touch "$FLASHMARKER"
+		fi
+
+		# Once per system: the services that make this unit's own SSH host keys when it
+		# has none (of-ssh-keys.service before the SSH server, of-ssh-keys-rsa.service
+		# once the system is up). Images ship without host keys from now on; a system
+		# that already has keys keeps them, and the services do nothing there.
+		if [ ! -e "$SSHKEYSMARKER" ]; then
+			systemctl enable --quiet of-ssh-keys.service of-ssh-keys-rsa.service 2>/dev/null || true
+			mkdir -p "${SSHKEYSMARKER%/*}"
+			touch "$SSHKEYSMARKER"
 		fi
 
 		# The clock's floor: systemd moves the clock forward to /usr/lib/clock-epoch's time

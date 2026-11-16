@@ -1,0 +1,17 @@
+# This unit's own SSH host keys, made on its first start: images ship without any (see
+# /usr/lib/openframe/ssh-keys). The ed25519 and ECDSA keys take a fraction of a second on
+# an OpenFrame 1, so they're made before the SSH server starts. The RSA key takes about
+# 23 seconds, so of-ssh-keys-rsa.service makes it once the system is up.
+[Unit]
+Description=OpenFrame SSH host keys
+ConditionPathExists=|!/etc/ssh/ssh_host_ed25519_key.pub
+ConditionPathExists=|!/etc/ssh/ssh_host_ecdsa_key.pub
+After=local-fs.target
+Before=ssh.service sshd.service ssh.socket
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/openframe/ssh-keys ed25519 ecdsa
+
+[Install]
+WantedBy=multi-user.target

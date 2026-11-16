@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v26.11.1 (14th November 2026)
+# 00-of-prep.sh v26.11.2 (16th November 2026)
 #  Set up the basics.
 
 #set -x
@@ -121,6 +121,10 @@ echo "Enable systemd services..."
 /bin/systemctl enable systemd-timesyncd.service
 /bin/systemctl enable systemd-time-wait-sync.service
 /bin/systemctl enable zramswap.service
+# Each unit makes its own SSH host keys as it first starts (99-of-clean.sh removes the
+# ones made here). Enabled here too, from this image's own copies of the units, in case
+# the openframe-scripts this image gets is older than them.
+/bin/systemctl enable of-ssh-keys.service of-ssh-keys-rsa.service
 # lm-sensors' own service runs 'sensors -s' at every boot (about 2 s here) to write
 # limits from its config into the chips. We set none, and want nothing written to them.
 /bin/systemctl disable lm-sensors.service

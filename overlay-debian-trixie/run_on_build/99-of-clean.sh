@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 99-of-clean.sh v26.11.1 (14th November 2026)
+# 99-of-clean.sh v26.11.2 (16th November 2026)
 #  Used to clean an OpenFrame.
 
 set -e
@@ -54,12 +54,13 @@ if [[ "$@" == "dev" ]] || [[ "$OPTIONS" =~ "dev" ]]; then
   depmod -a $KERNEL
 fi
 
-# We don't remove the keys by default for a better out-of-the-box experience, but users really should.
-if [[ "$@" == "ssh" ]] || [[ "$OPTIONS" =~ "ssh" ]]; then
-  echo
-  echo "Removing SSH server keys..."
-  rm -v /etc/ssh/ssh_host*
-fi
+# The SSH host keys made when openssh-server was installed here always go: every unit
+# started from this image would otherwise share them, private keys and all, for anyone
+# to take from the published image. Each unit makes its own as it first starts
+# (of-ssh-keys.service, of-ssh-keys-rsa.service).
+echo
+echo "Removing SSH server keys..."
+rm -fv /etc/ssh/ssh_host_*
 
 echo
 echo "Tidying the package manager..."

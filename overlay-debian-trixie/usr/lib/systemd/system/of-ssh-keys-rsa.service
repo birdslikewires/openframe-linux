@@ -1,0 +1,17 @@
+# This unit's own RSA SSH host key, made on its first start once the system is up (about
+# 23 seconds on an OpenFrame 1, so the SSH server doesn't wait for it: it starts with the
+# ed25519 and ECDSA keys of-ssh-keys.service made), then the server is told to load it.
+# Only for clients that know nothing newer.
+[Unit]
+Description=OpenFrame SSH host key (RSA)
+ConditionPathExists=!/etc/ssh/ssh_host_rsa_key.pub
+After=multi-user.target of-ssh-keys.service
+
+[Service]
+Type=oneshot
+Nice=10
+ExecStart=/usr/lib/openframe/ssh-keys rsa
+ExecStartPost=-/usr/bin/systemctl try-reload-or-restart ssh.service
+
+[Install]
+WantedBy=multi-user.target

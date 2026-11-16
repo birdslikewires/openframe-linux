@@ -1,0 +1,27 @@
+#!/bin/sh
+
+# ssh-keys v26.11.1 (16th November 2026)
+#  Makes this unit's own SSH host keys of the types given ($@: ed25519, ecdsa, rsa), any
+#  that it doesn't have yet, for of-ssh-keys.service and of-ssh-keys-rsa.service.
+#
+#  Images ship with no host keys. They used to ship the ones made when the image was
+#  built, so every unit started from the same image had the same private keys, there
+#  for anyone to take from the published image and pose as any unit.
+#
+#  Each key is made under a temporary name, then the private key and lastly the public
+#  one are moved into place, so a power cut never leaves a key half made: one with its
+#  public key in place is complete.
+
+set -e
+
+for T in "$@"; do
+	K="/etc/ssh/ssh_host_${T}_key"
+	[ -s "$K" ] && [ -s "$K.pub" ] && continue
+	rm -f "$K.new" "$K.new.pub"
+	ssh-keygen -q -t "$T" -N "" -C "root@$(hostname)" -f "$K.new"
+	sync
+	mv -f "$K.new" "$K"
+	mv -f "$K.new.pub" "$K.pub"
+	sync
+	echo "Made this unit's $T SSH host key."
+done
