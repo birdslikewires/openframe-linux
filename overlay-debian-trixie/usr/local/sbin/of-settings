@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-settings v26.11.6 (13th November 2026)
+## of-settings v26.11.7 (16th November 2026)
 ##  Bundles a bunch of handy settings into one place.
 
 usage() {
@@ -206,7 +206,8 @@ EOF
 			fi
 			echo -n "Making /boot writable..."
 			/usr/lib/openframe/bootrw hold || exit 1
-			echo " done. 'sudo of-settings bootrw disable', or the next boot, makes it read-only again."
+			echo " done."
+			echo "Writable until disabled or next boot."
 
 		elif [[ "${2}" == "disable" ]] || [[ "${2}" == "0" ]]; then
 
