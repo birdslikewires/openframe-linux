@@ -816,23 +816,26 @@ restart_countdown() {
 
 # The firmware update's blocks, from what its check said ($1), for the line under its bar
 # (fw_blocks_row): FW_PARTS, the blocks it writes in order from its plan line ("plan:
-# write blocks 10 5 6 7 8 9"; block 10 written headers last is three writes, "10
+# write blocks 10 11 9"; before 26.11.5, block 10 written headers last was three writes, "10
 # bodies", "10 driver header", "10 marker header"). What the firmware is now goes on the
 # bottom line (fw_from_check).
 FW_PARTS=()
 fw_detail() {
 	local B
 	FW_PARTS=()
-	local OTHERS=()
+	local OTHERS=() ALL=()
 	for B in $(printf '%s\n' "$1" | sed -n 's/.*plan: write blocks* \([0-9 ]*\).*/\1/p'); do
+		ALL+=("$B")
 		[ "$B" = 10 ] || OTHERS+=("$B")
 	done
 	if printf '%s\n' "$1" | grep -q 'headers last'; then
-		# In the order they're written: block 10's bodies, the others, then its two headers.
+		# An updater before 26.11.5, in the order it writes: block 10's bodies, the others,
+		# then its two headers.
 		FW_PARTS=("10 bodies" "${OTHERS[@]}" "10 driver header" "10 marker header")
 	else
-		printf '%s\n' "$1" | grep -q 'plan: write blocks* 10' && FW_PARTS+=(10)
-		FW_PARTS+=("${OTHERS[@]}")
+		# In the order the plan line gives them (from 26.11.5: "plan: write blocks 9 10 11 9",
+		# block 9 twice when it closes one signpost and opens the next).
+		FW_PARTS=("${ALL[@]}")
 	fi
 }
 
