@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# ofimgcreate v26.11.2 (16th November 2026)
+# ofimgcreate v26.11.3 (16th November 2026)
 #  Used to prepare an OpenFrame image file from a .tgz or using debootstrap.
 
 #set -x
@@ -213,7 +213,7 @@ partitions_create() {
 		mklabel msdos \
 		mkpart primary fat16 1MiB ${BOOTEND}MiB \
 		set 1 boot on \
-		mkpart primary ${BOOTEND}MiB -1
+		mkpart primary ${BOOTEND}MiB -1 || die "parted couldn't partition $FILENAME."
 
 	sync
 	sleep 2
@@ -234,7 +234,7 @@ loop_create() {
 	fi
 	OFFSET=$(get_part_byte_offset $2 1)
 	SIZE=$(get_part_byte_offset $2 3)
-	losetup /dev/of-loop$1 --offset $OFFSET --sizelimit $SIZE "$FILENAME"
+	losetup /dev/of-loop$1 --offset $OFFSET --sizelimit $SIZE "$FILENAME" || die "couldn't attach partition $2 to /dev/of-loop$1 (is it still in use?)."
 }
 
 loop_delete() {
@@ -242,7 +242,7 @@ loop_delete() {
 }
 
 filesystems_create() {
-	mkfs.vfat -F 16 -n "$BNAME" /dev/of-loop0
+	mkfs.vfat -F 16 -n "$BNAME" /dev/of-loop0 || die "couldn't make the boot filesystem."
 
 	ROOTLOOP="/dev/of-loop1"
 
@@ -269,11 +269,12 @@ filesystems_create() {
 		;;
 	esac
 
-	$MKFS -L "$RNAME" $ROOTLOOP
+	$MKFS -L "$RNAME" $ROOTLOOP || die "couldn't make the root filesystem."
 	$TUNEFS
 	sync
 	sleep 2
-	$FSCK
+	# e2fsck: 1 means it put something right; more than that, it couldn't.
+	if [ -n "$FSCK" ]; then $FSCK; [ $? -le 1 ] || die "the new root filesystem doesn't check."; fi
 	sync
 	sleep 2
 }
@@ -288,7 +289,9 @@ mmc_cfg() {
 		# them unique identifiers. Stock firmware can only start the kernel from the
 		# internal memory after BlwMmcFix.efi, and firmware it doesn't recognise not
 		# at all, so boot.nsh has GRUB after it (of-bootnsh).
-		[ -f $MP/usr/local/sbin/of-bootnsh ] && bash $MP/usr/local/sbin/of-bootnsh stub mmc $MP/boot >/dev/null
+		if [ -f $MP/usr/local/sbin/of-bootnsh ]; then
+			bash $MP/usr/local/sbin/of-bootnsh stub mmc $MP/boot >/dev/null || die "of-bootnsh couldn't write boot.nsh."
+		fi
 
 		echo " done."
 	fi
@@ -335,15 +338,50 @@ cleanup() {
 }
 
 ## Let's get underway...
+# Stops the build: says what went wrong, takes out whatever is still bound or mounted,
+# detaches the loops, and exits non-zero, so nothing goes on to publish the image. (The
+# script has no 'set -e': plenty of what it runs may fail harmlessly, so the steps that
+# matter are checked one by one.)
+die() {
+	trap '' INT
+	echo
+	echo "Error: $*"
+	[ -n "${BLDLOC:-}" ] && unbind_chroot
+	if [ -n "${MP:-}" ]; then
+		umount "$MP/boot" 2>/dev/null
+		umount "$MP" 2>/dev/null
+		rmdir "$MP" 2>/dev/null
+	fi
+	loop_delete 0 2>/dev/null
+	loop_delete 1 2>/dev/null
+	exit 1
+}
+
+# The finished image, checked before it's closed, so a build that went wrong without
+# saying so isn't published: the boot volume starts the kernel (boot.nsh, the kernel, its
+# initrd), the root has a system with our scripts in it, and no SSH host keys (each unit
+# makes its own: see run_on_build/99-of-clean.sh).
+image_check() {
+	local f
+	grep -qE '^[[:space:]]*(vmlinuz|grubq)' "$MP/boot/boot.nsh" 2>/dev/null || die "the image's boot.nsh doesn't start the kernel."
+	[ -s "$MP/boot/vmlinuz.efi" ] || die "the image has no kernel (boot/vmlinuz.efi)."
+	ls "$MP"/boot/initrd.img-* > /dev/null 2>&1 || die "the image has no initrd."
+	for f in boot/startup.nsh boot/grub.cfg etc/os-release etc/fstab usr/local/sbin/of-bootnsh usr/local/sbin/of-netplan; do
+		[ -s "$MP/$f" ] || die "the image has no $f."
+	done
+	! ls "$MP"/etc/ssh/ssh_host_* > /dev/null 2>&1 || die "the image has SSH host keys in it: every unit would share them."
+	echo "The image's boot files and system are there."
+}
+
 trap cleanup INT
 
 # Make the image file.
 echo "Creating "$TSIZE"MB image file..."
 if [ "$BYTESSIZE" != "0" ]; then
 	BYTESSIZE=$(($BYTESSIZE / 8))
-	dd if=/dev/zero of="$FILENAME" bs=$BYTESSIZE count=8
+	dd if=/dev/zero of="$FILENAME" bs=$BYTESSIZE count=8 || die "couldn't make $FILENAME."
 else
-	dd if=/dev/zero of="$FILENAME" bs=1MB count=$TSIZE
+	dd if=/dev/zero of="$FILENAME" bs=1MB count=$TSIZE || die "couldn't make $FILENAME."
 fi
 sync
 sync
@@ -377,11 +415,11 @@ ext4)
 esac
 
 # Mount the image file.
-mount -t $FS -o $MOUNTOPTS /dev/of-loop1 $MP
+mount -t $FS -o $MOUNTOPTS /dev/of-loop1 $MP || die "couldn't mount the image's root filesystem."
 mkdir $MP/boot
 umount /dev/of-loop0 2>/dev/null
 sleep 4
-mount -t vfat /dev/of-loop0 $MP/boot
+mount -t vfat /dev/of-loop0 $MP/boot || die "couldn't mount the image's boot filesystem."
 
 # Go to work.
 if [[ "$INSTALL" != "" ]]; then
@@ -405,10 +443,10 @@ if [[ "$INSTALL" != "" ]]; then
 		echo
 		echo "Copying root contents from $INSTALL to image..."
 		TARDIR=$(echo $INSTALL | sed 's/\.tgz$//g')
-		tar zxf $INSTALL -C $MP $TARDIR/root --strip-components 2
+		tar zxf $INSTALL -C $MP $TARDIR/root --strip-components 2 || die "couldn't copy the root contents."
 		sleep 1
 		echo "Copying boot contents from $INSTALL to image..."
-		tar zxf $INSTALL -C $MP/boot $TARDIR/boot --strip-components 2
+		tar zxf $INSTALL -C $MP/boot $TARDIR/boot --strip-components 2 || die "couldn't copy the boot contents."
 		mmc_cfg
 
 	# If we're copying from genuine directory tree.
@@ -421,10 +459,10 @@ if [[ "$INSTALL" != "" ]]; then
 		echo "DON'T FORGET! Check grub.cfg and fstab match your partition labels!"
 		echo
 		echo "Copying root contents from $INSTALL directory to image..."
-		cp -a $INSTALL/$ROOTLABEL/. $MP
+		cp -a $INSTALL/$ROOTLABEL/. $MP || die "couldn't copy the root contents."
 		sleep 1
 		echo "Copying boot contents from $INSTALL directory to image..."
-		cp -a $INSTALL/$BOOTLABEL/. $MP/boot
+		cp -a $INSTALL/$BOOTLABEL/. $MP/boot || die "couldn't copy the boot contents."
 		mmc_cfg
 
 	# Otherwise, fetch, duplicate, modify and chrootitoot.
@@ -437,7 +475,9 @@ if [[ "$INSTALL" != "" ]]; then
 			echo "Fetching ${DISTNAME^} $CODENAME with debootstrap from $DBSERVER..."
 			echo
 			mkdir $DBSLOC
-			debootstrap --arch i386 --exclude=tasksel,tasksel-data $INSTALL $DBSLOC $DBSERVER
+			# A failed fetch mustn't stay as the cache the next build takes as complete.
+			debootstrap --arch i386 --exclude=tasksel,tasksel-data $INSTALL $DBSLOC $DBSERVER ||
+				{ rm -rf $DBSLOC; die "debootstrap couldn't fetch ${DISTNAME^} $CODENAME."; }
 			sync
 			sync
 			sleep 2
@@ -510,7 +550,7 @@ if [[ "$INSTALL" != "" ]]; then
 						echo
 						echo "Running $f in chroot..."
 						chmod +x $BLDLOC/run_on_build/$f
-						chroot $BLDLOC /run_on_build/$f || { echo "Error: $f failed in chroot. Aborting."; unbind_chroot; exit 1; }
+						chroot $BLDLOC /run_on_build/$f || die "$f failed in chroot."
 						sync
 					done
 					rm -rf $BLDLOC/run_on_build
@@ -520,7 +560,7 @@ if [[ "$INSTALL" != "" ]]; then
 				# which finds root by label until first boot (of-identifier) gives the
 				# partitions their own identifiers. The image's own of-bootnsh, whichever
 				# openframe-scripts the chroot got, and 'stub' in case that was GRUB mode.
-				bash $BLDLOC/usr/local/sbin/of-bootnsh stub $BLDLOC/boot >/dev/null
+				bash $BLDLOC/usr/local/sbin/of-bootnsh stub $BLDLOC/boot >/dev/null || die "of-bootnsh couldn't write boot.nsh."
 
 				sync
 				sync
@@ -570,7 +610,7 @@ if [[ "$INSTALL" != "" ]]; then
 			echo "Error: something is still mounted under $BLDLOC (see findmnt): not copying or removing it."
 			exit 1
 		fi
-		rsync -a $BLDLOC/ $MP
+		rsync -a $BLDLOC/ $MP || die "couldn't copy the build into the image."
 		sleep 2
 		sync
 		sync
@@ -581,12 +621,14 @@ if [[ "$INSTALL" != "" ]]; then
 		# made for, so boot.nsh is written for this one: from a stick the kernel starts
 		# directly; on the internal memory as mmc_cfg explains.
 		if [[ "$OFVARIANT" == "of1" ]] || [[ "$OFVARIANT" == "of2" ]]; then
-			bash $MP/usr/local/sbin/of-bootnsh stub mmc $MP/boot >/dev/null
+			bash $MP/usr/local/sbin/of-bootnsh stub mmc $MP/boot >/dev/null || die "of-bootnsh couldn't write boot.nsh."
 		else
-			bash $MP/usr/local/sbin/of-bootnsh stub $MP/boot >/dev/null
+			bash $MP/usr/local/sbin/of-bootnsh stub $MP/boot >/dev/null || die "of-bootnsh couldn't write boot.nsh."
 		fi
 		echo
 		sleep 2
+		sync
+		image_check
 
 	fi
 
