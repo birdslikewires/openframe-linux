@@ -1,6 +1,6 @@
 #!/bin/sh
 
-## of-dpkg-recover v26.11.3 (15th November 2026)
+## of-dpkg-recover v26.11.4 (16th November 2026)
 ##  Finishes package operations that a power cut interrupted. A half-installed
 ##  package leaves dpkg refusing to do anything else until it's dealt with, which
 ##  nobody is likely to do on an OpenFrame. Run at every boot by
@@ -23,12 +23,18 @@ configure() {
 if [ "$1" = "online" ]; then
 	[ -s "$PENDING" ] || exit 0
 	echo "Downloading packages to reinstall: $(cut -d' ' -f1 "$PENDING" | tr '\n' ' ')"
+	# The clock first: OpenFrames have no clock battery, so it starts wrong, and apt
+	# refuses a repository whose Release file isn't valid yet. Waited for here, up to two
+	# minutes, rather than by the unit (of-mac-reboot waits for the unit, and an offline
+	# one might never sync).
+	timeout 120 systemctl start time-sync.target >/dev/null 2>&1 || true
 	apt-get -q update || exit 1
 	FAILED=""
 	while read -r PKG VER; do
 		# The same version if the repository still has it, or else its newest.
-		apt-get -q -y -o Dpkg::Options::=--force-confold install --reinstall "$PKG=$VER" ||
-			apt-get -q -y -o Dpkg::Options::=--force-confold install --reinstall "$PKG" ||
+		# (apt-get's input is the null device, not the list being read here.)
+		apt-get -q -y -o Dpkg::Options::=--force-confold install --reinstall "$PKG=$VER" < /dev/null ||
+			apt-get -q -y -o Dpkg::Options::=--force-confold install --reinstall "$PKG" < /dev/null ||
 			FAILED="$FAILED$PKG $VER\n"
 	done < "$PENDING"
 	configure
