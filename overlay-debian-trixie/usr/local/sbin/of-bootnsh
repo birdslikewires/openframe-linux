@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.13 (16th November 2026)
+## of-bootnsh v26.11.14 (16th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on, and
 ##  startup.nsh, which runs it.
 ##
@@ -483,6 +483,13 @@ fi
 direct_root() {
 	local CFG SPEC SRC FSTYPE DRV D
 	[[ "$BOOTDIR" == "/boot" ]] || return 0
+	# Not during a unit's first start (/etc/firstboot): of-identifier gives the disk a new
+	# identifier then, and a boot.nsh naming root by partition UUID with no initrd would,
+	# if the power went just then, name a partition that's gone, and the unit wouldn't
+	# start. With the initrd, root is found by whatever grub.cfg names (the label, until
+	# the new identifier is in place); of-identifier writes boot.nsh again once it's done.
+	# (Without an initrd to load at all, 'anyway', there's no choice.)
+	[ -e /etc/firstboot ] && [[ "$2" != "anyway" ]] && return 0
 	CFG="$BOOTDIR/config-$VERSION"
 	SRC=$(findmnt -n -o SOURCE / 2>/dev/null)
 	[ -b "$SRC" ] || return 0

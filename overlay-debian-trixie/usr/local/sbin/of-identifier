@@ -181,6 +181,23 @@ if [ -f /etc/firstboot ]; then
 			return $RC
 		}
 
+		# Until the new identifier and everything naming it are in place, boot.nsh names
+		# root by its label, with the initrd (of-bootnsh keeps that during a first start):
+		# the label outlasts the identifier's change, so the power going part way leaves a
+		# unit that starts. Images start that way; an earlier run that the power stopped
+		# after naming root by partition UUID is put back to it first.
+		ROOTLABEL=$(blkid -c /dev/null -o value -s LABEL "$ROOTLOC")
+		if [ -n "$ROOTLABEL" ]; then
+			RENAMED=""
+			if ! grep -qE "root=LABEL=$ROOTLABEL([[:space:]]|\$)" /boot/grub.cfg; then
+				boot_sed "s#root=[^[:space:]]*#root=LABEL=$ROOTLABEL#" /boot/grub.cfg
+				RENAMED=1
+			fi
+			if [ -n "$RENAMED" ] || ! grep -q 'initrd=' /boot/boot.nsh 2>/dev/null; then
+				[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh stub
+			fi
+		fi
+
 		DISKID=""
 		until [[ "$DISKID" =~ ^0x[0-9a-f]{8}$ ]] && [[ "$DISKID" != "0x00000000" ]]; do
 			DISKID="0x$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')"
@@ -254,6 +271,11 @@ if [ -f /etc/firstboot ]; then
 
 	# Leave a temporary note for non-critical scripts that this was our first boot.
 	mv /etc/firstboot /tmp/firstboot
+	sync
+
+	# The identifiers are settled: from the next start, without the initrd if this unit
+	# can (of-bootnsh keeps it during a first start; see above).
+	[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh stub
 
 fi
 
