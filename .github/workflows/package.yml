@@ -23,7 +23,6 @@ on:
       - 'overlay-*/etc/sensors.d/openframe.conf'
       - 'overlay-*/usr/share/keyrings/**'
       - 'package/**'
-      - 'tests/**'
       - '.github/workflows/package.yml'
   workflow_dispatch:
 
@@ -49,6 +48,8 @@ jobs:
 
       # OpenFrame Flash's firmware step against a stand-in updater: never carrying on or
       # stopping once a try hasn't verified, and the updater's dumps kept from filling /tmp.
+      # (Run with every build of the package; tests/ isn't a trigger, as it isn't in the
+      # package's version: a change there alone would rebuild the version units have.)
       - name: Test the flash's firmware step
         run: bash tests/test_flash_firmware.sh
 
