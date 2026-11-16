@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.12 (13th November 2026)
+## of-bootnsh v26.11.13 (16th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on, and
 ##  startup.nsh, which runs it.
 ##
@@ -227,6 +227,11 @@ fw_vendor() {
 mac_lines() {
 	local MAC VENDOR
 	[[ "$BOOTDIR" == "/boot" ]] || return 0
+	# A flash stick (flash=yes or again in settings/flash.txt) stores no MAC in the unit
+	# it's flashing: the new system works out its own and stores it on its first start.
+	# A line left in this stick's boot.nsh when the flash switches the unit off would
+	# otherwise store this unit's MAC in the next unit's firmware as that one started.
+	flash_stick && return 0
 	VENDOR=$(fw_vendor)
 	if [[ "$VENDOR" == "" ]]; then
 		grep 'BlwMac\.efi' "$BOOTNSH" 2>/dev/null	# can't tell: keep what's there
@@ -241,6 +246,16 @@ mac_lines() {
 	fi
 	[[ "$(stored_mac)" == "$MAC" ]] && return 0	# NVRAM holds it already
 	printf 'BlwMac.efi %s\n' "$MAC"
+}
+
+# True on a flash stick: flash=yes or again in settings/flash.txt, and running from a
+# stick rather than the internal memory.
+flash_stick() {
+	local M
+	[[ "$(findmnt -n -o SOURCE / 2>/dev/null)" == /dev/mmcblk* ]] && return 1
+	M=$(sed -n 's/^[[:space:]]*flash[[:space:]]*=//Ip' /boot/settings/flash.txt 2>/dev/null |
+		tr -d '\r"'"'"' \t' | tr 'A-Z' 'a-z' | tail -1)
+	[ "$M" = "yes" ] || [ "$M" = "again" ]
 }
 
 # The MAC the firmware has in NVRAM, from the SMBIOS UUID it made from it
@@ -365,6 +380,8 @@ install_bootnsh() {
 	elif [[ "$NEW" != "" ]] && [[ "$BOOTDIR" == "/boot" ]] && [ ! -e "$MACRUN/mac-pending" ] &&
 	     [[ "$(fw_vendor)" == "BirdsLikeWires" ]]; then
 		echo "<4>of-bootnsh: NVRAM still doesn't hold ${NEW#BlwMac.efi }: BlwMac.efi didn't store it last boot. Not rebooting for it again." > /dev/kmsg 2>/dev/null
+	elif [[ "$NEW" == "" ]] && [[ "$OLD" != "" ]] && [[ "$BOOTDIR" == "/boot" ]] && flash_stick; then
+		echo "<5>of-bootnsh: a flash stick stores no MAC: BlwMac.efi line (${OLD#BlwMac.efi }) removed." > /dev/kmsg 2>/dev/null
 	elif [[ "$NEW" == "" ]] && [[ "$OLD" != "" ]] && [[ "$(fw_vendor)" == "BirdsLikeWires" ]]; then
 		echo "<5>of-bootnsh: NVRAM holds ${OLD#BlwMac.efi }: BlwMac.efi line removed." > /dev/kmsg 2>/dev/null
 	fi
