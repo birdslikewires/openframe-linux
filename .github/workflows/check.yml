@@ -25,6 +25,11 @@ jobs:
             echo "Failed to get latest kernel release tag."
             exit 1
           fi
+          # Only a plain version goes on: the later steps put it into commands.
+          if ! [[ "$tag" =~ ^v?[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "The kernel's latest release tag isn't a version: '$tag'."
+            exit 1
+          fi
           echo "tag=$tag" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
