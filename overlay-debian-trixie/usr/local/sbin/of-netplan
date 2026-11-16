@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.13 (15th November 2026)
+## of-netplan v26.11.14 (16th November 2026)
 ##  Manages the network configuration and MAC addresses on OpenFrame devices.
 ##
 ##  The settings are in the settings folder on the boot volume (OF-BOOT/settings,
@@ -545,6 +545,30 @@ update_bootnsh() {
 	return 0
 }
 
+# An interface whose config is changing this boot still has the address networkd got
+# for it from last boot's config (by DHCP with last boot's MAC, say, on a stick moved
+# to another unit), until 'netplan apply' brings the new one, which may well differ.
+# The login prompt, which the gate lets show before that, would show the old one
+# meanwhile (Andy had typed it into ssh by the time it changed). So it comes off now:
+# the prompt shows nothing for that interface until its real address arrives. The
+# interfaces are LAN and WLAN, the two the prompt shows; one that isn't there, or
+# whose config is the same, is left alone. One yq for both (each costs most of a
+# second here, and the prompt waits for this). With no config at boot (first boot)
+# nothing had an address from it, so there's nothing to do.
+stale_addresses() {
+	local IF
+	[ -s /run/of-netplan/boot.yaml ] || return 0
+	for IF in $("$YQ" -r -s --arg lan "$LAN" --arg wlan "$WLAN" '
+		def cfg($i): .network.ethernets[$i] // .network.wifis[$i];
+		.[0] as $old | .[1] as $new
+		| ($lan, $wlan) as $i | select(($old | cfg($i)) != ($new | cfg($i))) | $i' \
+		/run/of-netplan/boot.yaml "$LIVE" 2>/dev/null); do
+		[ -e /sys/class/net/$IF ] || continue
+		ip -4 addr show dev "$IF" scope global | grep -q 'inet ' || continue
+		ip -4 addr flush dev "$IF" scope global && echo "$IF's address was from last boot's settings: taken off until the new one comes."
+	done
+}
+
 # Lets of-mac-gate (which holds the login prompt and any UI until the MAC is settled) go
 # on. It then holds only while /run/of-bootnsh/mac-reboot says a reboot is on its way.
 release_gate() {
@@ -785,6 +809,11 @@ echo "$LANMAC" > $STATEDIR/lan.mac
 if [ -n "$NEWWLAN" ]; then echo "$NEWWLAN" > $STATEDIR/wlan.mac; else rm -f $STATEDIR/wlan.mac; fi
 if [ -n "$USERMAC" ]; then touch $STATEDIR/lan.user; else rm -f $STATEDIR/lan.user; fi
 
+# The config this boot's network was started with (the netplan generator made it from
+# last boot's), for stale_addresses below.
+mkdir -p /run/of-netplan
+if [ -s "$LIVE" ]; then cp "$LIVE" /run/of-netplan/boot.yaml; else rm -f /run/of-netplan/boot.yaml; fi
+
 # The live config, from the settings and the MAC (one set in network.yaml is already
 # there). Then the login prompt, before the gate lets it show.
 if [ -n "$USERMAC" ]; then LIVEMAC=""; else LIVEMAC="$LANMAC"; fi
@@ -797,6 +826,7 @@ if [ -z "$BUILT" ]; then
 fi
 printf '%s\n' "${NOTES[@]}" | sed '/^$/d' > $STATEDIR/issue.note
 write_issue
+[ -n "$BUILT" ] && stale_addresses
 
 # The MAC is settled: bring boot.nsh's BlwMac.efi line into step now, before the slower
 # steps below, so a reboot for NVRAM (or none) is known as early as it can be.
