@@ -4,8 +4,13 @@ ConditionPathExists=|/boot/settings/setup.txt
 ConditionPathExists=|/boot/setup.txt
 # Keep after getty@tty1: of-mac-gate holds the getty while the unit restarts to store
 # its MAC in NVRAM, so provisioning waits for the boot after (see of-provision).
-After=of-identifier.service network-online.target time-sync.target getty@tty1.service
-Wants=network-online.target time-sync.target
+# No Wants= for network-online.target or time-sync.target: those would be pulled into
+# every boot this is enabled for, whether or not setup.txt names a project (images
+# ship a blank one, and a flash stick keeps this enabled), so an offline unit waited
+# two minutes for a network that wasn't coming, said "[FAILED] ... wait-online" on the
+# screen, and held up its shutdown by up to 90 s. of-provision waits for them itself,
+# only when there's a project to install.
+After=of-identifier.service getty@tty1.service
 
 # Not tty1's: a getty (re)starting there hangs tty1 up, which would kill us if it were
 # our controlling terminal. With a project to install, of-provision writes to tty1

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-provision v26.11.7 (15th November 2026)
+## of-provision v26.11.8 (16th November 2026)
 ##  Installs a project named in setup.txt on the boot volume (in its settings folder,
 ##  /boot/settings, or in its root as on older images) when the system first starts:
 ##  downloads the project's install.sh and runs it as the normal user. Lets community
@@ -180,6 +180,14 @@ fi
 
 : > "$LOGFILE"
 log "of-provision: starting at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+# The network, and the clock (HTTPS needs it right): waited for here, now that there's
+# a project to install, rather than by the unit (see of-provision.service). Up to two
+# minutes and one; then on regardless, as the downloads below try again anyway.
+log "of-provision: waiting for the network..."
+timeout 120 systemctl start network-online.target >/dev/null 2>&1 ||
+	log "of-provision: the network isn't online yet; trying anyway."
+timeout 60 systemctl start time-sync.target >/dev/null 2>&1 || true
 if [ "$(timedatectl show -p NTPSynchronized --value 2>/dev/null)" != "yes" ]; then
 	log "of-provision: warning, system clock is not NTP-synchronised; HTTPS downloads below may fail on certificate checks."
 fi
