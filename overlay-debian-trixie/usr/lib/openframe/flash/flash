@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## flash v26.11.14 (15th November 2026)
+## flash v26.11.15 (16th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
@@ -53,7 +53,7 @@
 ##  has grown can test the boot-time steps; OF_FLASH_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.14"
+VERSION="26.11.15"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -869,8 +869,9 @@ finish() {
 
 # The steps from where this unit got to.
 run_unit() {
-	local STATE
+	local STATE RESUMING=""
 	UDIR=$(unit_dir "$CID")
+	[ -n "$UDIR" ] && RESUMING=1
 	if [ -z "$UDIR" ]; then
 		if [ -z "$FORCE" ] && [ -n "$(unit_dir "$CID" done)" ] && [ "$(install_mode)" != "again" ]; then
 			already
@@ -883,6 +884,13 @@ run_unit() {
 	fi
 	STATE=$(kv "$UDIR/info.txt" state)
 	log "unit $CID (${UDIR##*/}): $STATE"
+	# Carrying on after a restart (a power cut, or the firmware update's): when, and
+	# from which step, so the unit's record shows it. One entry per restart.
+	if [ -n "$RESUMING" ]; then
+		local BEFORE
+		BEFORE=$(kv "$UDIR/info.txt" resumed)
+		kv_set "$UDIR/info.txt" resumed "${BEFORE:+$BEFORE; }$(date '+%F %T') (was $STATE)"
+	fi
 	case "$STATE" in
 		new|backing-up) rm -f "$FWPENDING"; backup; firmware; write_mmc; settings_to_mmc ;;
 		backed-up) firmware; write_mmc; settings_to_mmc ;;
