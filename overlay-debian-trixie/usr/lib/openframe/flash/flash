@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## flash v26.11.17 (16th November 2026)
+## flash v26.11.18 (16th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
@@ -21,9 +21,12 @@
 ##    2. Back up the firmware chip (firmware.bin) and the MMC (mmc.img.gz), each read
 ##       back and checked. Until this is done no firmware update may start: the update
 ##       the openframe-firmware package marks pending waits for us.
-##    3. Firmware: of-firmware-update says whether it's current. If not, the update is
-##       marked pending and of-firmware.service (which runs after us) does it, and
-##       restarts the unit. Firmware it doesn't recognise is never touched: we stop.
+##    3. Firmware: of-firmware-update says whether it's current. If not, we run it there
+##       and then, with its progress on the panel (its output goes in the unit's
+##       firmware-update.txt), and restart the unit on the new firmware. A write that
+##       won't verify is tried again for as long as it takes, never left: switching off
+##       then could leave a unit that won't start. Firmware it doesn't recognise is
+##       never touched: we stop.
 ##    4. Write the image to the MMC and read it back (three tries). A restart during
 ##       the read-back checks it again rather than writing it again.
 ##    5. Put the kept settings into the MMC's OF-BOOT/settings (all but flash.txt),
@@ -53,7 +56,7 @@
 ##  has grown can test the boot-time steps; OF_FLASH_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.17"
+VERSION="26.11.18"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -126,16 +129,22 @@ C_GRN=$'\033[0;32m'; C_LGN=$'\033[1;32m'; C_YEL=$'\033[1;33m'; C_LCY=$'\033[1;36
 B_BLU=$'\033[44m'; B_RED=$'\033[41m'; B_GRN=$'\033[42m'; B_BRN=$'\033[43m'
 
 STEPS=("Back up what's there" "Bring the firmware up to date" "Write the new system" "Check the new system" "Copy this stick's settings")
-PHASES=(checks fwbackup mmcbackup verify fw erase write check settings)
-declare -A PH_STEP=([checks]=0 [fwbackup]=0 [mmcbackup]=0 [verify]=0 [fw]=1 [fwupdate]=1 [erase]=2 [write]=2 [check]=3 [settings]=4)
+PHASES=(checks fwbackup mmcbackup verify fw fwupdate erase write check settings)
+# fwrestart: the restart after the firmware update (no bar: it's done).
+declare -A PH_STEP=([checks]=0 [fwbackup]=0 [mmcbackup]=0 [verify]=0 [fw]=1 [fwupdate]=1 [fwrestart]=1 [erase]=2 [write]=2 [check]=3 [settings]=4)
 declare -A PH_LABEL=([checks]="Checking this OpenFrame" [fwbackup]="Backing up the firmware"
 	[mmcbackup]="Backing up the internal memory" [verify]="Checking the backup" [fw]="Checking the firmware"
-	[fwupdate]="Updating the firmware: the OpenFrame restarts by itself, then carries on."
+	[fwupdate]="Reading the firmware chip"
 	[erase]="Erasing the internal memory" [write]="Writing the new system" [check]="Checking the new system"
 	[settings]="Copying this stick's settings")
 # Seconds each takes on the study unit, for the time to go (the current one goes by
-# how it's getting on).
-declare -A PH_EST=([checks]=5 [fwbackup]=4 [mmcbackup]=80 [verify]=35 [fw]=3 [erase]=15 [write]=130 [check]=80 [settings]=3)
+# how it's getting on). The firmware update's is set once its plan is known: nothing
+# for a unit whose firmware is current.
+declare -A PH_EST=([checks]=5 [fwbackup]=4 [mmcbackup]=80 [verify]=35 [fw]=3 [fwupdate]=0 [erase]=15 [write]=130 [check]=80 [settings]=3)
+# Seconds for each part of a firmware update (reading the chip, then each block
+# written, erased and programmed, then read back twice), until the first part done
+# says how this unit's chip is getting on.
+FW_PART_EST=4
 P_ID=""; P_T0=0; P_LABEL=""
 
 # Writes $@ to the panel in one go.
@@ -265,7 +274,11 @@ phase() {
 	[ -n "$P_DRAWN" ] || { panel_clear; P_DRAWN=1; }
 	OUT=$(band "$B_BLU" "$(kv "$BUNDLEINFO" name)")
 	OUT+=$(at $R_INTRO 4 "Installing a new system onto this OpenFrame's internal memory." "$C_WHT" 1)
-	OUT+=$(at $((R_INTRO + 1)) 4 "Please leave it switched on, with the stick in." "$C_YEL" 1)
+	if [ "$P_ID" = "fwupdate" ]; then
+		OUT+=$(at $((R_INTRO + 1)) 4 "Please don't switch it off or unplug it: its firmware is being written." "$C_YEL" 1)
+	else
+		OUT+=$(at $((R_INTRO + 1)) 4 "Please leave it switched on, with the stick in." "$C_YEL" 1)
+	fi
 	for i in "${!STEPS[@]}"; do
 		R=$((R_STEPS + 3 * i))
 		if (( i < S )); then MARK="√"; COL="$C_LGN"
@@ -295,7 +308,7 @@ progress() {
 	R=$((R_STEPS + 1 + 3 * ${PH_STEP[$P_ID]}))
 	OUT=$(at $R 10 "$P_LABEL" "$C_LCY" 1)
 	case "$P_ID" in
-		mmcbackup|verify|write|check)
+		mmcbackup|verify|fwupdate|write|check)
 			OUT+=$(at $R 43 "$(bar 30 $F "$C_LCY")")
 			OUT+=$(at $R 75 "$(printf '%3d%%' $((F / 10)))" "$C_WHT")
 			if (( F >= 50 && EL >= 4 )); then LEFT=$(( EL * (1000 - F) / F ))
@@ -308,9 +321,10 @@ progress() {
 			LEFT=$(( ${PH_EST[$P_ID]:-0} * (1000 - F) / 1000 )) ;;
 	esac
 	# The whole install: the phases before this one done, this one as far as it's got
-	# (the firmware update counts as its check: the restart's time isn't known).
+	# (the restart after a firmware update counts as the update, done: its time isn't
+	# known).
 	local ID="$P_ID"
-	[ "$ID" = "fwupdate" ] && ID=fw
+	[ "$ID" = "fwrestart" ] && ID=fwupdate
 	for p in "${PHASES[@]}"; do
 		ALL=$(( ALL + PH_EST[$p] ))
 		if [ "$p" = "$ID" ]; then SEEN=1; DONE=$(( DONE + PH_EST[$p] * F / 1000 ))
@@ -709,8 +723,120 @@ backup() {
 	sync
 }
 
-# Step 3: the firmware. Current: on to the write. Not: marked pending for
-# of-firmware.service (after us), which updates it and restarts the unit.
+# Restarts the unit (the firmware update's restarts), with the login prompt kept off
+# the panel meanwhile.
+restart() {
+	mkdir -p "$RUNDIR" && touch "$HOLD"
+	cleanup
+	if [ -n "${OF_FLASH_TEST_NOPOWEROFF:-}" ]; then
+		log "test: would restart now"
+		exit 0
+	fi
+	systemctl reboot
+	exit 0
+}
+
+# The panel's step 2 line says $1, then counts five seconds down to a restart.
+restart_countdown() {
+	local N
+	phase fwrestart "$1"
+	for N in 5 4 3 2 1; do
+		P_LABEL="$1 Restarting in $N second$([ $N -gt 1 ] && echo s)."
+		progress 1 1
+		sleep 1
+	done
+	P_LABEL="$1 Restarting now."
+	progress 1 1
+}
+
+# Step 3 at boot, when the firmware needs updating: of-firmware-update, its progress
+# on the panel. $1 is what its check said, whose plan line gives the blocks it writes
+# ("plan: write blocks 10 5 6 7 8 9", or "plan: write block 10 (block 10 headers
+# last)", which is three writes). Its output goes in the unit's firmware-update.txt,
+# each try headed with when. As of-firmware-boot does it (which is how an update
+# outside a flash gets done): a restart on success; one restart if the chip's blocks
+# are locked until a reset (BlwMac.efi locks them after storing a MAC); and a write
+# that doesn't verify is tried again for as long as it takes, the boot never carrying
+# on, as switching off then could leave a unit that won't start. A restart or a power
+# cut part way comes back to the check, which the updater carries on from.
+fw_update() {
+	local LOG="$UDIR/firmware-update.txt" PARTS DONE LAST PID RC TRY=0 T TPLAN TLAST EST FRAC WHY
+	PARTS=$(printf '%s\n' "$1" | sed -n 's/.*plan: write blocks* \([0-9 ]*\).*/\1/p' | wc -w)
+	printf '%s\n' "$1" | grep -q 'headers last' && PARTS=$((PARTS + 2))
+	(( PARTS > 0 )) || PARTS=6
+	# Reading the chip first counts as a part too.
+	PARTS=$((PARTS + 1))
+	PH_EST[fwupdate]=$(( PARTS * FW_PART_EST ))
+	while :; do
+		TRY=$((TRY + 1))
+		phase fwupdate
+		echo "# $(date '+%F %T'), try $TRY" >> "$LOG"
+		: > "$W/fwupdate.out"
+		"$FWUPDATE" > "$W/fwupdate.out" 2>&1 &
+		PID=$!
+		LAST=0; TLAST=$(uptime_s); TPLAN=""
+		while kill -0 $PID 2>/dev/null; do
+			DONE=$(grep -cE ': plan: |: block [0-9]+ written and verified|: block 10: (bodies|driver header|marker header) written' "$W/fwupdate.out")
+			T=$(uptime_s)
+			if (( DONE != LAST )); then
+				(( LAST == 0 )) && TPLAN=$T
+				LAST=$DONE; TLAST=$T
+			fi
+			# How long a part takes: as the parts done so far took, once one has.
+			EST=$FW_PART_EST
+			if [ -n "$TPLAN" ] && (( DONE > 1 )); then
+				EST=$(( (TLAST - TPLAN) / (DONE - 1) ))
+				(( EST < 1 )) && EST=1
+			fi
+			FRAC=$(( (T - TLAST) * 1000 / EST ))
+			(( FRAC > 900 )) && FRAC=900
+			if (( DONE == 0 )); then P_LABEL="Reading the firmware chip"
+			elif (( DONE < PARTS )); then P_LABEL="Writing the firmware: $DONE of $((PARTS - 1))"
+			else P_LABEL="Checking the firmware"; fi
+			progress $(( DONE * 1000 + FRAC )) $(( PARTS * 1000 ))
+			sleep 1
+		done
+		wait $PID; RC=$?
+		cat "$W/fwupdate.out" >> "$LOG"
+		sync
+		log "of-firmware-update exit $RC: $(tail -1 "$W/fwupdate.out")"
+		case $RC in
+			0)
+				kv_set "$UDIR/info.txt" firmware_updated "$(date '+%F %T') ($(sed -n 's/.*UPDATED: the firmware is \([^,]*\),.*/\1/p' "$W/fwupdate.out"))"
+				restart_countdown "The firmware is up to date." ;;
+			4)
+				if [ -n "$(kv "$UDIR/info.txt" firmware_locked)" ]; then
+					fail "The firmware chip was still locked after a restart, so the firmware couldn't be updated." \
+						"Nothing was written to the firmware or to the internal memory."
+				fi
+				kv_set "$UDIR/info.txt" firmware_locked "$(date '+%F %T')"
+				restart_countdown "The firmware chip is locked until a restart." ;;
+			3)
+				fail "This OpenFrame's firmware isn't one the updater knows, so it's left alone." ;;
+			1)
+				WHY=$(sed -n 's/.*STOP: \(.*\)\. Nothing was written.*/\1/p' "$W/fwupdate.out" | tail -1)
+				kv_set "$UDIR/info.txt" firmware_refused "${WHY:-see firmware-update.txt}"
+				fail "The firmware update couldn't start." \
+					"Nothing was written to the firmware or to the internal memory." ;;
+			*)
+				# 2: a write didn't verify (anything else is treated so too). Never carry on.
+				kv_set "$UDIR/info.txt" firmware_retry "$(date '+%F %T'), try $TRY didn't verify"
+				message "$B_RED" "Don't switch off" \
+					"${C_LRD}The firmware didn't write correctly, so it's being written again." "" \
+					"${C_YEL}Please don't switch off or unplug this OpenFrame: it may not start if it's switched off now." "" \
+					"${C_GRY}It keeps trying until the firmware writes correctly (try $((TRY + 1)) next)."
+				sound failure
+				if (( TRY < 3 )); then sleep 5; else sleep 60; fi
+				# The working screen again, drawn on a clear panel.
+				P_DRAWN="" ;;
+		esac
+		(( RC == 0 || RC == 4 )) && restart
+	done
+}
+
+# Step 3: the firmware. Current: on to the write. Not: at boot, updated there and
+# then, and the unit restarted; by hand, marked pending for of-firmware.service,
+# which updates it as the unit next starts.
 firmware() {
 	local OUT RC
 	phase fw
@@ -724,13 +850,8 @@ firmware() {
 			return 0 ;;
 		5)
 			kv_set "$UDIR/info.txt" state backed-up
+			[ "$MODE" = "boot" ] && fw_update "$OUT"
 			mkdir -p "${FWPENDING%/*}" && touch "$FWPENDING" && sync
-			if [ "$MODE" = "boot" ]; then
-				phase fwupdate
-				log "firmware update marked pending for of-firmware.service"
-				cleanup
-				exit 0
-			fi
 			echo
 			echo "The backups are done. The firmware needs updating first: restart the"
 			echo "OpenFrame (the update runs as it starts, then it restarts again), then run"
