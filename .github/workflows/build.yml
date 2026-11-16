@@ -50,7 +50,8 @@ jobs:
             # Release tags need the v, as the check workflows look for them by that name.
             # Only a plain version goes on: the later steps put it into commands.
             version="${INPUT_KERNEL_VERSION}"
-            if ! [[ "${version}" =~ ^v?[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            # (This job's container runs steps with sh, not bash: grep, not [[ =~ ]].)
+            if ! echo "${version}" | grep -qE '^v?[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
               echo "kernel_version isn't a version: '${version}'."
               exit 1
             fi
@@ -61,7 +62,7 @@ jobs:
               echo "Failed to get kernel version from openframe-kernel releases."
               exit 1
             fi
-            if ! [[ "${version}" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            if ! echo "${version}" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
               echo "The kernel's latest release tag isn't a version: '${version}'."
               exit 1
             fi
