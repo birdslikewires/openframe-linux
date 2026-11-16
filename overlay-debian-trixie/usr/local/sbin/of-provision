@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-provision v26.11.8 (16th November 2026)
+## of-provision v26.11.9 (16th November 2026)
 ##  Installs a project named in setup.txt on the boot volume (in its settings folder,
 ##  /boot/settings, or in its root as on older images) when the system first starts:
 ##  downloads the project's install.sh and runs it as the normal user. Lets community
@@ -19,9 +19,12 @@
 ##                        SETUP_NAME=Kitchen).
 ##  An older setup.txt, with only the address on a line of its own, works as before.
 ##
-##  Runs on the first start only: the service disables itself as it starts. With no
-##  project set it does nothing more, and setup.txt stays as it is. A download that
-##  fails (no network yet, say) is tried again at the next start, three starts in all;
+##  Runs until it has run the project's installer: the service disables itself just
+##  before running it (so an installer that restarts the unit can't run again and
+##  again), and also when there's no project set (doing nothing more; setup.txt stays as
+##  it is) or the download has failed three times. Until then a power cut or a restart,
+##  while it waits for the network, say, means it simply runs again at the next start.
+##  A download that fails (no network yet, say) is tried again at the next start, three starts in all;
 ##  then, or if install.sh fails, setup.txt becomes setup.txt.failed. On success it's
 ##  removed. Either way the unit restarts once install.sh has run. A failure is noted
 ##  on the login screen (/etc/issue.d/of-provision.issue) and, on a system running
@@ -130,6 +133,9 @@ log_to_boot() {
 # Gives up without rebooting: the getty on tty1 stayed away for us, so bring it back
 # (it starts once we've finished).
 give_up() {
+	# The getty's own check (of-provision.conf) would still see us started with a project
+	# to install, and stay away: this tells it we've finished.
+	mkdir -p /run/of-provision && touch /run/of-provision/done
 	systemctl start --no-block getty@tty1.service >/dev/null 2>&1
 	exit "${1:-1}"
 }
@@ -158,15 +164,17 @@ fi
 # disabled ourselves: it's Type=idle, which can hold its check back for seconds.
 mkdir -p /run/of-provision && touch /run/of-provision/started
 
-# One-shot: disable ourselves now, before doing anything else, so we don't
-# run again on next boot regardless of how this attempt turns out (a failed
-# download enables us again, below, for another try).
-systemctl disable of-provision.service >/dev/null 2>&1
+# Disabled once there's nothing more to do, or just before the installer runs (see the
+# top); until then a power cut, during the waits below say, means we run again.
+done_here() {
+	systemctl disable of-provision.service >/dev/null 2>&1
+}
 
 read_setup "$SETUPFILE"
 URL="$PROJECT"
 if [[ -z "$URL" ]]; then
 	echo "of-provision: no project in setup.txt; nothing to install."
+	done_here
 	give_up 0
 fi
 
@@ -245,10 +253,10 @@ if [ -z "$INSTALLER_URL" ]; then
 	echo "$TRIES" > "$STATEDIR/download-tries"
 	if [ "$TRIES" -lt "$DOWNLOADTRIES" ]; then
 		log "of-provision: couldn't download install.sh (start $TRIES of $DOWNLOADTRIES); trying again at the next start."
-		systemctl enable of-provision.service >/dev/null 2>&1
 		note "Setup couldn't download the installer for $URL; it tries again at the next start."
 	else
 		log "of-provision: couldn't download install.sh (start $TRIES of $DOWNLOADTRIES). Aborting."
+		done_here
 		rm -f "$STATEDIR/download-tries"
 		boot_rw
 		mv "$SETUPFILE" "${SETUPFILE}.failed"
@@ -261,6 +269,8 @@ fi
 rm -f "$STATEDIR/download-tries"
 
 log "of-provision: fetched ${INSTALLER_URL}"
+# Never again after this, however the installer ends (it may restart the unit itself).
+done_here
 
 chmod +x "$INSTALLER_PATH"
 chown "$OPENFRAMEUSER:$OPENFRAMEUSER" "$INSTALLER_PATH"
