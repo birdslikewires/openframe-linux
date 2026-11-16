@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.14 (16th November 2026)
+## of-netplan v26.11.15 (16th November 2026)
 ##  Manages the network configuration and MAC addresses on OpenFrame devices.
 ##
 ##  The settings are in the settings folder on the boot volume (OF-BOOT/settings,
@@ -282,6 +282,15 @@ is_ip4() {
 	for o in $1; do (( 10#$o <= 255 )) || return 1; done
 }
 
+# Address $1 (is_ip4) with each part a plain number: 192.168.1.050 is 192.168.1.50, as
+# netplan and networkd want it (written as given, they refuse it, and with it the whole
+# configuration).
+norm_ip4() {
+	local IFS=. o out=""
+	for o in $1; do out+="${out:+.}$((10#$o))"; done
+	echo "$out"
+}
+
 # The prefix length for netmask $1 (255.255.255.0 is 24); false if it isn't one.
 mask_prefix() {
 	local IFS=. o v=0 n=0 i
@@ -310,7 +319,7 @@ static_settings() {
 		if [[ "$a" == */* ]]; then pre="${a#*/}"; else pre=24; fi
 		[[ "$pre" == *.* ]] && { pre=$(mask_prefix "$pre") || pre=""; }
 		if is_ip4 "$ip" && [[ "$pre" =~ ^[0-9]{1,2}$ ]] && (( 10#$pre >= 1 && 10#$pre <= 32 )); then
-			printf -v "${p}_ADDR" '%s' "$ip/$((10#$pre))"
+			printf -v "${p}_ADDR" '%s' "$(norm_ip4 "$ip")/$((10#$pre))"
 		else
 			NOTES+=("$3: the address in settings/$2 isn't one, so the address is automatic.")
 			return 0
@@ -320,14 +329,17 @@ static_settings() {
 		if [ -z "$a" ]; then
 			NOTES+=("$3: the gateway in settings/$2 is only used with an address there.")
 		elif is_ip4 "$g"; then
-			printf -v "${p}_GW" '%s' "$g"
+			printf -v "${p}_GW" '%s' "$(norm_ip4 "$g")"
 		else
 			NOTES+=("$3: the gateway in settings/$2 isn't an address, so there's none.")
 		fi
 	fi
-	for x in ${d//,/ }; do
+	# Split without filename expansion (dns=* is just a mistake, not a list of files).
+	local xs
+	read -ra xs <<< "${d//,/ }"
+	for x in "${xs[@]}"; do
 		if is_ip4 "$x"; then
-			dns+=("\"$x\"")
+			dns+=("\"$(norm_ip4 "$x")\"")
 		else
 			NOTES+=("$3: '$x' in dns in settings/$2 isn't an address, so it's left out.")
 		fi
