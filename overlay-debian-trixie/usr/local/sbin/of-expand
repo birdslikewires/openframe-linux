@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-expand v26.11.7 (15th November 2026)
+## of-expand v26.11.8 (16th November 2026)
 ##  Expands the root partition and filesystem to fill the drive. On ext4 the
 ##  filesystem grows in about a second (the new inode tables are filled in later,
 ##  in the background), so there's no message on screen.
@@ -83,8 +83,25 @@ fi
 sync
 blockdev --flushbufs $DISKDEV
 
+# Bytes the root filesystem itself spans (it may be smaller than its partition).
+fs_bytes() {
+	dumpe2fs -h "$ROOTDEV" 2>/dev/null | awk -F: '
+		/^Block count:/ { c = $2 + 0 } /^Block size:/ { s = $2 + 0 } END { printf "%.0f\n", c * s }'
+}
+
 TMPDIR=/run growpart $DISKDEV $ROOTPARTNO > /dev/null
 GPRET=$?
+# Nothing for growpart to do, but the filesystem well short of its partition: an earlier
+# run grew the partition and the power went before the filesystem followed. Carry on as
+# if it had just grown it.
+if [ $GPRET -eq 1 ]; then
+	PARTB=$(blockdev --getsize64 "$ROOTDEV" 2>/dev/null)
+	FSB=$(fs_bytes)
+	if [[ "$PARTB" =~ ^[0-9]+$ ]] && [[ "$FSB" =~ ^[0-9]+$ ]] && (( FSB > 0 && PARTB - FSB > 64 * 1024 * 1024 )); then
+		echo "The partition was grown before, but not its filesystem: growing it now."
+		GPRET=0
+	fi
+fi
 if [ $GPRET -eq 1 ]; then
 	# The image already fills the disk: the 1 GB internal memory of an OpenFrame 1.
 	# /tmp and apt's files stay in RAM there, to save space and wear.
