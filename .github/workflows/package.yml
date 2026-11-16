@@ -23,6 +23,7 @@ on:
       - 'overlay-*/etc/sensors.d/openframe.conf'
       - 'overlay-*/usr/share/keyrings/**'
       - 'package/**'
+      - 'tests/**'
       - '.github/workflows/package.yml'
   workflow_dispatch:
 
@@ -45,6 +46,11 @@ jobs:
 
       - name: Install tools
         run: sudo apt-get install -y apt-utils dpkg-dev
+
+      # OpenFrame Flash's firmware step against a stand-in updater: never carrying on or
+      # stopping once a try hasn't verified, and the updater's dumps kept from filling /tmp.
+      - name: Test the flash's firmware step
+        run: bash tests/test_flash_firmware.sh
 
       - name: Ensure repo branch exists
         run: |

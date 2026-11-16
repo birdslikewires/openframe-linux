@@ -824,6 +824,16 @@ fw_blocks_row() {
 	printf '%s%s' "$(at "$1" 10 "Blocks" "$C_GRY" 1)" "$(at "$1" 18 "$S")"
 }
 
+# Each run of of-firmware-update keeps its chip dumps (about 7 MB) in a folder of its own
+# in /tmp, which is in memory (192 MB on an OpenFrame 1). Before each try, all but the
+# newest go: a write retried for as long as it takes would otherwise fill /tmp in about
+# half an hour, and the updater, unable to make its folder, would say it had written
+# nothing. (Its own dumps go, as ever, when the unit next starts.)
+FW_DUMPS="/tmp/of-firmware-update."
+fw_dumps_prune() {
+	ls -1dt "$FW_DUMPS"* 2>/dev/null | tail -n +2 | while IFS= read -r D; do rm -rf -- "$D"; done
+}
+
 # The firmware just written, for the panel's bottom line: it runs from the next start,
 # so until then the unit still reports the one it started with.
 FW_WRITTEN=""
@@ -840,10 +850,13 @@ FW_WRITTEN=""
 # a reset (BlwMac.efi locks them after storing a MAC) gets one restart at boot, then
 # a stop if it's still locked; by hand, the person is told to restart and run it again.
 # A write that doesn't verify is tried again for as long as it takes, never carrying
-# on: switching off then could leave a unit that won't start. A restart or a power cut
-# part way comes back to the check, which the updater carries on from.
+# on: switching off then could leave a unit that won't start. And once one hasn't, any
+# later try that doesn't finish the job is taken the same way, whatever it says: its
+# "nothing was written, the chip is as it was" is about that try alone, and the chip as
+# it was is already part written. A restart or a power cut part way comes back to the
+# check, which the updater carries on from.
 fw_update() {
-	local LOG="$UDIR/firmware-update.txt" PARTS DONE LAST PID RC TRY=0 T TPLAN TLAST EST FRAC WHY NEW
+	local LOG="$UDIR/firmware-update.txt" PARTS DONE LAST PID RC TRY=0 T TPLAN TLAST EST FRAC WHY NEW TORN=""
 	local ROW=$(( $(step_row ${PH_STEP[fwupdate]}) + 2 ))
 	fw_detail "$1"
 	PARTS=${#FW_PARTS[@]}
@@ -853,6 +866,7 @@ fw_update() {
 	PH_EST[fwupdate]=$(( PARTS * FW_PART_EST ))
 	while :; do
 		TRY=$((TRY + 1))
+		fw_dumps_prune
 		phase fwupdate
 		echo "# $(date '+%F %T'), try $TRY" >> "$LOG"
 		: > "$W/fwupdate.out"
@@ -889,6 +903,11 @@ fw_update() {
 		cat "$W/fwupdate.out" >> "$LOG"
 		sync
 		log "of-firmware-update exit $RC: $(tail -1 "$W/fwupdate.out")"
+		# A try after one that didn't verify: only finishing the job counts (see above).
+		if [ -n "$TORN" ] && (( RC != 0 )); then
+			log "an earlier try didn't verify, so exit $RC is taken as another that didn't"
+			RC=2
+		fi
 		case $RC in
 			0)
 				NEW=$(sed -n 's/.*UPDATED: the firmware is \([^,]*\),.*/\1/p' "$W/fwupdate.out")
@@ -925,6 +944,7 @@ fw_update() {
 					"Nothing was written to the firmware or to the internal memory." ;;
 			*)
 				# 2: a write didn't verify (anything else is treated so too). Never carry on.
+				TORN=1
 				kv_set "$UDIR/info.txt" firmware_retry "$(date '+%F %T'), try $TRY didn't verify"
 				[ -n "$SCREEN" ] || echo
 				message "$B_RED" "Don't switch off" \
