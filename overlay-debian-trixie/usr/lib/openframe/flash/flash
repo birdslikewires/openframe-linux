@@ -246,17 +246,48 @@ fw_name() {
 	else echo "unknown"; fi
 }
 
-# What firmware chip dump $1 is, for info.txt: our firmware's version from its marker,
-# "stock" if its block 5 is one the firmware updater's manifest knows as the firmware the
-# units came with (O2, Verizon and Telstra share it), or else "not BirdsLikeWires".
+# Stock firmware by the carrier it came from, as the firmware updater's manifest names it
+# ($1: o2-stock, verizon or telstra), for the panel and info.txt: just the carrier, as
+# it has no version of its own; "stock" if it isn't known which.
+stock_name() {
+	case "$1" in
+		o2-stock) echo "O2" ;;
+		verizon) echo "Verizon" ;;
+		telstra) echo "Telstra" ;;
+		*) echo "stock" ;;
+	esac
+}
+
+# What firmware chip dump $1 is, for info.txt and the panel: our firmware's version from
+# its marker; stock firmware by its carrier ("O2"), if its block 5 is one the
+# firmware updater's manifest knows as the firmware the units came with (O2, Verizon and
+# Telstra share it) and its block 9 (the graphics driver, each carrier's own) says which;
+# or else "not BirdsLikeWires".
 fw_identify() {
 	local V M L
 	V=$(grep -aoE 'BirdsLikeWires OpenFrame EFI [0-9]+\.[0-9]+\.[0-9]+(-dev[0-9]+)? \(OF1\)' "$1" | head -1 | awk '{print $4}')
 	if [ -n "$V" ]; then echo "$V"; return; fi
 	M=$(dd if="$1" bs=64k skip=5 count=1 status=none 2>/dev/null | md5sum | cut -d' ' -f1)
 	L=$(awk -v m="$M" '$1 == 5 && $2 == m { print $3 }' /usr/lib/openframe-firmware/manifest.txt 2>/dev/null)
-	if [[ ",$L," =~ ,(o2-stock|verizon|telstra), ]]; then echo "stock"; else echo "not BirdsLikeWires"; fi
+	if [[ ! ",$L," =~ ,(o2-stock|verizon|telstra), ]]; then echo "not BirdsLikeWires"; return; fi
+	M=$(dd if="$1" bs=64k skip=9 count=1 status=none 2>/dev/null | md5sum | cut -d' ' -f1)
+	L=$(awk -v m="$M" '$1 == 9 && $2 == m { print $3 }' /usr/lib/openframe-firmware/manifest.txt 2>/dev/null)
+	stock_name "$L"
 }
+
+# The firmware as the firmware updater's check ($1) saw it, for the panel's bottom line:
+# stock firmware by its carrier, from a block it gave one stock image's name alone (blocks
+# 5 and 6 are the same in all three: "5:o2-stock+"); nothing if it named none.
+fw_from_check() {
+	local L
+	L=$(printf '%s\n' "$1" | sed -n 's/.*blocks that differ from [^:]*: //p' | tr ' ' '\n' |
+		sed -n 's/^[0-9]*:\(o2-stock\|verizon\|telstra\)$/\1/p' | head -1)
+	[ -n "$L" ] && stock_name "$L"
+}
+
+# The firmware for the panel's bottom line once it's known more exactly than fw_name says
+# (which carrier's stock firmware it is).
+FW_SHOWN=""
 
 seconds_left() {
 	local S="$1"
@@ -301,7 +332,7 @@ phase() {
 	done
 	(( S > ${PH_STEP[fw]} )) && OUT+="$FW_DONE_ROW"
 	OUT+=$(at $R_SEP 4 "$(printf '─%.0s' {1..94})" "$C_GRY" 1)
-	FW=$(fw_name)
+	FW=${FW_SHOWN:-$(fw_name)}
 	[ -n "$FW_WRITTEN" ] && FW="$FW, $FW_WRITTEN from the next start"
 	MAC=$(cat /var/lib/of-netplan/lan.mac 2>/dev/null)
 	OUT+=$(at $R_FOOT 4 "This OpenFrame: ${MAC^^}   Firmware: ${FW:-unknown}" "$C_GRY" 1)
@@ -706,6 +737,7 @@ backup() {
 	cmp -s "$W/fw1.bin" "$FW" || fail "The firmware backup doesn't read back."
 	md5sum < "$FW" | sed "s/ .*/  firmware.bin/" > "$FW.md5"
 	CUR=$(fw_identify "$FW")
+	[[ "$CUR" =~ ^(O2|Verizon|Telstra)$ ]] && FW_SHOWN="$CUR"
 	kv_set "$UDIR/info.txt" firmware_before "$CUR (md5 $(cut -d' ' -f1 "$FW.md5"))"
 	progress_line "Firmware: done"
 	[ -n "$SCREEN" ] || echo
@@ -760,13 +792,12 @@ restart_countdown() {
 	progress 1 1
 }
 
-# The firmware update's detail, from what its check said ($1), for the line under its bar
+# The firmware update's blocks, from what its check said ($1), for the line under its bar
 # (fw_blocks_row): FW_PARTS, the blocks it writes in order from its plan line ("plan:
 # write blocks 10 5 6 7 8 9"; block 10 written headers last is three writes, "10
-# bodies", "10 driver header", "10 marker header"), and FW_FROM, what the blocks it
-# writes are now, from its "firmware now" line ("5:o2-stock+ ... 10:blank": o2-stock),
-# less the blank and torn ones.
-FW_PARTS=(); FW_FROM=""
+# bodies", "10 driver header", "10 marker header"). What the firmware is now goes on the
+# bottom line (fw_from_check).
+FW_PARTS=()
 fw_detail() {
 	local B
 	FW_PARTS=()
@@ -777,13 +808,11 @@ fw_detail() {
 			FW_PARTS+=("$B")
 		fi
 	done
-	FW_FROM=$(printf '%s\n' "$1" | sed -n 's/.*blocks that differ from [^:]*: //p' | tr ' ' '\n' |
-		sed -n 's/^[0-9]*://p' | tr -d '+' | grep -vxE 'blank|ours|torn' | sort -u | paste -sd, - | sed 's/,/, /g')
 }
 
 # The line under the firmware update's bar, row $1: each block it writes, in order, with a
 # tick once written and ► while it's being written; $2 is how many are written, $3 set
-# while the next one is being written. Then what they were.
+# while the next one is being written.
 fw_blocks_row() {
 	local i S=""
 	for i in "${!FW_PARTS[@]}"; do
@@ -791,7 +820,6 @@ fw_blocks_row() {
 		elif (( i == $2 )) && [ -n "$3" ]; then S+="$C_WHT${FW_PARTS[$i]} $C_YEL►$C_RST   "
 		else S+="$C_DGR${FW_PARTS[$i]}$C_RST     "; fi
 	done
-	[ -n "$FW_FROM" ] && S+="  ${C_GRY}from $FW_FROM$C_RST"
 	printf '%s%s' "$(at "$1" 10 "Blocks" "$C_GRY" 1)" "$(at "$1" 18 "$S")"
 }
 
@@ -925,6 +953,8 @@ firmware() {
 			return 0 ;;
 		5)
 			kv_set "$UDIR/info.txt" state backed-up
+			# Which carrier's stock firmware, if the backups were done before a restart.
+			[ -n "$FW_SHOWN" ] || FW_SHOWN=$(fw_from_check "$OUT")
 			fw_update "$OUT" ;;
 		3)
 			fail "This OpenFrame's firmware isn't one the updater knows, so it's left alone." ;;
