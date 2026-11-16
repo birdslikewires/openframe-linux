@@ -288,7 +288,9 @@ phase() {
 		if (( i < S )); then OUT+=$(at $R 8 "${STEPS[$i]}" "$C_GRY"); OUT+=$(at $R 62 "done" "$C_GRN")
 		elif (( i == S )); then OUT+=$(at $R 8 "${STEPS[$i]}" "$C_WHT")
 		else OUT+=$(at $R 8 "${STEPS[$i]}" "$C_DGR"); fi
+		# Its working line, and the line under it (the firmware update's blocks).
 		OUT+=$(at $((R + 1)) 1 "" "" 1)
+		OUT+=$(at $((R + 2)) 1 "" "" 1)
 	done
 	OUT+=$(at $R_SEP 4 "$(printf '─%.0s' {1..94})" "$C_GRY" 1)
 	FW=$(fw_name)
@@ -750,6 +752,41 @@ restart_countdown() {
 	progress 1 1
 }
 
+# The firmware update's detail, from what its check said ($1), for the line under its bar
+# (fw_blocks_row): FW_PARTS, the blocks it writes in order from its plan line ("plan:
+# write blocks 10 5 6 7 8 9"; block 10 written headers last is three writes, "10
+# bodies", "10 driver header", "10 marker header"), and FW_FROM, what the blocks it
+# writes are now, from its "firmware now" line ("5:o2-stock+ ... 10:blank": o2-stock),
+# less the blank and torn ones.
+FW_PARTS=(); FW_FROM=""
+fw_detail() {
+	local B
+	FW_PARTS=()
+	for B in $(printf '%s\n' "$1" | sed -n 's/.*plan: write blocks* \([0-9 ]*\).*/\1/p'); do
+		if [ "$B" = 10 ] && printf '%s\n' "$1" | grep -q 'headers last'; then
+			FW_PARTS+=("10 bodies" "10 driver header" "10 marker header")
+		else
+			FW_PARTS+=("$B")
+		fi
+	done
+	FW_FROM=$(printf '%s\n' "$1" | sed -n 's/.*blocks that differ from [^:]*: //p' | tr ' ' '\n' |
+		sed -n 's/^[0-9]*://p' | tr -d '+' | grep -vxE 'blank|ours|torn' | sort -u | paste -sd, - | sed 's/,/, /g')
+}
+
+# The line under the firmware update's bar, row $1: each block it writes, in order, with a
+# tick once written and ► while it's being written; $2 is how many are written, $3 set
+# while the next one is being written. Then what they were.
+fw_blocks_row() {
+	local i S=""
+	for i in "${!FW_PARTS[@]}"; do
+		if (( i < $2 )); then S+="$C_GRY${FW_PARTS[$i]} $C_LGN√$C_RST   "
+		elif (( i == $2 )) && [ -n "$3" ]; then S+="$C_WHT${FW_PARTS[$i]} $C_YEL►$C_RST   "
+		else S+="$C_DGR${FW_PARTS[$i]}$C_RST     "; fi
+	done
+	[ -n "$FW_FROM" ] && S+="  ${C_GRY}from $FW_FROM$C_RST"
+	printf '%s%s' "$(at "$1" 10 "Blocks" "$C_GRY" 1)" "$(at "$1" 18 "$S")"
+}
+
 # The firmware just written, for the panel's bottom line: it runs from the next start,
 # so until then the unit still reports the one it started with.
 FW_WRITTEN=""
@@ -770,8 +807,9 @@ FW_WRITTEN=""
 # part way comes back to the check, which the updater carries on from.
 fw_update() {
 	local LOG="$UDIR/firmware-update.txt" PARTS DONE LAST PID RC TRY=0 T TPLAN TLAST EST FRAC WHY NEW
-	PARTS=$(printf '%s\n' "$1" | sed -n 's/.*plan: write blocks* \([0-9 ]*\).*/\1/p' | wc -w)
-	printf '%s\n' "$1" | grep -q 'headers last' && PARTS=$((PARTS + 2))
+	local ROW=$(( R_STEPS + 2 + 3 * PH_STEP[fwupdate] ))
+	fw_detail "$1"
+	PARTS=${#FW_PARTS[@]}
 	(( PARTS > 0 )) || PARTS=6
 	# Reading the chip first counts as a part too.
 	PARTS=$((PARTS + 1))
@@ -803,6 +841,10 @@ fw_update() {
 			elif (( DONE < PARTS )); then P_LABEL="Writing the firmware: $DONE of $((PARTS - 1))"
 			else P_LABEL="Checking the firmware"; fi
 			progress $(( DONE * 1000 + FRAC )) $(( PARTS * 1000 ))
+			if [ -n "$SCREEN" ] && (( ${#FW_PARTS[@]} > 0 )); then
+				if (( DONE == 0 )); then tty_out "$(fw_blocks_row $ROW 0 "")"
+				else tty_out "$(fw_blocks_row $ROW $((DONE - 1)) 1)"; fi
+			fi
 			progress_line "$P_LABEL"
 			sleep 1
 		done
