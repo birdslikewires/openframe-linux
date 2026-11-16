@@ -168,6 +168,7 @@ mkdir -p /run/of-provision && touch /run/of-provision/started
 # top); until then a power cut, during the waits below say, means we run again.
 done_here() {
 	systemctl disable of-provision.service >/dev/null 2>&1
+	sync	# (a hard reset just after mustn't bring it back)
 }
 
 read_setup "$SETUPFILE"

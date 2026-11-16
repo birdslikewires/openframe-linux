@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v26.11.9 (16th November 2026)
+## of-identifier v26.11.10 (16th November 2026)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -15,10 +15,13 @@ KERNVER=$(uname -r)
 KERNMAJVER=$(echo "$KERNVER" | awk -F. '{print $1}')
 
 # This unit's own SSH host keys are made by of-ssh-keys.service before the SSH server
-# starts. Should it not have run (not enabled), the quick ones are made here, and the
-# server restarted to use them; the RSA one is left to of-ssh-keys-rsa.service.
-if [ ! -s /etc/ssh/ssh_host_ed25519_key.pub ] && [ -x /usr/lib/openframe/ssh-keys ]; then
-	/usr/lib/openframe/ssh-keys ed25519 ecdsa && systemctl try-restart ssh.service
+# starts. Only if that isn't enabled are the quick ones made here (racing it would be no
+# use), and the server, which will have failed for want of them, started again to use
+# them; the RSA one is left to of-ssh-keys-rsa.service.
+if [ ! -s /etc/ssh/ssh_host_ed25519_key.pub ] && [ -x /usr/lib/openframe/ssh-keys ] &&
+   ! systemctl is-enabled --quiet of-ssh-keys.service 2>/dev/null; then
+	/usr/lib/openframe/ssh-keys ed25519 ecdsa &&
+		{ systemctl reset-failed ssh.service 2>/dev/null; systemctl restart ssh.service; }
 fi
 
 # We can't do anything else that's useful until the system has decided upon its MAC addresses. This relies upon of-netplan.
@@ -187,11 +190,18 @@ if [ -f /etc/firstboot ]; then
 		# unit that starts. Images start that way; an earlier run that the power stopped
 		# after naming root by partition UUID is put back to it first.
 		ROOTLABEL=$(blkid -c /dev/null -o value -s LABEL "$ROOTLOC")
-		if [ -n "$ROOTLABEL" ]; then
+		BOOTLABEL=$(blkid -c /dev/null -o value -s LABEL "$BOOTLOC")
+		if [ -n "$ROOTLABEL" ] && [ -n "$BOOTLABEL" ]; then
 			RENAMED=""
 			if ! grep -qE "root=LABEL=$ROOTLABEL([[:space:]]|\$)" /boot/grub.cfg; then
 				boot_sed "s#root=[^[:space:]]*#root=LABEL=$ROOTLABEL#" /boot/grub.cfg
 				RENAMED=1
+			fi
+			# fstab too: without it, / and /boot named by the old partition UUIDs wouldn't be
+			# found once the identifier changes, and the boot stops in emergency mode.
+			if grep -qE '^PARTUUID=[^[:space:]]+[[:space:]]+/(boot)?[[:space:]]' /etc/fstab; then
+				sed -i -E "s#^PARTUUID=[^[:space:]]+([[:space:]]+/[[:space:]])#LABEL=$ROOTLABEL\1#; s#^PARTUUID=[^[:space:]]+([[:space:]]+/boot[[:space:]])#LABEL=$BOOTLABEL\1#" /etc/fstab
+				sync
 			fi
 			if [ -n "$RENAMED" ] || ! grep -q 'initrd=' /boot/boot.nsh 2>/dev/null; then
 				[ -x /usr/local/sbin/of-bootnsh ] && /usr/local/sbin/of-bootnsh stub

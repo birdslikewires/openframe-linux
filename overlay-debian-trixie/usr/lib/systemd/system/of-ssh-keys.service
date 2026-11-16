@@ -7,7 +7,11 @@ Description=OpenFrame SSH host keys
 ConditionPathExists=|!/etc/ssh/ssh_host_ed25519_key.pub
 ConditionPathExists=|!/etc/ssh/ssh_host_ecdsa_key.pub
 After=local-fs.target
-Before=ssh.service sshd.service ssh.socket
+# The server's services, not ssh.socket: a socket is ordered before basic.target, which
+# this (with the default dependencies) comes after, so that would be a loop. With socket
+# activation each connection's sshd@.service waits for us instead (as Debian's own
+# sshd-keygen.service does it).
+Before=ssh.service sshd.service sshd@.service
 
 [Service]
 Type=oneshot

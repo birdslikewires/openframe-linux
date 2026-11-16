@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# ssh-keys v26.11.1 (16th November 2026)
+# ssh-keys v26.11.2 (16th November 2026)
 #  Makes this unit's own SSH host keys of the types given ($@: ed25519, ecdsa, rsa), any
 #  that it doesn't have yet, for of-ssh-keys.service and of-ssh-keys-rsa.service.
 #
@@ -13,6 +13,11 @@
 #  public key in place is complete.
 
 set -e
+
+# One at a time: of-identifier's fallback could otherwise start a second copy while the
+# service's is still at work, and each would remove the other's half-made files.
+exec 9> /run/of-ssh-keys.lock
+flock 9
 
 for T in "$@"; do
 	K="/etc/ssh/ssh_host_${T}_key"
