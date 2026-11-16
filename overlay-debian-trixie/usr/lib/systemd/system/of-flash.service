@@ -18,6 +18,11 @@ Type=oneshot
 ExecStart=/usr/lib/openframe/flash/flash boot
 # Backing up and writing the internal memory takes minutes.
 TimeoutStartSec=infinity
+# A shutdown asked for while the firmware is written waits for it (the flash and
+# of-firmware-update hold off the stop signal until it's done), and is never followed
+# by a kill, which would stop it between blocks. At any other step the stop signal
+# stops the flash at once, and the next start carries on from its last step.
+TimeoutStopSec=infinity
 StandardOutput=journal
 StandardError=journal
 

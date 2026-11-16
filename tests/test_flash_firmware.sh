@@ -28,6 +28,10 @@ say "firmware now: blocks that differ from 26.11.30: 5:o2-stock+ 6:o2-stock+ 7:o
 say "plan: write blocks 10 5 6 7 8 9"
 N=$(( $(cat "$T/runs" 2>/dev/null || echo 0) + 1 )); echo $N > "$T/runs"
 RC=$(sed -n "${N}p" "$T/seq"); RC=${RC:-2}
+# A write that takes a while, for a stop signal to land in (as the real one's last ~30 s),
+# with stop signals ignored, as the real one does from its first write.
+trap '' HUP INT TERM
+[ -n "${STANDIN_SLEEP:-}" ] && sleep "$STANDIN_SLEEP"
 D=$(mktemp -d "$T/dumps/of-firmware-update.XXXXXX"); head -c 1024 /dev/zero > "$D/pre1.bin"
 case $RC in
 	0) for n in 10 5 6 7 8 9; do say "block $n written and verified"; done
@@ -104,6 +108,26 @@ timeout 120 bash "$T/run.sh" "$T" > /dev/null 2>&1
 N=$(ls -1d "$T/dumps/of-firmware-update."* 2>/dev/null | wc -l)
 if [ "$N" -le 2 ]; then echo "ok   12 tries that didn't verify, then updated: $N dump folders left"
 else echo "FAIL 12 tries that didn't verify, then updated: $N dump folders left (want 2 at most)"; FAILS=$((FAILS + 1)); fi
+
+# A shutdown (or Ctrl-C, or a dropped session) part way through the update: the flash
+# carries on until the firmware is written and checked, then stops, rather than going on
+# to the internal memory (the next start carries on from there).
+rm -rf "$T/dumps" "$T/runs" "$T/unit" "$T/run"; mkdir -p "$T/dumps" "$T/unit"; echo "state=backed-up" > "$T/unit/info.txt"
+echo 0 > "$T/seq"
+STANDIN_SLEEP=1.5 timeout 60 bash "$T/run.sh" "$T" > "$T/stop.out" 2>&1 &
+P=$!
+for i in $(seq 50); do [ -s "$T/runs" ] && break; sleep 0.1; done
+sleep 0.3
+for SIG in TERM INT HUP; do kill -s $SIG $P 2>/dev/null; pkill --signal $SIG -f "$T/upd" 2>/dev/null; done
+wait $P
+if grep -q "stopping now it's written" "$T/stop.out" && ! grep -q "CARRIED ON" "$T/stop.out" &&
+   grep -q "^state=firmware-ok" "$T/unit/info.txt"; then
+	echo "ok   stop signals part way through: firmware finished, then stopped"
+else
+	echo "FAIL stop signals part way through: $(grep -c . "$T/stop.out") lines of output, state $(sed -n 's/^state=//p' "$T/unit/info.txt")"
+	sed 's/^/       /' "$T/stop.out" | tail -8
+	FAILS=$((FAILS + 1))
+fi
 
 [ $FAILS = 0 ] && echo "All passed." || echo "$FAILS failed."
 exit $FAILS

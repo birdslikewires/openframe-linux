@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## flash v26.11.18 (16th November 2026)
+## flash v26.11.19 (16th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
@@ -56,7 +56,7 @@
 ##  has grown can test the boot-time steps; OF_FLASH_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.18"
+VERSION="26.11.19"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -864,6 +864,13 @@ fw_update() {
 	# Reading the chip first counts as a part too.
 	PARTS=$((PARTS + 1))
 	PH_EST[fwupdate]=$(( PARTS * FW_PART_EST ))
+	# Nothing but finishing stops the firmware update: a shutdown, a Ctrl-C or a dropped
+	# session asked for while it writes is noted, and done once the firmware is written
+	# and checked (of-firmware-update ignores them itself from its first write, and
+	# of-flash.service waits for us however long it takes). Stopping between blocks can
+	# leave a unit that won't start; stopping after leaves one the next start carries on.
+	FW_STOP=""
+	trap 'FW_STOP=1' HUP INT TERM
 	while :; do
 		TRY=$((TRY + 1))
 		fw_dumps_prune
@@ -915,6 +922,12 @@ fw_update() {
 				kv_set "$UDIR/info.txt" firmware_after "${NEW:-see firmware-update.txt} (written; it runs from the next start)"
 				kv_set "$UDIR/info.txt" state firmware-ok
 				FW_WRITTEN="$NEW"
+				trap - HUP INT TERM
+				if [ -n "$FW_STOP" ]; then
+					log "asked to stop during the firmware update: stopping now it's written and checked"
+					cleanup
+					exit 0
+				fi
 				(( ${#FW_PARTS[@]} > 0 )) && FW_DONE_ROW=$(fw_blocks_row $ROW ${#FW_PARTS[@]} "")
 				progress 1 1
 				progress_line "Firmware: written and checked$([ -n "$NEW" ] && echo " ($NEW, from the next start)")"
@@ -933,6 +946,7 @@ fw_update() {
 						"Nothing was written to the firmware or to the internal memory."
 				fi
 				kv_set "$UDIR/info.txt" firmware_locked "$(date '+%F %T')"
+				trap - HUP INT TERM
 				restart_countdown "The firmware chip is locked until a restart."
 				restart ;;
 			3)
