@@ -41,6 +41,7 @@ UNUSEDMARKER="/var/lib/openframe-scripts/unused-default"
 SETTINGSMARKER="/var/lib/openframe-scripts/settings-folder-default"
 FLASHMARKER="/var/lib/openframe-scripts/flash-service-default"
 SSHKEYSMARKER="/var/lib/openframe-scripts/ssh-keys-service-default"
+REGDBMARKER="/var/lib/openframe-scripts/regdb-upstream-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -342,6 +343,21 @@ case "$1" in
 			fi
 			mkdir -p "${FWREPOMARKER%/*}"
 			touch "$FWREPOMARKER"
+		fi
+
+		# Once per system, the wireless regulatory database the kernel can read. wireless-regdb
+		# picks Debian's copy, signed with Debian's key, which only Debian's kernels carry; ours
+		# trusts the upstream signature (CFG80211_USE_KERNEL_REGDB_KEYS), so it said "loaded
+		# regulatory.db is malformed or signature is missing/invalid" and every Wi-Fi card kept
+		# to the world rules (in the UK, no channels 12 and 13). Choosing the upstream copy
+		# (its .p7s follows) puts the alternative in manual mode, so wireless-regdb updates keep
+		# it; anyone who sets it back keeps theirs, as this runs once.
+		if [ ! -e "$REGDBMARKER" ]; then
+			if [ -e /lib/firmware/regulatory.db-upstream ]; then
+				update-alternatives --quiet --set regulatory.db /lib/firmware/regulatory.db-upstream || true
+			fi
+			mkdir -p "${REGDBMARKER%/*}"
+			touch "$REGDBMARKER"
 		fi
 
 		# Refresh the boot volume on every update, keeping the current mode. This gives

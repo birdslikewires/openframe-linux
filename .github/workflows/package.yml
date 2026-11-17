@@ -115,9 +115,11 @@ jobs:
             cp "${overlay_dir}usr/share/kernel/postinst.d/"* "${PKG}/usr/share/kernel/postinst.d/"
             chmod 755 "${PKG}/usr/share/kernel/preinst.d/"* "${PKG}/usr/share/kernel/postinst.d/"*
 
-            # Firmware the built-in drivers list but Debian doesn't ship yet. Without it,
-            # every initramfs rebuild warns "Possible missing firmware". The updates
-            # directory doesn't clash with Debian's firmware packages.
+            # Firmware the built-in drivers list but Debian doesn't ship yet (without it, every
+            # initramfs rebuild warns "Possible missing firmware"), and the brcmsmac firmware
+            # for the OpenFrame 2's BCM43225 Wi-Fi (96 KB, where Debian's firmware-brcm80211 is
+            # 18 MB), each with its licence. The updates directory doesn't clash with Debian's
+            # firmware packages.
             if [ -d "${overlay_dir}usr/lib/firmware/updates" ]; then
               mkdir -p "${PKG}/usr/lib/firmware"
               cp -R "${overlay_dir}usr/lib/firmware/updates" "${PKG}/usr/lib/firmware/"
