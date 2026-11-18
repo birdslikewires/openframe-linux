@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# openframe-scripts preinst
+#  This package has its own plymouth initramfs hook, which runs Debian's without the
+#  warning it gives on every initrd build here (see the hook). Debian's is moved aside
+#  first, to /usr/lib/openframe/plymouth-hook.distrib, by a dpkg diversion, so this
+#  package can install its own in its place and plymouth updates go on updating Debian's.
+#  The postrm puts it back if this package is removed.
+
+set -e
+
+case "$1" in
+	install|upgrade)
+		mkdir -p /usr/lib/openframe
+		dpkg-divert --package openframe-scripts --quiet --rename \
+			--divert /usr/lib/openframe/plymouth-hook.distrib \
+			--add /usr/share/initramfs-tools/hooks/plymouth
+		;;
+esac
+
+exit 0

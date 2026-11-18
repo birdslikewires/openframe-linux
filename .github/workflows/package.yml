@@ -216,6 +216,10 @@ jobs:
             done
 
             install -m 755 package/postinst "${PKG}/DEBIAN/postinst"
+            # The preinst moves Debian's plymouth initramfs hook aside for ours (a dpkg
+            # diversion), and the postrm puts it back.
+            install -m 755 package/preinst "${PKG}/DEBIAN/preinst"
+            install -m 755 package/postrm "${PKG}/DEBIAN/postrm"
 
             printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash, dosfstools, e2fsprogs, yq\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
               "${version}" > "${PKG}/DEBIAN/control"

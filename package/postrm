@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# openframe-scripts postrm
+#  Puts Debian's plymouth initramfs hook back where it was (see the preinst), once this
+#  package's own hook has gone: when the package is removed, or when its first install
+#  failed after the preinst had moved Debian's aside.
+
+set -e
+
+case "$1" in
+	remove|abort-install)
+		dpkg-divert --package openframe-scripts --quiet --rename \
+			--remove /usr/share/initramfs-tools/hooks/plymouth
+		;;
+esac
+
+exit 0

@@ -1,0 +1,22 @@
+#!/bin/sh
+# OpenFrame: Debian's plymouth hook, without its warning. With MODULES=list (conf.d/openframe)
+# that hook says "W: plymouth: not including drm modules since MODULES=list" every time an
+# initrd is built, as on every kernel update. That's as intended: the initrd only has to
+# mount the root filesystem, and the display driver (gma500_gfx) loads from there. So this
+# runs Debian's hook, which openframe-scripts' preinst moves aside (a dpkg diversion, which
+# plymouth updates respect), passes everything else it says through, and keeps its exit
+# status. It has Debian's name, so hooks that list plymouth as a prerequisite still find it.
+
+REAL=/usr/lib/openframe/plymouth-hook.distrib
+
+# No plymouth installed: nothing to add to the initrd.
+[ -x "$REAL" ] || exit 0
+
+case "$1" in
+	prereqs) exec "$REAL" "$@" ;;
+esac
+
+exec 3>&1
+STATUS=$( { { "$REAL" "$@"; echo $? >&4; } |
+	grep -v -x 'W: plymouth: not including drm modules since MODULES=list' >&3; } 4>&1 )
+exit "${STATUS:-1}"
