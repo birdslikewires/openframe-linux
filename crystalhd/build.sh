@@ -20,7 +20,7 @@ FW70012_MD5=47a30682b1b7355c2238f5d5f1920bcb
 PKGNAME=openframe-crystalhd
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get -qq update
+apt-get -qq --error-on=any update
 apt-get -qq install -y --no-install-recommends ca-certificates git g++ make pkg-config \
   dpkg-dev file libdrm-dev libswscale-dev libavformat-dev libavcodec-dev libswresample-dev \
   libavutil-dev libasound2-dev > /dev/null
