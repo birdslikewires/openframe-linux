@@ -34,26 +34,15 @@ jobs:
       - name: Install tools
         run: sudo apt-get install -y apt-utils dpkg-dev
 
-      # i386 programs run as they are on the x86-64 runner, so no emulation is needed. The
-      # containers use the runner's network: on Docker's own, they couldn't resolve
-      # deb.debian.org.
+      # i386 programs run as they are on the x86-64 runner, so no emulation is needed. Docker's
+      # default seccomp filter on the runner stops i386 programs looking up names (apt couldn't
+      # resolve deb.debian.org; amd64 containers are fine), so the i386 containers run without it.
       - name: Build the package
         run: |
           version=$(bash crystalhd/version.sh)
           echo "Building openframe-crystalhd ${version}"
           mkdir -p out
-          # Name lookups from the i386 container (they failed on the runner): which way works.
-          cat /etc/resolv.conf
-          docker run --rm --platform linux/386 i386/debian:trixie cat /etc/resolv.conf || true
-          for o in "" "--network host" "--security-opt seccomp=unconfined" "--privileged"; do
-            if docker run --rm $o --platform linux/386 i386/debian:trixie getent hosts deb.debian.org; then
-              echo "i386 resolves with [$o]"
-            else
-              echo "i386 can't resolve with [$o]"
-            fi
-          done
-          docker run --rm debian:trixie getent hosts deb.debian.org && echo "amd64 resolves" || echo "amd64 can't resolve"
-          docker run --rm --network host --platform linux/386 -v "$PWD/crystalhd:/src:ro" -v "$PWD/out:/out" \
+          docker run --rm --security-opt seccomp=unconfined --platform linux/386 -v "$PWD/crystalhd:/src:ro" -v "$PWD/out:/out" \
             i386/debian:trixie sh /src/build.sh /src "${version}" /out
           ls -l out
 
@@ -62,7 +51,7 @@ jobs:
       # firmware is where the library looks.
       - name: Test the package
         run: |
-          docker run --rm --network host --platform linux/386 -v "$PWD/out:/out:ro" i386/debian:trixie sh -euxc '
+          docker run --rm --security-opt seccomp=unconfined --platform linux/386 -v "$PWD/out:/out:ro" i386/debian:trixie sh -euxc '
             apt-get -qq --error-on=any update
             DEBIAN_FRONTEND=noninteractive apt-get -qq install -y /out/openframe-crystalhd_*.deb > /dev/null
             ldd /usr/bin/chdplay
