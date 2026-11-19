@@ -129,10 +129,14 @@ fi
 resize2fs $ROOTDEV > /dev/null
 remove_flash_txt
 
-# A bigger drive has room for /tmp and apt's files on disk, so drop their tmpfs.
-sed -i '/\/var\/cache\/apt/d' /etc/fstab
-sed -i '/\/var\/lib\/apt\/lists/d' /etc/fstab
-sed -i -E '/^[^#[:space:]]+[[:space:]]+\/tmp[[:space:]]/d' /etc/fstab
+# A bigger drive has room for /tmp and apt's files on disk, so drop their tmpfs. Not on
+# the internal memory (an OpenFrame 2's, twice an OpenFrame 1's, grows): they stay in RAM
+# there, as on an OpenFrame 1's, to spare it the wear.
+if [[ "$ROOTDEV" != *mmc* ]]; then
+	sed -i '/\/var\/cache\/apt/d' /etc/fstab
+	sed -i '/\/var\/lib\/apt\/lists/d' /etc/fstab
+	sed -i -E '/^[^#[:space:]]+[[:space:]]+\/tmp[[:space:]]/d' /etc/fstab
+fi
 
 echo "Done."
 

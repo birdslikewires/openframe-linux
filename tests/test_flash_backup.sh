@@ -162,5 +162,57 @@ already_() {    # already_ <name> <OF-BACKUP: yes|no> <want: starts|poweroff>
 already_ "already installed, a flash stick"              yes poweroff
 already_ "already installed, a stick in use as a system" no  starts
 
+# An OpenFrame 2: its internal memory (twice an OpenFrame 1's) passes the checks, with
+# the times for backing it up doubled; one of any other size is refused.
+mmc() {    # mmc <name> <bytes> <want: ok|refused> [want MMCSIZE and backup estimate]
+	echo x > "$T/bundle"
+	out=$(bash -c ". '$T/env.sh'; MODE=cli; W='$T/w'; BUNDLE='$T/bundle'
+		internal_mmc() { echo '$T/mmc'; }; blockdev() { echo $2; }; unit_cid() { echo 0123456789abcdef0123456789abcdef; }
+		checks; echo \"CHECKED \$MMCSIZE \${PH_EST[mmcbackup]}\"" 2>&1)
+	local got=refused
+	grep -q "^CHECKED" <<< "$out" && got=ok
+	if [ "$got" = "$3" ] && { [ -z "${4:-}" ] || grep -qx "CHECKED $4" <<< "$out"; }; then ok "$1: $got${4:+ ($4)}"
+	else bad "$1: $got (want $3${4:+, $4})" "$out"; fi
+}
+mmc "an OpenFrame 1's internal memory" 1028128768 ok "1028128768 80"
+mmc "an OpenFrame 2's internal memory" 2055208960 ok "2055208960 160"
+mmc "an internal memory of another size" 4110417920 refused
+
+# The image goes onto an internal memory at least its size: an OpenFrame 2's takes the
+# OpenFrame 1-sized image (the write goes on to check the image, which here is a stand-in,
+# so stops there); a bigger image is refused.
+img() {    # img <name> <MMCSIZE> <image size> <want: written|refused>
+	printf 'name=test-image\nsize=%s\nmd5=x\ngzmd5=not-this\n' "$3" > "$T/info"
+	rm -rf "$T/unit"; mkdir -p "$T/unit"; echo "state=firmware-ok" > "$T/unit/info.txt"
+	out=$(bash -c ". '$T/env.sh'; MODE=cli; W='$T/w'; UDIR='$T/unit'; BUNDLE='$T/bundle'; MMCSIZE=$2; write_mmc" 2>&1)
+	local got=other
+	grep -q "bigger than this OpenFrame's internal memory" <<< "$out" && got=refused
+	grep -q "is damaged" <<< "$out" && got=written
+	[ "$got" = "$4" ] && ok "$1: $got" || bad "$1: $got (want $4)" "$out"
+}
+img "the image onto an OpenFrame 2's internal memory" 2055208960 1028128768 written
+img "the image onto an OpenFrame 1's internal memory" 1028128768 1028128768 written
+img "an image bigger than the internal memory"         1028128768 2055208960 refused
+echo "name=test-image" > "$T/info"
+
+# Stock firmware named by its carrier, OpenFrame 1 and 2 alike, from a made-up manifest
+# with this test chip's blocks 5 and 9; our firmware by its marker.
+B5=$(dd if="$T/chip.bin" bs=64k skip=5 count=1 status=none | md5sum | cut -d' ' -f1)
+B9=$(dd if="$T/chip.bin" bs=64k skip=9 count=1 status=none | md5sum | cut -d' ' -f1)
+fwid() {    # fwid <name> <block 5's labels> <block 9's labels> <want>
+	printf '5 %s %s\n9 %s %s\n' "$B5" "$2" "$B9" "$3" > "$T/manifest.txt"
+	got=$(bash -c ". '$T/env.sh'; FWMANIFEST='$T/manifest.txt'; fw_identify '$T/chip.bin'")
+	[ "$got" = "$4" ] && ok "firmware named: $1: $got" || bad "firmware named: $1: $got (want $4)"
+}
+fwid "stock O2"                  "26.11.32,o2-stock,verizon,telstra" "o2-stock" "O2"
+fwid "stock Cisco OpenFrame 2"   "of2-26.11.32,of2-cisco,of2-telio" "of2-cisco" "Cisco"
+fwid "stock Telio OpenFrame 2"   "of2-26.11.32,of2-telio" "of2-26.11.32,of2-26.11.32-dev3,of2-telio" "Telio"
+fwid "stock OpenPeak OpenFrame 2" "of2-26.11.32,of2-openpeak" "of2-openpeak" "OpenPeak"
+fwid "blocks we don't know"      "something-else" "of2-cisco" "not BirdsLikeWires"
+cp "$T/chip.bin" "$T/ours.bin"
+printf 'BirdsLikeWires OpenFrame EFI 26.11.32 (OF2)' | dd of="$T/ours.bin" bs=1 seek=$((11 * 65536 + 100)) conv=notrunc status=none
+got=$(bash -c ". '$T/env.sh'; FWMANIFEST='$T/manifest.txt'; fw_identify '$T/ours.bin'")
+[ "$got" = "26.11.32" ] && ok "firmware named: ours on an OpenFrame 2: $got" || bad "firmware named: ours on an OpenFrame 2: $got"
+
 [ $FAILS = 0 ] && echo "All passed." || echo "$FAILS failed."
 exit $FAILS

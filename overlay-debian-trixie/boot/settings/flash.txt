@@ -1,6 +1,6 @@
 ## System reflash setting.
 
-# Set flash=yes to install a fresh system onto an OpenFrame 1's internal memory.
+# Set flash=yes to install a fresh system onto an OpenFrame's internal memory.
 
 # The settings specified in the backlight.txt, ethernet.txt, and wifi.txt files
 # will be moved to that new system, as will setup.txt if you have added one.
@@ -8,9 +8,9 @@
 # With backup=yes, the internal memory is backed up first. On a new stick first
 # started with flash=yes, the backups go on a new OF-BACKUP volume made from the
 # rest of the stick, which any computer can read; each device backed up uses 1GB
-# at most. On a stick that has been used as a system (so the system fills it),
-# they go on the stick's own system, in /var/lib/openframe-flash/backups, to be
-# copied off over SSH.
+# at most (2GB for an OpenFrame 2). On a stick that has been used as a system
+# (so the system fills it), they go on the stick's own system, in
+# /var/lib/openframe-flash/backups, to be copied off over SSH.
 
 # With backup=no, only the firmware is backed up (it takes seconds), and the
 # system fills the stick as usual: it can be used as a system, and set to

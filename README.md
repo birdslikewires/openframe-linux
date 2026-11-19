@@ -35,14 +35,16 @@ sudo reboot
 ```
 
 
-## OpenFrame Flash: Installing onto an OpenFrame 1's Internal Memory
+## OpenFrame Flash: Installing onto an OpenFrame's Internal Memory
 
-The image is also a flash stick, with OpenFrame Flash. Written to a USB stick (4 GB or more), it can install itself onto an OpenFrame 1's internal memory and bring the firmware up to date, without a network, and then go on to the next unit:
+The image is also a flash stick, with OpenFrame Flash. Written to a USB stick (4 GB or more), it can install itself onto an OpenFrame 1's or OpenFrame 2's internal memory and bring the firmware up to date, without a network, and then go on to the next unit:
 
 1. Write the image to the stick. In the `settings` folder of `OF-BOOT`, set `flash=yes` in `flash.txt`, and fill in any other settings for the unit (`wifi.txt`, `ethernet.txt`, `setup.txt` and so on).
 2. Put the stick in the OpenFrame and switch it on. The first time, the rest of the stick becomes a drive called `OF-BACKUP`. The screen says what's happening; don't switch off. The firmware and the internal memory are backed up to `OF-BACKUP` first, in a folder for the unit, and checked. If the firmware needs updating, that happens next and the OpenFrame restarts by itself. Then the new system is written to the internal memory and checked, and the stick's settings are copied onto it.
 3. When it says it's done and switches off, remove the stick. The OpenFrame starts its new system, with the settings from step 1.
 4. Back on the computer, the stick's settings are blank again (`flash.txt` still says yes), and `OF-BACKUP` has the unit's folder: `mmc.img.gz` (the internal memory as it was), `firmware.bin` and `info.txt`. Fill in the next unit's settings and repeat. A unit the stick has already done is left alone; set `flash=again` to install it again.
+
+An OpenFrame 2's internal memory is twice an OpenFrame 1's (2 GB): the new system grows into the rest of it at its first start, and its backup takes twice the room and time. Its firmware goes to the OpenFrame 2 release, built on the Telio firmware, keeping the unit's own display driver.
 
 With `backup=no` in `flash.txt`, only the firmware is backed up (a few seconds), not the internal memory, which saves a couple of minutes on a unit whose system is being thrown away anyway. The stick then doesn't make `OF-BACKUP`: its system fills the stick, so it can be used as a system too, and installs again whenever `flash.txt` says `flash=yes`.
 
@@ -64,7 +66,7 @@ The `settings` folder in the `OF-BOOT` volume holds everything meant to be chang
 
 In `wifi.txt` and `ethernet.txt`, leave `address`, `gateway` and `dns` empty for an address from the router (DHCP). For a fixed one, give the address with its prefix or mask (`192.168.1.50/24`, `192.168.1.50/255.255.255.0`, or just `192.168.1.50` for a /24) and the gateway (usually your router's address). DNS is the gateway unless you list servers, separated by commas; servers listed with an automatic address replace the router's. A setting that isn't right is left out (the network stays automatic) and the login prompt says so. With both networks connected, the wired one carries the traffic.
 - `setup.txt`: a project to install when the system first starts, and any settings for it; see First-Boot Provisioning.
-- `flash.txt`: `flash=yes` makes the stick install itself onto an OpenFrame 1's internal memory, and `backup=no` leaves out the internal memory's backup; see above. It's removed from the internal memory's system, and from a stick once it no longer carries the image copy.
+- `flash.txt`: `flash=yes` makes the stick install itself onto an OpenFrame's internal memory, and `backup=no` leaves out the internal memory's backup; see above. It's removed from the internal memory's system, and from a stick once it no longer carries the image copy.
 
 Older images kept `network.yaml` and `backlight.txt` in the root of `OF-BOOT`. They move into `settings` once `openframe-scripts` is updated: a `network.yaml` with only the Wi-Fi name and password filled in becomes `wifi.txt`, and one with more in it becomes `settings/network.yaml`. The same happens to a `network.yaml` copied into the root of a new image. The MAC address isn't written into it any more.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 ## flash v26.11.20 (19th November 2026)
-##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
+##  Installs this system onto an OpenFrame's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
 ##
@@ -20,7 +20,7 @@
 ##  The firmware is still backed up: a few seconds, and the only copy of the unit's NVRAM
 ##  (its stored MAC, say) before the firmware update writes the chip.
 ##
-##  At boot, with flash=yes (or 'again'), in an OpenFrame 1, for a unit not already done,
+##  At boot, with flash=yes (or 'again'), in an OpenFrame 1 or 2, for a unit not already done,
 ##  in this order (each step is noted in the unit's folder, so after a restart or a power
 ##  cut the next boot carries on from it):
 ##    1. A folder for the unit (date and MAC), with info.txt. The unit is known by its
@@ -46,6 +46,11 @@
 ##  why on the screen and in info.txt, keeps the login prompt off the screen so the
 ##  message stays (SSH still works), and changes nothing more. A stick without the image
 ##  copy any more says so and starts its own system.
+##
+##  The image is an OpenFrame 1's internal memory's size (1 GB). An OpenFrame 2's is twice
+##  that: the image goes at its start, and the new system grows into the rest at its first
+##  start (of-expand), as a system on a USB stick does. The firmware update brings each
+##  model to its own release (of-firmware-update chooses by the chip's boot block).
 ##
 ##  'of-flash flash' does the same steps by hand while the image copy is on the stick,
 ##  with the firmware update's progress on the terminal and this stick's settings left as
@@ -78,6 +83,8 @@ BACKUPMNT="/mnt/of-backup"
 FWUPDATE="/usr/local/sbin/of-firmware-update"
 # The firmware chip, as fh shows it (a file instead in tests/test_flash_backup.sh).
 FHDEV="/dev/fh"
+# The firmware updater's manifest, which knows the stock firmware by its blocks.
+FWMANIFEST="/usr/lib/openframe-firmware/manifest.txt"
 FWPENDING="/var/lib/openframe-firmware/pending"
 RUNDIR="/run/of-flash"
 HOLD="$RUNDIR/hold"
@@ -86,8 +93,12 @@ SOUNDS="/usr/local/share/sounds"
 # Room left on the root filesystem below which the image copy goes, on a stick in use
 # as a system.
 MINFREE=$((256 * 1024 * 1024))
-# The MMC must be exactly an OpenFrame 1's (the OpenFrame 2's is twice the size).
+# The MMC must be exactly an OpenFrame 1's or an OpenFrame 2's (twice the size: the
+# Cisco's, the Da Vinci's and the Crystal HD unit's all the same). MMCSIZE is this unit's,
+# from the checks.
 OF1MMC=1028128768
+OF2MMC=2055208960
+MMCSIZE=$OF1MMC
 
 MODE=""        # boot or cli
 FORCE=""       # set: install a unit already done (by hand)
@@ -101,9 +112,9 @@ export LC_ALL=C.UTF-8
 usage() {
 	echo "Usage: of-flash flash | backup | status | clean"
 	echo
-	echo "  flash     install this system onto this OpenFrame 1's internal memory, after"
+	echo "  flash     install this system onto this OpenFrame's internal memory, after"
 	echo "            backing it up (see 'status' for where the backups go)"
-	echo "  backup    back up this OpenFrame 1's firmware and internal memory, and stop"
+	echo "  backup    back up this OpenFrame's firmware and internal memory, and stop"
 	echo "  status    what this stick can do, and the units it has installed"
 	echo "  clean     remove the copy of the image this stick carries, to free its space"
 	echo
@@ -258,33 +269,41 @@ fw_name() {
 }
 
 # Stock firmware by the carrier it came from, as the firmware updater's manifest names it
-# ($1: o2-stock, verizon or telstra), for the panel and info.txt: just the carrier, as
-# it has no version of its own; "OpenPeak" (where they all came from) if it isn't known
-# which.
+# ($1: o2-stock, verizon, telstra, or an OpenFrame 2's of2-cisco, of2-telio, of2-avaya or
+# of2-openpeak), for the panel and info.txt: just the carrier, as it has no version of
+# its own; "OpenPeak" (where they all came from) if it isn't known which.
 stock_name() {
 	case "$1" in
 		o2-stock) echo "O2" ;;
 		verizon) echo "Verizon" ;;
 		telstra) echo "Telstra" ;;
+		of2-cisco) echo "Cisco" ;;
+		of2-telio) echo "Telio" ;;
+		of2-avaya) echo "Avaya" ;;
 		*) echo "OpenPeak" ;;
 	esac
 }
+# The stock firmware's names in the manifest, for the patterns below.
+STOCK_RE='o2-stock|verizon|telstra|of2-cisco|of2-telio|of2-avaya|of2-openpeak'
 
 # What firmware chip dump $1 is, for info.txt and the panel: our firmware's version from
-# its marker; stock firmware by its carrier ("O2"), if its block 5 is one the
-# firmware updater's manifest knows as the firmware the units came with (O2, Verizon and
-# Telstra share it) and its block 9 (the graphics driver, each carrier's own) says which;
+# its marker; stock firmware by its carrier ("O2", "Telio"), if its block 5 is one the
+# firmware updater's manifest knows as the firmware the units came with (each model's
+# carriers share it) and its block 9 (the graphics driver, each carrier's own) says which;
 # or else "not BirdsLikeWires".
 fw_identify() {
-	local V M L
-	V=$(grep -aoE 'BirdsLikeWires OpenFrame EFI [0-9]+\.[0-9]+\.[0-9]+(-dev[0-9]+)? \(OF1\)' "$1" | head -1 | awk '{print $4}')
+	local V M L S
+	V=$(grep -aoE 'BirdsLikeWires OpenFrame EFI [0-9]+\.[0-9]+\.[0-9]+(-dev[0-9]+)? \(OF[12]\)' "$1" | head -1 | awk '{print $4}')
 	if [ -n "$V" ]; then echo "$V"; return; fi
 	M=$(dd if="$1" bs=64k skip=5 count=1 status=none 2>/dev/null | md5sum | cut -d' ' -f1)
-	L=$(awk -v m="$M" '$1 == 5 && $2 == m { print $3 }' /usr/lib/openframe-firmware/manifest.txt 2>/dev/null)
-	if [[ ! ",$L," =~ ,(o2-stock|verizon|telstra), ]]; then echo "not BirdsLikeWires"; return; fi
+	L=$(awk -v m="$M" '$1 == 5 && $2 == m { print $3 }' "$FWMANIFEST" 2>/dev/null)
+	if [[ ! ",$L," =~ ,($STOCK_RE), ]]; then echo "not BirdsLikeWires"; return; fi
 	M=$(dd if="$1" bs=64k skip=9 count=1 status=none 2>/dev/null | md5sum | cut -d' ' -f1)
-	L=$(awk -v m="$M" '$1 == 9 && $2 == m { print $3 }' /usr/lib/openframe-firmware/manifest.txt 2>/dev/null)
-	stock_name "$L"
+	L=$(awk -v m="$M" '$1 == 9 && $2 == m { print $3 }' "$FWMANIFEST" 2>/dev/null)
+	# Block 9 of a stock image our OpenFrame 2 release is built on is the release's too:
+	# the stock name is the one to show.
+	S=$(echo "$L" | tr ',' '\n' | grep -xE "$STOCK_RE" | head -1)
+	stock_name "$S"
 }
 
 # The firmware as the firmware updater's check ($1) saw it, for the panel's bottom line:
@@ -293,7 +312,7 @@ fw_identify() {
 fw_from_check() {
 	local L
 	L=$(printf '%s\n' "$1" | sed -n 's/.*blocks that differ from [^:]*: //p' | tr ' ' '\n' |
-		sed -n 's/^[0-9]*:\(o2-stock\|verizon\|telstra\)$/\1/p' | head -1)
+		sed -n 's/^[0-9]*:\(o2-stock\|verizon\|telstra\|of2-cisco\|of2-telio\|of2-avaya\|of2-openpeak\)$/\1/p' | head -1)
 	[ -n "$L" ] && stock_name "$L"
 }
 
@@ -664,7 +683,8 @@ fail() {
 	[ -n "${UDIR:-}" ] && [ -f "$UDIR/info.txt" ] && kv_set "$UDIR/info.txt" stopped "$(date '+%F %T'): $WHY"
 	if [ "$MODE" = "boot" ] && [ -z "${UDIR:-}" ] && [ -n "${BACKUPDIR:-}" ] && [ "$BACKUPDIR" != "$BACKUPMNT" ]; then
 		# Stopped at the checks, before anything for a unit, on a stick in use as a system
-		# (an OpenFrame 2, say, with flash=yes left set): say why, then start its system.
+		# (one whose internal memory can't be found, say, with flash=yes left set): say why,
+		# then start its system.
 		message "$B_RED" "Stopped" "The install has stopped:" "" "$C_LRD$WHY" "" \
 			"$C_GRY${2:-Nothing was written to the internal memory.}"
 		sound failure
@@ -753,7 +773,7 @@ new_unit() {
 		fi
 		echo "cid=$CID"
 		echo "mac=$MAC"
-		echo "model=${MODEL:-OpenFrame 1}"
+		echo "model=${MODEL:-OpenFrame $([ "$MMCSIZE" = "$OF2MMC" ] && echo 2 || echo 1)}"
 		echo "started=$(date '+%F %T')"
 		[ -n "$CLOCKNOTE" ] && echo "clock=$CLOCKNOTE"
 		echo "flash=$VERSION"
@@ -789,7 +809,7 @@ backup() {
 	kv_set "$UDIR/info.txt" state backing-up
 	# The firmware alone needs a few MB; with the internal memory, its size and some.
 	NEED=$(( 16 * 1024 * 1024 ))
-	[ -z "$MMC_SKIP" ] && NEED=$(( OF1MMC + 64 * 1024 * 1024 ))
+	[ -z "$MMC_SKIP" ] && NEED=$(( MMCSIZE + 64 * 1024 * 1024 ))
 	if [ "$(free_bytes "$UDIR")" -lt "$NEED" ]; then
 		if [ -z "$MMC_SKIP" ] && [ -z "${BACKUP_ONLY:-}" ]; then
 			fail "There isn't room for the backups: they need $((NEED / 1048576)) MB." \
@@ -825,7 +845,7 @@ backup() {
 	cmp -s "$W/fw1.bin" "$FW" || fail "The firmware backup doesn't read back."
 	md5sum < "$FW" | sed "s/ .*/  firmware.bin/" > "$FW.md5"
 	CUR=$(fw_identify "$FW")
-	[[ "$CUR" =~ ^(O2|Verizon|Telstra)$ ]] && FW_SHOWN="$CUR"
+	[[ "$CUR" =~ ^(O2|Verizon|Telstra|Cisco|Telio|Avaya|OpenPeak)$ ]] && FW_SHOWN="$CUR"
 	kv_set "$UDIR/info.txt" firmware_before "$CUR (md5 $(cut -d' ' -f1 "$FW.md5"))"
 	progress_line "Firmware: done"
 	[ -n "$SCREEN" ] || echo
@@ -843,14 +863,14 @@ backup() {
 	md5sum < "$FIFO" > "$W/raw.md5" &
 	with_progress "Internal memory" \
 		"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | tee '$FIFO' | gzip -1 > '$IMG.new'" \
-		"$OF1MMC" || fail "The internal memory couldn't be backed up."
+		"$MMCSIZE" || fail "The internal memory couldn't be backed up."
 	wait
 	RAWMD5=$(cut -d' ' -f1 "$W/raw.md5")
 	drop_cache
 	phase verify
 	with_progress "Checking the backup" \
 		"gzip -dc '$IMG.new' | dd bs=1M iflag=fullblock status=progress 2>\"\$P\" | md5sum > '$W/check.md5'" \
-		"$OF1MMC" || fail "The internal memory backup can't be read back."
+		"$MMCSIZE" || fail "The internal memory backup can't be read back."
 	[ "$(cut -d' ' -f1 "$W/check.md5")" = "$RAWMD5" ] || fail "The internal memory backup doesn't match the internal memory."
 	mv -f "$IMG.new" "$IMG" && sync
 	GZMD5=$(md5sum < "$IMG" | cut -d' ' -f1)
@@ -1100,7 +1120,7 @@ firmware() {
 
 # Erases the whole MMC; true if that worked and 16 spots across it then read as zeros.
 erase_mmc() {
-	local N=$(( OF1MMC / 4096 )) i
+	local N=$(( MMCSIZE / 4096 )) i
 	phase erase
 	progress_line "Erasing"
 	blkdiscard -f "$MMC" >/dev/null 2>&1 || { log "the internal memory wouldn't erase: writing all of it"; return 1; }
@@ -1156,7 +1176,8 @@ write_mmc() {
 	SIZE=$(kv "$BUNDLEINFO" size)
 	MD5=$(kv "$BUNDLEINFO" md5)
 	GZMD5=$(kv "$BUNDLEINFO" gzmd5)
-	[ "$SIZE" = "$OF1MMC" ] || fail "The image on this stick isn't the size of an OpenFrame 1's internal memory."
+	[[ "$SIZE" =~ ^[0-9]+$ ]] && (( SIZE > 0 && SIZE <= MMCSIZE )) ||
+		fail "The image on this stick is bigger than this OpenFrame's internal memory."
 	screen "" "  Installing onto this OpenFrame's internal memory." "" \
 		"  Please don't switch off or unplug it, or remove the stick." "" \
 		"  Writing the new system."
@@ -1322,15 +1343,21 @@ already() {
 	FORCE=1
 }
 
-# The checks every install starts with: an OpenFrame 1, its MMC, the image copy.
+# The checks every install starts with: an OpenFrame 1 or 2, its MMC, the image copy.
 checks() {
 	[[ "$(findmnt -n -o SOURCE /)" == /dev/mmcblk* ]] && fail "This system is running from the internal memory, so it can't install onto it."
-	[[ "$(cat /sys/class/dmi/id/product_name 2>/dev/null)" == *"OpenFrame 2"* ]] && fail "This is an OpenFrame 2: OpenFrame Flash is for the OpenFrame 1."
 	local i
 	for i in $(seq 1 20); do MMC=$(internal_mmc) && break; sleep 0.5; done
 	[ -n "$MMC" ] || fail "No internal memory found (or more than one)."
-	[ "$(blockdev --getsize64 "$MMC")" = "$OF1MMC" ] ||
-		fail "The internal memory isn't an OpenFrame 1's ($(blockdev --getsize64 "$MMC") bytes)."
+	MMCSIZE=$(blockdev --getsize64 "$MMC")
+	case "$MMCSIZE" in
+		"$OF1MMC") ;;
+		"$OF2MMC")
+			# Twice the internal memory to back up, erase and check: twice the time.
+			PH_EST[mmcbackup]=$(( PH_EST[mmcbackup] * 2 )); PH_EST[verify]=$(( PH_EST[verify] * 2 ))
+			PH_EST[erase]=$(( PH_EST[erase] * 2 )) ;;
+		*) fail "The internal memory isn't an OpenFrame's ($MMCSIZE bytes)." ;;
+	esac
 	CID=$(unit_cid)
 	[[ "$CID" =~ ^[0-9a-f]{32}$ ]] || fail "The internal memory has no serial number (CID) to know this unit by."
 	if [ -z "${BACKUP_ONLY_NO_IMAGE:-}" ] && { [ ! -f "$BUNDLE" ] || [ ! -f "$BUNDLEINFO" ]; }; then
