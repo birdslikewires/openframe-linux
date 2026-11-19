@@ -1,0 +1,174 @@
+name: crystalhd-build-publish
+run-name: crystalhd package build and publish
+
+# openframe-crystalhd: the Crystal HD library, firmware and chdplay (crystalhd/README.md).
+# It goes into the same apt repository as openframe-scripts, so this shares that workflow's
+# concurrency group (the two never update the repo branch at once), and the repository steps
+# below are package.yml's: change them together.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crystalhd/**'
+      - '.github/workflows/crystalhd.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-package
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0    # the version counts this month's commits
+
+      - name: Install tools
+        run: sudo apt-get install -y apt-utils dpkg-dev
+
+      # i386 programs run as they are on the x86-64 runner, so no emulation is needed.
+      - name: Build the package
+        run: |
+          version=$(bash crystalhd/version.sh)
+          echo "Building openframe-crystalhd ${version}"
+          mkdir -p out
+          docker run --rm --platform linux/386 -v "$PWD/crystalhd:/src:ro" -v "$PWD/out:/out" \
+            i386/debian:trixie sh /src/build.sh /src "${version}" /out
+          ls -l out
+
+      # On a clean Trixie, as a unit would get it: apt finds every dependency, the library
+      # loads, chdplay starts (and, without a file, prints its usage and exits 2), and the
+      # firmware is where the library looks.
+      - name: Test the package
+        run: |
+          docker run --rm --platform linux/386 -v "$PWD/out:/out:ro" i386/debian:trixie sh -euxc '
+            apt-get -qq update
+            DEBIAN_FRONTEND=noninteractive apt-get -qq install -y /out/openframe-crystalhd_*.deb > /dev/null
+            ldd /usr/bin/chdplay
+            ! ldd /usr/bin/chdplay | grep "not found"
+            ldd /usr/bin/chdplay | grep -q "libcrystalhd.so.3 => /.*lib/i386-linux-gnu/libcrystalhd.so.3 "
+            set +e; chdplay > /dev/null 2> usage.txt; rc=$?; set -e
+            cat usage.txt
+            [ "$rc" -eq 2 ] && grep -q "^usage:" usage.txt
+            ls -l /lib/firmware/bcm70015fw.bin /lib/firmware/bcm70012fw.bin
+            test -s /usr/share/doc/openframe-crystalhd/copyright
+          '
+
+      - name: Ensure repo branch exists
+        run: |
+          git fetch origin repo:refs/remotes/origin/repo 2>/dev/null || \
+            git push origin HEAD:repo
+
+      - name: Checkout repo branch
+        uses: actions/checkout@v7
+        with:
+          ref: repo
+          path: apt-repo
+
+      # As package.yml: every key imported signs, and the key the units are given stays the one
+      # openframe-scripts ships.
+      - name: Import GPG signing keys
+        env:
+          KEY: ${{ secrets.APT_SIGNING_KEY }}
+          KEY_NEW: ${{ secrets.APT_SIGNING_KEY_OPENFRAME }}
+        run: |
+          echo "${KEY}" | gpg --batch --import
+          [ -z "${KEY_NEW}" ] || echo "${KEY_NEW}" | gpg --batch --import
+          SIGNERS=$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/ { s = 1; next } s && /^fpr/ { print $10; s = 0 }')
+          echo "Signing with: ${SIGNERS}"
+          for k in overlay-*/usr/share/keyrings/openframe-apt.gpg; do
+            [ -f "$k" ] || continue
+            SHIPPED=$(gpg --batch --with-colons --show-keys "$k" | awk -F: '/^pub/ { s = 1; next } s && /^fpr/ { print $10; s = 0 }')
+            for f in ${SHIPPED}; do
+              echo "${SIGNERS}" | grep -qx "$f" || { echo "$k holds $f, which this run doesn't sign with: not publishing."; exit 1; }
+            done
+            echo "PUBLISH_KEY=${SHIPPED}" >> $GITHUB_ENV
+          done
+          echo "SIGN_ARGS=$(for f in ${SIGNERS}; do printf -- '--local-user %s! ' "$f"; done)" >> $GITHUB_ENV
+
+      # Built for Trixie only. openframe-scripts' builds index the whole pool, so they keep
+      # this package listed too.
+      - name: Update the apt repository
+        run: |
+          codename=trixie
+          mkdir -p "apt-repo/pool/${codename}"
+          rm -f "apt-repo/pool/${codename}/"openframe-crystalhd_*.deb
+          cp out/openframe-crystalhd_*.deb "apt-repo/pool/${codename}/"
+
+          mkdir -p "apt-repo/dists/${codename}/main/binary-i386"
+          cd apt-repo
+          dpkg-scanpackages "pool/${codename}" > "dists/${codename}/main/binary-i386/Packages"
+          gzip -kf "dists/${codename}/main/binary-i386/Packages"
+
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="OpenFrame" \
+            -o APT::FTPArchive::Release::Label="OpenFrame Linux" \
+            -o APT::FTPArchive::Release::Suite="${codename}" \
+            -o APT::FTPArchive::Release::Codename="${codename}" \
+            -o APT::FTPArchive::Release::Architectures="all i386" \
+            -o APT::FTPArchive::Release::Components="main" \
+            -o APT::FTPArchive::Release::Description="OpenFrame Linux packages" \
+            release "dists/${codename}" > "dists/${codename}/Release"
+
+          gpg --batch --yes ${SIGN_ARGS} \
+            --detach-sign --armor -o "dists/${codename}/Release.gpg" "dists/${codename}/Release"
+          gpg --batch --yes ${SIGN_ARGS} \
+            --clearsign -o "dists/${codename}/InRelease" "dists/${codename}/Release"
+
+          gpg --export ${PUBLISH_KEY:-} > key.gpg
+
+      - name: Generate directory listing
+        run: |
+          cd apt-repo
+          {
+            printf '<!DOCTYPE html>\n<html>\n'
+            printf '<head><title>Index of /</title></head>\n'
+            printf '<body>\n<h1>Index of /</h1><hr><pre>'
+
+            human_size() {
+              local size=$1
+              if [ "$size" -ge 1073741824 ]; then
+                echo "$((size / 1073741824))G"
+              elif [ "$size" -ge 1048576 ]; then
+                echo "$((size / 1048576))M"
+              elif [ "$size" -ge 1024 ]; then
+                echo "$((size / 1024))K"
+              else
+                echo "$size"
+              fi
+            }
+
+            for f in pool/*/*.deb; do
+              [ -f "$f" ] || continue
+              fname=$(basename "$f")
+              fsize=$(stat -c '%s' "$f")
+              fdate=$(date -d "@$(stat -c '%Y' "$f")" '+%d-%b-%Y %H:%M')
+              hsize=$(human_size "$fsize")
+              namelen=${#fname}
+              padlen=$((51 - namelen))
+              [ ${padlen} -lt 1 ] && padlen=1
+              padding=$(printf '%*s' ${padlen} '')
+              printf '\n<a href="%s">%s</a>%s%s  %8s' \
+                "${f}" "${fname}" "${padding}" "${fdate}" "${hsize}"
+            done
+
+            printf '\n</pre><hr></body>\n</html>\n'
+          } > index.html
+
+      - name: Push apt repository
+        run: |
+          cd apt-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No changes to commit" || \
+            git commit -m "apt: openframe-crystalhd $(git -C .. rev-parse --short HEAD)"
+          git push origin repo

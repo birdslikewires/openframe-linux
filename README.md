@@ -103,6 +103,10 @@ OpenFrames often lose power without warning, so the system is built to shrug tha
 It should be possible to use updated microcode for the Intel Atom Z520, if that's of concern to you. The microcode you need is `06-1c-02` from [Intel's repository](https://github.com/intel/Intel-Linux-Processor-Microcode-Data-Files/tree/main/intel-ucode). If you have any luck, let me know.
 
 
+## Crystal HD
+
+An OpenFrame 2 with a Broadcom Crystal HD decoder card in its mini PCIe slot can play H.264 video up to 1080p with `chdplay`, from the optional `openframe-crystalhd` package (`sudo apt install openframe-crystalhd`). The package holds the Crystal HD library with our fixes, the card's firmware and the player. The kernel driver it needs isn't in the OpenFrame kernel yet; see [crystalhd/README.md](crystalhd/README.md).
+
 ## Scripts
 
 Some of these are more useful than others, depending upon your build environment. You'll definitely want `of-imgcreate.sh`, while the others are mostly for self-hosted setups or building an image manually.

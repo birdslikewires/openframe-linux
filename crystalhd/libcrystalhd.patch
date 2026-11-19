@@ -1,0 +1,48 @@
+diff --git a/linux_lib/libcrystalhd/libcrystalhd_priv.cpp b/linux_lib/libcrystalhd/libcrystalhd_priv.cpp
+index b861adb..84ed84c 100644
+--- a/linux_lib/libcrystalhd/libcrystalhd_priv.cpp
++++ b/linux_lib/libcrystalhd/libcrystalhd_priv.cpp
+@@ -2428,7 +2428,11 @@ BC_STATUS txBufPop(pTXBUFFER txBuf, uint8_t* bufToPop, uint32_t sizeToPop)
+ 	pthread_mutex_lock(&txBuf->flushLock);
+ 
+ 	if(sizeToPop > txBuf->busySize)
++	{
++		// was returned with flushLock held: the next pop then blocked for ever
++		pthread_mutex_unlock(&txBuf->flushLock);
+ 		return BC_STS_INV_ARG;
++	}
+ 
+ 	sizeTop = (uint32_t)(txBuf->endPointer - (txBuf->basePointer + txBuf->readPointer) + 1);
+ 	if(sizeToPop <= sizeTop)
+@@ -2518,7 +2522,11 @@ void * txThreadProc(void *ctx)
+ 	{
+ 		// First check the status of the HW
+ 		// Get the real HW free size and also mark as we want TX information only
+-		pStat.cpbEmptySize = 0x60000000u;
++		// Bit 31 asks DtsGetDriverStatus for the card's own free size (the firmware's
++		// DramBuffSzInBytes). The Broadcom/dbason code had (0x3 << 31), which is 0x80000000 as a
++		// 32-bit value. 0x60000000 has bit 31 clear, so the answer was the free size of the
++		// library's ring instead, and every send was sized by that.
++		pStat.cpbEmptySize = 0x80000000u;
+ 
+ 		sts = DtsGetDriverStatus(hDevice, &pStat);
+ 		if(sts != BC_STS_SUCCESS)
+@@ -2630,6 +2638,18 @@ void * txThreadProc(void *ctx)
+ 				szDataToSend = Ctx->circBuf.busySize;
+ 			else
+ 				szDataToSend = pStat.cpbEmptySize;
++			// The card takes whole dwords. After an odd length mid-stream the firmware's next
++			// buffer address is likely unaligned, and the driver refuses such an address for
++			// good ("DWORD UNAligned Tx Addr"). Hold the odd tail back until the end of stream.
++			if((szDataToSend & 3) && !Ctx->bEOSCheck)
++			{
++				szDataToSend &= ~3u;
++				if(szDataToSend == 0)
++				{
++					usleep(3000);
++					continue;
++				}
++			}
+ 			if(BC_STS_SUCCESS != txBufPop(&Ctx->circBuf, localBuffer, szDataToSend)) {
+ 				usleep(5 * 1000);
+ 				continue;
