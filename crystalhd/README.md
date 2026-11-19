@@ -2,8 +2,9 @@
 
 Support for the Broadcom Crystal HD video decoders (BCM70012 and BCM70015, mini PCIe cards) on the
 OpenFrame 2. The package isn't part of the image; units with a card install it with
-`sudo apt install openframe-crystalhd`. It also needs the kernel's `crystalhd` driver, which the
-OpenFrame kernel doesn't build yet (November 2026).
+`sudo apt install openframe-crystalhd`. The kernel driver it needs, `crystalhd`, comes with the
+OpenFrame kernel ([openframe-kernel](https://github.com/birdslikewires/openframe-kernel)'s
+`crystalhd/`) and loads by itself when the card is fitted.
 
 It holds:
 

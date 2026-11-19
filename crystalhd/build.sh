@@ -90,7 +90,7 @@ Description: Broadcom Crystal HD video decoder support for OpenFrames
  BCM70012 and BCM70015 decoders, and chdplay, a player that decodes H.264 on the
  card and shows it on the panel with sound. Files, HTTPS and HLS streams play.
  .
- The card needs the kernel's crystalhd driver.
+ The card's kernel driver, crystalhd, comes with the OpenFrame kernel.
 EOF
 
 deb="$out/${PKGNAME}_${version}_i386.deb"

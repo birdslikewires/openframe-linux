@@ -105,7 +105,7 @@ It should be possible to use updated microcode for the Intel Atom Z520, if that'
 
 ## Crystal HD
 
-An OpenFrame 2 with a Broadcom Crystal HD decoder card in its mini PCIe slot can play H.264 video up to 1080p with `chdplay`, from the optional `openframe-crystalhd` package (`sudo apt install openframe-crystalhd`). The package holds the Crystal HD library with our fixes, the card's firmware and the player. The kernel driver it needs isn't in the OpenFrame kernel yet; see [crystalhd/README.md](crystalhd/README.md).
+An OpenFrame 2 with a Broadcom Crystal HD decoder card in its mini PCIe slot can play H.264 video up to 1080p with `chdplay`, from the optional `openframe-crystalhd` package (`sudo apt install openframe-crystalhd`). The package holds the Crystal HD library with our fixes, the card's firmware and the player. The kernel driver comes with the OpenFrame kernel and loads by itself when the card is fitted; see [crystalhd/README.md](crystalhd/README.md).
 
 ## Scripts
 
