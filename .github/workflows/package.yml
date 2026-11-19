@@ -53,6 +53,12 @@ jobs:
       - name: Test the flash's firmware step
         run: bash tests/test_flash_firmware.sh
 
+      # Its backup= setting, and a stick in use as a system: the firmware alone backed up
+      # with backup=no, the units' folders on the stick's own system without OF-BACKUP, and
+      # its own system started rather than the panel held when there's nothing to do.
+      - name: Test the flash's backups
+        run: bash tests/test_flash_backup.sh
+
       - name: Ensure repo branch exists
         run: |
           git fetch origin repo:refs/remotes/origin/repo 2>/dev/null || \

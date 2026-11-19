@@ -1,26 +1,34 @@
 #!/usr/bin/env bash
 
-## flash v26.11.19 (16th November 2026)
+## flash v26.11.20 (19th November 2026)
 ##  Installs this system onto an OpenFrame 1's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
 ##
-##  A flash stick is one written from a release image and first started with
-##  flash=yes in OF-BOOT/settings/flash.txt: of-expand then makes the rest of the
-##  stick an exFAT partition, OF-BACKUP, that any computer can read, instead of growing
-##  the system into it. Release images carry a compressed copy of themselves
-##  (/usr/lib/openframe/flash, beside this script, see of-imgbundle.sh), which is what
-##  gets written.
+##  Release images carry a compressed copy of themselves (/usr/lib/openframe/flash,
+##  beside this script, see of-imgbundle.sh), which is what gets written. A stick
+##  written from one and first started with flash=yes in OF-BOOT/settings/flash.txt is a
+##  flash stick: of-expand makes the rest of it an exFAT partition, OF-BACKUP, that any
+##  computer can read, instead of growing the system into it. With backup=no there too,
+##  or on a stick first started as a system, the system grows to fill the stick as usual
+##  and it can still install: the units' folders (and with backup=yes their backups) go
+##  on its own system instead, in /var/lib/openframe-flash/backups, to be copied off
+##  over SSH. So one stick can be a system and an installer, by flash= alone.
 ##
-##  At boot, with flash=yes (or 'again') on a flash stick, in an OpenFrame 1, for a
-##  unit not already done, in this order (each step is noted in the unit's folder on
-##  OF-BACKUP, so after a restart or a power cut the next boot carries on from it):
-##    1. A folder on OF-BACKUP for the unit (date and MAC), with info.txt. The unit is
-##       known by its MMC's CID, which every unit has, whatever its firmware. This
-##       stick's settings are kept aside (/var/lib/openframe-flash) for the unit.
-##    2. Back up the firmware chip (firmware.bin) and the MMC (mmc.img.gz), each read
-##       back and checked. Until this is done no firmware update may start: the update
-##       the openframe-firmware package marks pending waits for us.
+##  backup=no (flash.txt; yes if it isn't there) leaves out the internal memory's backup,
+##  which takes a couple of minutes, for a unit whose system is being thrown away anyway.
+##  The firmware is still backed up: a few seconds, and the only copy of the unit's NVRAM
+##  (its stored MAC, say) before the firmware update writes the chip.
+##
+##  At boot, with flash=yes (or 'again'), in an OpenFrame 1, for a unit not already done,
+##  in this order (each step is noted in the unit's folder, so after a restart or a power
+##  cut the next boot carries on from it):
+##    1. A folder for the unit (date and MAC), with info.txt. The unit is known by its
+##       MMC's CID, which every unit has, whatever its firmware. This stick's settings
+##       are kept aside (/var/lib/openframe-flash) for the unit.
+##    2. Back up the firmware chip (firmware.bin) and, unless backup=no, the MMC
+##       (mmc.img.gz), each read back and checked. Until this is done no firmware update
+##       may start: the update the openframe-firmware package marks pending waits for us.
 ##    3. Firmware: of-firmware-update says whether it's current. If not, we run it there
 ##       and then, with its progress on the panel (its output goes in the unit's
 ##       firmware-update.txt), and carry straight on: the new firmware runs from the
@@ -33,30 +41,30 @@
 ##       setup.txt included, so provisioning runs on the new system's first start.
 ##    6. Mark the unit done, reset this stick's settings to the blank ones (flash.txt
 ##       stays; 'again' becomes 'yes'), play a sound, say so, and power off.
-##  A unit already done gets "already installed" and a power-off. Anything that stops the
-##  install says why on the screen and in info.txt, keeps the login prompt off the
-##  screen so the message stays (SSH still works), and changes nothing more.
+##  A unit already done gets "already installed" and a power-off (on a stick in use as a
+##  system, the stick's own system starts instead). Anything that stops the install says
+##  why on the screen and in info.txt, keeps the login prompt off the screen so the
+##  message stays (SSH still works), and changes nothing more. A stick without the image
+##  copy any more says so and starts its own system.
 ##
-##  With flash=yes on a stick that has been started as a system (no OF-BACKUP: the
-##  system grew into that space), nothing is installed: the screen says so, and the
-##  boot carries on. 'of-flash flash' still works there while the image copy is on
-##  the stick: the same steps, by hand, with the backups on the root filesystem
-##  (/var/lib/openframe-flash/backups), the firmware update's progress on the terminal,
-##  and this stick's settings left as they are.
+##  'of-flash flash' does the same steps by hand while the image copy is on the stick,
+##  with the firmware update's progress on the terminal and this stick's settings left as
+##  they are.
 ##
 ##  'of-flash backup' backs up the firmware chip and the internal memory the same way and
 ##  stops there, writing nothing: a folder whose state is 'backup', which an install
 ##  doesn't carry on from (it backs up afresh).
 ##
-##  The image copy is removed by 'of-flash clean', or at boot when it isn't an
-##  flash stick and the root filesystem has less than 256 MB free.
+##  The image copy is removed by 'of-flash clean', or at boot when the stick isn't
+##  installing, has no OF-BACKUP, and its root filesystem has less than 256 MB free
+##  (flash.txt then goes too: there's nothing left to install).
 ##
 ##  Testing only, never in normal use (set in a drop-in for of-flash.service):
 ##  OF_FLASH_TEST_BACKUPDIR=<directory> stands in for OF-BACKUP, so a stick that
 ##  has grown can test the boot-time steps; OF_FLASH_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.19"
+VERSION="26.11.20"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -68,6 +76,8 @@ STATEDIR="/var/lib/openframe-flash"
 BACKUPLABEL="OF-BACKUP"
 BACKUPMNT="/mnt/of-backup"
 FWUPDATE="/usr/local/sbin/of-firmware-update"
+# The firmware chip, as fh shows it (a file instead in tests/test_flash_backup.sh).
+FHDEV="/dev/fh"
 FWPENDING="/var/lib/openframe-firmware/pending"
 RUNDIR="/run/of-flash"
 HOLD="$RUNDIR/hold"
@@ -81,6 +91,7 @@ OF1MMC=1028128768
 
 MODE=""        # boot or cli
 FORCE=""       # set: install a unit already done (by hand)
+MMC_SKIP=""    # set: backup=no, the internal memory isn't backed up (use_backup_setting)
 SCREEN=""      # set: messages go to the panel too
 P_DRAWN=""     # set: the panel has been cleared for us
 W=""           # work directory
@@ -412,7 +423,7 @@ message() {
 # stop after it. Done: $1 the unit's folder.
 screen_done() {
 	message "$B_GRN" "Done" "${C_LGN}√  ${C_WHT}The new system is installed on the internal memory, with this stick's settings." "" \
-		"${C_GRY}Backups:  OF-BACKUP/$1" "" \
+		"${C_GRY}Backups:  $(backups_at "$1")" "" \
 		"Remove the stick once the OpenFrame has switched off: it starts the new system next time."
 }
 
@@ -422,17 +433,24 @@ screen_already() {
 	if [[ "$1" =~ ^([0-9]{8})-([0-9]{2})([0-9]{2}) ]]; then
 		WHEN=$(date -d "${BASH_REMATCH[1]} ${BASH_REMATCH[2]}:${BASH_REMATCH[3]}" '+ on %-d %B %Y at %H:%M' 2>/dev/null)
 	fi
-	message "$B_BRN" "Already installed" "This OpenFrame was installed from this stick$WHEN." "" \
-		"${C_GRY}Backups:  OF-BACKUP/$1" "" \
-		"Remove the stick and it starts its own system." "" \
-		"To install it again, set flash=again in the stick's settings/flash.txt."
+	if [ "$BACKUPDIR" = "$BACKUPMNT" ]; then
+		message "$B_BRN" "Already installed" "This OpenFrame was installed from this stick$WHEN." "" \
+			"${C_GRY}Backups:  $(backups_at "$1")" "" \
+			"Remove the stick and it starts its own system." "" \
+			"To install it again, set flash=again in the stick's settings/flash.txt."
+	else
+		message "$B_BRN" "Already installed" "This OpenFrame was installed from this stick$WHEN." "" \
+			"${C_GRY}Backups:  $(backups_at "$1")" "" \
+			"To install it again, set flash=again in the stick's settings/flash.txt; to start" \
+			"this stick's own system without this message, set flash=no."
+	fi
 }
 
 # Stopped: $1 why, $2 what that means for the unit.
 screen_stopped() {
 	message "$B_RED" "Stopped" "The install has stopped:" "" "$C_LRD$1" "" \
 		"$C_GRY$2" "" \
-		"${C_GRY}The details are in the OF-BACKUP drive on the stick." "" \
+		"${C_GRY}$(details_at)" "" \
 		"${C_YEL}You can switch off now."
 }
 
@@ -457,9 +475,9 @@ sound() {
 	aplay -q -f a_law -r 44100 "$SOUNDS/$1.au" >/dev/null 2>&1 &
 }
 
-# flash.txt's flash= setting, lower case: yes, again, or anything else (off). Read
-# with bash alone, the way of-netplan reads wifi.txt.
-install_mode() {
+# A setting from flash.txt ($1: flash or backup), lower case; nothing if it isn't
+# there. Read with bash alone, the way of-netplan reads wifi.txt.
+flash_setting() {
 	local line k v
 	[ -r "$FLASHTXT" ] || return 0
 	while IFS= read -r line || [ -n "$line" ]; do
@@ -471,8 +489,33 @@ install_mode() {
 		k="${k//[[:space:]]/}"
 		v="${v//[[:space:]]/}"
 		v="${v//[\"\']/}"
-		[ "${k,,}" = "flash" ] && echo "${v,,}"
+		[ "${k,,}" = "$1" ] && echo "${v,,}"
 	done < "$FLASHTXT" | tail -1
+}
+
+# flash=: yes, again, or anything else (off).
+install_mode() {
+	flash_setting flash
+}
+
+# backup=: "no" (or off, false, 0) leaves the internal memory's backup out; anything
+# else, or no backup= line, backs it up.
+backup_mode() {
+	case "$(flash_setting backup)" in
+		no|off|false|0) echo no ;;
+		*) echo yes ;;
+	esac
+}
+
+# Where this unit's folder ($1) is, for the screens: on OF-BACKUP, or on this stick's
+# own system (a stick in use as a system has no OF-BACKUP).
+backups_at() {
+	if [ "$BACKUPDIR" = "$BACKUPMNT" ]; then echo "OF-BACKUP/$1"
+	else echo "$BACKUPDIR/$1, on this stick's system"; fi
+}
+details_at() {
+	if [ "$BACKUPDIR" = "$BACKUPMNT" ]; then echo "The details are in the OF-BACKUP drive on the stick."
+	else echo "The details are on this stick's system, in $BACKUPDIR."; fi
 }
 
 # Sets flash= in flash.txt to $1, keeping everything else.
@@ -552,7 +595,7 @@ kv_set() {
 	fi
 	rm -f "$T"
 	log "couldn't record $2=$3 in $F"
-	[ "$2" = "state" ] && fail "The stick couldn't record how the install is going: OF-BACKUP may be full or failing." \
+	[ "$2" = "state" ] && fail "The stick couldn't record how the install is going: it may be full or failing." \
 		"Leave the stick in: the next start carries on from the last step it recorded."
 	return 1
 }
@@ -619,7 +662,14 @@ with_progress() {
 fail() {
 	local WHY="$1"
 	[ -n "${UDIR:-}" ] && [ -f "$UDIR/info.txt" ] && kv_set "$UDIR/info.txt" stopped "$(date '+%F %T'): $WHY"
-	if [ "$MODE" = "boot" ]; then
+	if [ "$MODE" = "boot" ] && [ -z "${UDIR:-}" ] && [ -n "${BACKUPDIR:-}" ] && [ "$BACKUPDIR" != "$BACKUPMNT" ]; then
+		# Stopped at the checks, before anything for a unit, on a stick in use as a system
+		# (an OpenFrame 2, say, with flash=yes left set): say why, then start its system.
+		message "$B_RED" "Stopped" "The install has stopped:" "" "$C_LRD$WHY" "" \
+			"$C_GRY${2:-Nothing was written to the internal memory.}"
+		sound failure
+		start_own_system
+	elif [ "$MODE" = "boot" ]; then
 		mkdir -p "$RUNDIR" && touch "$HOLD"
 		screen_stopped "$WHY" "${2:-Nothing was written to the internal memory.}"
 		sound failure
@@ -695,7 +745,12 @@ new_unit() {
 	{
 		echo "# This OpenFrame's backup by OpenFrame Flash on this stick, and the install of a new"
 		echo "# system onto its internal memory if one was done (state, written, finished)."
-		echo "# firmware.bin and mmc.img.gz are what it had before."
+		if [ -n "$MMC_SKIP" ]; then
+			echo "# firmware.bin is the firmware it had before; its internal memory wasn't backed"
+			echo "# up (backup=no in flash.txt)."
+		else
+			echo "# firmware.bin and mmc.img.gz are what it had before."
+		fi
 		echo "cid=$CID"
 		echo "mac=$MAC"
 		echo "model=${MODEL:-OpenFrame 1}"
@@ -732,12 +787,23 @@ keep_settings() {
 backup() {
 	local FW="$UDIR/firmware.bin" IMG="$UDIR/mmc.img.gz" FIFO RAWMD5 GZMD5 i CUR NEED
 	kv_set "$UDIR/info.txt" state backing-up
-	NEED=$(( OF1MMC + 64 * 1024 * 1024 ))
-	[ "$(free_bytes "$UDIR")" -ge "$NEED" ] ||
+	# The firmware alone needs a few MB; with the internal memory, its size and some.
+	NEED=$(( 16 * 1024 * 1024 ))
+	[ -z "$MMC_SKIP" ] && NEED=$(( OF1MMC + 64 * 1024 * 1024 ))
+	if [ "$(free_bytes "$UDIR")" -lt "$NEED" ]; then
+		if [ -z "$MMC_SKIP" ] && [ -z "${BACKUP_ONLY:-}" ]; then
+			fail "There isn't room for the backups: they need $((NEED / 1048576)) MB." \
+				"Nothing was written to the internal memory. With backup=no in the stick's settings/flash.txt, only the firmware is backed up."
+		fi
 		fail "There isn't room for the backups: they need $((NEED / 1048576)) MB."
+	fi
 
 	if [ -n "${BACKUP_ONLY:-}" ]; then
 		screen "" "  Backing up this OpenFrame's firmware and internal memory." ""
+	elif [ -n "$MMC_SKIP" ]; then
+		screen "" "  Installing onto this OpenFrame's internal memory." "" \
+			"  Please don't switch off or unplug it, or remove the stick." "" \
+			"  Backing up the firmware first (backup=no: not the internal memory)."
 	else
 		screen "" "  Installing onto this OpenFrame's internal memory." "" \
 			"  Please don't switch off or unplug it, or remove the stick." "" \
@@ -746,11 +812,11 @@ backup() {
 	[ -n "$SCREEN" ] || echo
 	phase fwbackup
 
-	[ -e /sys/module/fh ] || modprobe fh 2>/dev/null
-	for i in 1 2 3 4 5; do [ -e /dev/fh ] && break; sleep 0.2; done
-	[ -e /dev/fh ] || fail "The firmware chip can't be read (no /dev/fh)."
-	dd if=/dev/fh of="$W/fw1.bin" bs=64k iflag=fullblock status=none &&
-		dd if=/dev/fh of="$W/fw2.bin" bs=64k iflag=fullblock status=none ||
+	[ "$FHDEV" != /dev/fh ] || [ -e /sys/module/fh ] || modprobe fh 2>/dev/null
+	for i in 1 2 3 4 5; do [ -e "$FHDEV" ] && break; sleep 0.2; done
+	[ -e "$FHDEV" ] || fail "The firmware chip can't be read (no $FHDEV)."
+	dd if="$FHDEV" of="$W/fw1.bin" bs=64k iflag=fullblock status=none &&
+		dd if="$FHDEV" of="$W/fw2.bin" bs=64k iflag=fullblock status=none ||
 		fail "The firmware chip can't be read."
 	cmp -s "$W/fw1.bin" "$W/fw2.bin" || fail "Two reads of the firmware chip differ."
 	[ "$(stat -c %s "$W/fw1.bin")" = 1048576 ] || fail "The firmware chip didn't read as 1 MB."
@@ -764,8 +830,14 @@ backup() {
 	progress_line "Firmware: done"
 	[ -n "$SCREEN" ] || echo
 
-	phase mmcbackup
 	kv_set "$UDIR/info.txt" mmc_before "$(lsblk -l -n -o NAME,SIZE,FSTYPE,LABEL "$MMC" | tr -s ' ' | sed 's/ *$//' | paste -sd ';' -)"
+	if [ -n "$MMC_SKIP" ]; then
+		kv_set "$UDIR/info.txt" mmc_backup "none (backup=no)"
+		kv_set "$UDIR/info.txt" state backed-up
+		sync
+		return 0
+	fi
+	phase mmcbackup
 	FIFO="$W/raw.fifo"
 	mkfifo "$FIFO"
 	md5sum < "$FIFO" > "$W/raw.md5" &
@@ -1238,6 +1310,8 @@ already() {
 	if [ "$MODE" = "boot" ]; then
 		screen_already "${D##*/}"
 		sound success
+		# A stick in use as a system (no OF-BACKUP) is this unit's system too: it starts.
+		[ "$BACKUPDIR" = "$BACKUPMNT" ] || start_own_system
 		countdown 60 "Switching off"
 		power_off
 		exit 0
@@ -1266,16 +1340,42 @@ checks() {
 
 ## Modes.
 
+# backup=no: the internal memory's backup is left out, and the panel's first step and
+# its time to go say so.
+use_backup_setting() {
+	[ "$(backup_mode)" = no ] || return 0
+	MMC_SKIP=1
+	STEPS[0]="Back up the firmware"
+	PH_EST[mmcbackup]=0
+	PH_EST[verify]=0
+	log "backup=no: the internal memory isn't backed up, only the firmware"
+}
+
+# The units' folders: on OF-BACKUP if this stick has it, else (a stick in use as a
+# system) on its own system.
+choose_backupdir() {
+	if mount_backup; then
+		BACKUPDIR="$BACKUPMNT"
+	else
+		BACKUPDIR="$STATEDIR/backups"
+		mkdir -p "$BACKUPDIR"
+	fi
+}
+
 boot_mode() {
 	local M
 	MODE=boot
 	M=$(install_mode)
 	if [ "$M" != "yes" ] && [ "$M" != "again" ]; then
 		# Not installing. A stick in use as a system gives up the image copy when it's
-		# short of room.
+		# short of room, and flash.txt with it: there's nothing left to install.
 		if [ -f "$BUNDLE" ] && [ -z "$(backup_part)" ] && [ "$(free_bytes /)" -lt "$MINFREE" ]; then
 			rm -f "$BUNDLE" "$BUNDLEINFO"
 			log "the root filesystem had less than $((MINFREE / 1048576)) MB free: removed the image copy"
+			if [ -e "$FLASHTXT" ]; then
+				/usr/lib/openframe/bootrw open && rm -f "$FLASHTXT" "$SETDIR/._flash.txt" && sync
+				/usr/lib/openframe/bootrw close
+			fi
 		fi
 		exit 0
 	fi
@@ -1290,31 +1390,36 @@ boot_mode() {
 	W=$(mktemp -d /tmp/of-flash.XXXXXX)
 	trap cleanup EXIT
 
-	# Not a flash stick: say so for a while, change nothing, and let it start as a
-	# system. The firmware update the image marked waits too: an install backs up first.
-	if [ -n "${OF_FLASH_TEST_BACKUPDIR:-}" ] && [ -f "$BUNDLE" ]; then
+	# No image copy: nothing to install. Say so for a while, change nothing, and let it
+	# start as a system. The firmware update the image marked waits too: an install backs
+	# up first.
+	if [ ! -f "$BUNDLE" ]; then
+		message "$B_BRN" "Not a flash stick" "flash=yes is set, but this stick no longer carries the image to install." "" \
+			"Write the image to it again to use it as a flash stick. Nothing has been changed."
+		sound failure
+		start_own_system
+	fi
+	if [ -n "${OF_FLASH_TEST_BACKUPDIR:-}" ]; then
 		BACKUPMNT="$OF_FLASH_TEST_BACKUPDIR"
 		mkdir -p "$BACKUPMNT"
+		BACKUPDIR="$BACKUPMNT"
 		log "test: backups in $BACKUPMNT"
-	elif ! mount_backup || [ ! -f "$BUNDLE" ]; then
-		rm -f "$FWPENDING"
-		if [ -f "$BUNDLE" ]; then
-			message "$B_BRN" "Not a flash stick" "flash=yes is set, but this stick has been started as a system before, so it can't install by itself any more." "" \
-				"Write the image to it again to use it as a flash stick. Nothing has been changed." "" \
-				"${C_GRY}('sudo of-flash flash' can still flash from it by hand.)"
-		else
-			message "$B_BRN" "Not a flash stick" "flash=yes is set, but this stick no longer carries the image to install." "" \
-				"Write the image to it again to use it as a flash stick. Nothing has been changed."
-		fi
-		sound failure
-		countdown 30 "Starting the system from this stick"
-		tty_out $'\033[0m\033[?25h\n'
-		console_restore
-		exit 0
+	else
+		choose_backupdir
 	fi
-	BACKUPDIR="$BACKUPMNT"
+	use_backup_setting
 	checks
 	run_unit
+}
+
+# After a message on the panel: counts down, then lets the boot carry on into this
+# stick's own system.
+start_own_system() {
+	countdown 30 "Starting the system from this stick"
+	tty_out $'\033[0m\033[?25h\n'
+	console_restore
+	cleanup
+	exit 0
 }
 
 cli_flash() {
@@ -1322,17 +1427,18 @@ cli_flash() {
 	W=$(mktemp -d /tmp/of-flash.XXXXXX)
 	trap cleanup EXIT
 	checks
-	if mount_backup; then
-		BACKUPDIR="$BACKUPMNT"
-	else
-		BACKUPDIR="$STATEDIR/backups"
-		mkdir -p "$BACKUPDIR"
-	fi
+	choose_backupdir
+	use_backup_setting
 	if [ -z "$(unit_dir "$CID")" ]; then
 		[ -n "$(unit_dir "$CID" done)" ] && already
 		echo "This installs $(kv "$BUNDLEINFO" name) onto this OpenFrame's internal memory ($MMC),"
-		echo "erasing what's there, and brings its firmware up to date. Both are backed up first,"
-		echo "to $BACKUPDIR$([ "$BACKUPDIR" != "$BACKUPMNT" ] && echo " (on this stick's ext4 system: copy them off it yourself)")."
+		if [ -n "$MMC_SKIP" ]; then
+			echo "erasing what's there, and brings its firmware up to date. The firmware is backed up"
+			echo "first, but not the internal memory (backup=no in flash.txt), to $BACKUPDIR."
+		else
+			echo "erasing what's there, and brings its firmware up to date. Both are backed up first,"
+			echo "to $BACKUPDIR$([ "$BACKUPDIR" != "$BACKUPMNT" ] && echo " (on this stick's ext4 system: copy them off it yourself)")."
+		fi
 		echo "This stick's settings are copied onto the new system; the stick's own stay as they are."
 		read -r -p "Carry on? Type yes: " ANSWER
 		[ "$ANSWER" = "yes" ] || exit 0
@@ -1348,12 +1454,7 @@ cli_backup() {
 	trap cleanup EXIT
 	[ -f "$BUNDLE" ] || BACKUP_ONLY_NO_IMAGE=1
 	checks
-	if mount_backup; then
-		BACKUPDIR="$BACKUPMNT"
-	else
-		BACKUPDIR="$STATEDIR/backups"
-		mkdir -p "$BACKUPDIR"
-	fi
+	choose_backupdir
 	new_unit
 	kv_set "$UDIR/info.txt" image "(backup only)"
 	backup
@@ -1368,7 +1469,7 @@ cli_backup() {
 status() {
 	local M P D
 	M=$(install_mode)
-	echo "flash.txt: flash=${M:-no}"
+	echo "flash.txt: flash=${M:-no}, backup=$(backup_mode)"
 	if [ -f "$BUNDLEINFO" ]; then
 		echo "Image copy: $(kv "$BUNDLEINFO" name) ($(( $(stat -c %s "$BUNDLE" 2>/dev/null || echo 0) / 1048576 )) MB)"
 	else
@@ -1379,7 +1480,7 @@ status() {
 		echo "Flash stick: yes, backups on $BACKUPLABEL ($P, $(( $(free_bytes "$BACKUPMNT") / 1048576 )) MB free)"
 		D="$BACKUPMNT"
 	else
-		echo "Flash stick: no (started as a system); 'of-flash flash' backs up to $STATEDIR/backups"
+		echo "Flash stick: in use as a system too; installs keep their folders (and backups) in $STATEDIR/backups"
 		D="$STATEDIR/backups"
 	fi
 	if [ -s "$D/installed.txt" ]; then

@@ -2,8 +2,7 @@
 # installs this system onto an OpenFrame 1's internal memory, after backing it and the
 # firmware up (/usr/lib/openframe/flash/flash). At every other start it does nothing, in
 # a moment, but remove the image copy from a stick in use as a system that's short of
-# room (of-expand removes such a stick's flash.txt as it grows, hence the second
-# condition). Before the firmware update: the backup comes first, and it's the
+# room (which may have no flash.txt, hence the second condition). Before the firmware update: the backup comes first, and it's the
 # flash that says when the update may run.
 [Unit]
 Description=OpenFrame Flash, for the internal memory
