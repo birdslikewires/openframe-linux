@@ -42,6 +42,17 @@ jobs:
           version=$(bash crystalhd/version.sh)
           echo "Building openframe-crystalhd ${version}"
           mkdir -p out
+          # Name lookups from the i386 container (they failed on the runner): which way works.
+          cat /etc/resolv.conf
+          docker run --rm --platform linux/386 i386/debian:trixie cat /etc/resolv.conf || true
+          for o in "" "--network host" "--security-opt seccomp=unconfined" "--privileged"; do
+            if docker run --rm $o --platform linux/386 i386/debian:trixie getent hosts deb.debian.org; then
+              echo "i386 resolves with [$o]"
+            else
+              echo "i386 can't resolve with [$o]"
+            fi
+          done
+          docker run --rm debian:trixie getent hosts deb.debian.org && echo "amd64 resolves" || echo "amd64 can't resolve"
           docker run --rm --network host --platform linux/386 -v "$PWD/crystalhd:/src:ro" -v "$PWD/out:/out" \
             i386/debian:trixie sh /src/build.sh /src "${version}" /out
           ls -l out
