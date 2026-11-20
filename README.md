@@ -193,8 +193,12 @@ come from elsewhere and keep their own terms.
 
 - `overlay-*/usr/lib/firmware/updates/brcm/` and `overlay-*/usr/lib/firmware/updates/rtl_nic/`:
   firmware from linux-firmware, each folder with its licence file.
-- `overlay-*/usr/lib/firmware/rt2870.bin`: Ralink's firmware for its RT2870 USB Wi-Fi chips, which
-  Ralink allows to be redistributed unmodified.
+- `overlay-*/usr/lib/firmware/rt2870.bin`: Ralink's firmware for the RT2870, RT3070 and RT5370 USB
+  Wi-Fi chips (the `rt2800usb` driver), from linux-firmware, with its licence alongside.
+- `overlay-*/usr/lib/openframe/readlightsensor-i2c`: Andrew de Quincey's
+  ([adq](https://github.com/adq)) tool for reading the light sensor, from the Joggler community
+  around 2010, kept for units without the light sensor driver. It isn't ours, and isn't covered by
+  this licence.
 - `overlay-*/usr/lib/openframe/grubq.efi`: GRUB, under the GPL version 3 or later. `of-grubbuild.sh`
   builds it from Debian's `grub-efi-ia32-bin`, whose source Debian publishes.
 - The `openframe-crystalhd` package's library and firmware, which `crystalhd/build.sh` fetches rather
