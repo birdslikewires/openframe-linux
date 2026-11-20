@@ -108,9 +108,8 @@ jobs:
             cp "${overlay_dir}usr/local/bin/of-"* "${PKG}/usr/local/bin/" 2>/dev/null || true
             cp "${overlay_dir}usr/local/sbin/of-"* "${PKG}/usr/local/sbin/" 2>/dev/null || true
             chmod 755 "${PKG}/usr/local/bin/"of-* "${PKG}/usr/local/sbin/"of-*
-            # readlightsensor: reads the light sensor's kernel driver, else OpenPeak's tool
-            # (usr/lib/openframe/readlightsensor-i2c). It replaces that tool, which older
-            # images had at this path.
+            # readlightsensor: reads the light sensor's kernel driver. It replaces Andrew de
+            # Quincey's tool, which older images had at this path.
             if [ -f "${overlay_dir}usr/local/bin/readlightsensor" ]; then
               install -m 755 "${overlay_dir}usr/local/bin/readlightsensor" "${PKG}/usr/local/bin/"
             fi

@@ -1,11 +1,11 @@
 #!/bin/sh
 
-## readlightsensor v26.11.1 (14th November 2026)
-##  Prints the light sensor's reading. From the kernel driver (openframe-als, under
-##  /sys/bus/iio/devices) when it has the sensor, which anyone can read; else straight
-##  from the i2c bus, as OpenPeak's own tool did (needs root).
+## readlightsensor v26.11.2 (20th November 2026)
+##  Prints the light sensor's reading, from its kernel driver (openframe-als, under
+##  /sys/bus/iio/devices), which anyone can read. Exits 1 if there's no sensor.
 
 for D in /sys/bus/iio/devices/iio:device*; do
 	[ "$(cat "$D/name" 2>/dev/null)" = "openframe-als" ] && exec cat "$D/in_illuminance_raw"
 done
-exec /usr/lib/openframe/readlightsensor-i2c
+echo "No light sensor found." >&2
+exit 1

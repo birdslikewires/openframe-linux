@@ -199,7 +199,7 @@ case "$1" in
 		fi
 
 		# Once per system: images used to open every i2c bus to every user
-		# (/etc/udev/rules.d/70-i2c.rules), so OpenPeak's readlightsensor ran without
+		# (/etc/udev/rules.d/70-i2c.rules), so the old readlightsensor ran without
 		# root. The light sensor now has a kernel driver anyone can read, so the buses go
 		# back to Debian's default: root and the i2c group. Only our exact rule is
 		# removed; an edited one is someone's choice and stays.

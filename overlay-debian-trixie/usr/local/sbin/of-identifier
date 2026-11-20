@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-identifier v26.11.10 (16th November 2026)
+## of-identifier v26.11.11 (20th November 2026)
 ##  Identifies what kind of OpenFrame device we're running on and applies some tweaks.
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -292,7 +292,5 @@ fi
 outputsystemuid
 outputsysteminformation
 
-# Init the light sensor readings.
-readlightsensor &>/dev/null
 
 exit 0

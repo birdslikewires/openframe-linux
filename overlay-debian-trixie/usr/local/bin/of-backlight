@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-backlight v26.11.9 (15th November 2026) by Andrew Davison
+## of-backlight v26.11.10 (20th November 2026) by Andrew Davison
 ##  Backlight control with fading for OpenFrame, and automatic brightness from the
 ##  light sensor. None of it needs root.
 ##
@@ -172,7 +172,7 @@ curve() {
 }
 
 ## The light sensor's reading, in LIGHT (empty if there isn't one). From the kernel
-## driver (openframe-als), found once and again if it goes; else through readlightsensor.
+## driver (openframe-als), found once and again if it goes.
 SENSOR=""
 read_light() {
 	local d n
@@ -186,8 +186,6 @@ read_light() {
 	fi
 	if [ -n "$SENSOR" ]; then
 		read -r LIGHT 2>/dev/null < "$SENSOR" || SENSOR=""
-	else
-		LIGHT=$(readlightsensor 2>/dev/null)
 	fi
 	[[ "$LIGHT" =~ ^[0-9]+$ ]] || LIGHT=""
 }
