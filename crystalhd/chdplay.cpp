@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Andrew Davison
+//
 // chdplay: Crystal HD video player for the OpenFrame 2.
 //
 // Video: libavformat demux -> (h264_mp4toannexb) -> BCM70015, scaled on the card to the panel

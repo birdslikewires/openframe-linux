@@ -186,4 +186,16 @@ Used to mount image files for minor tweaks, meaning we don't need to rebuild thi
 
 Basic build server cleaning script. Give it directories to clean line-by-line in a text file and once server drive space drops below 5 GB it removes any directories (and obviously their contents) that are older than 12 months.
 
+## Licence
 
+This repository is under the MIT licence (see [LICENSE](LICENSE)), except for the files below, which
+come from elsewhere and keep their own terms.
+
+- `overlay-*/usr/lib/firmware/updates/brcm/` and `overlay-*/usr/lib/firmware/updates/rtl_nic/`:
+  firmware from linux-firmware, each folder with its licence file.
+- `overlay-*/usr/lib/firmware/rt2870.bin`: Ralink's firmware for its RT2870 USB Wi-Fi chips, which
+  Ralink allows to be redistributed unmodified.
+- `overlay-*/usr/lib/openframe/grubq.efi`: GRUB, under the GPL version 3 or later. `of-grubbuild.sh`
+  builds it from Debian's `grub-efi-ia32-bin`, whose source Debian publishes.
+- The `openframe-crystalhd` package's library and firmware, which `crystalhd/build.sh` fetches rather
+  than this repository holding: see `crystalhd/copyright`.

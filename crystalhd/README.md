@@ -21,9 +21,10 @@ It holds:
   library loads it from. Broadcom's licence allows redistribution of the unmodified files with its
   notice, which is in the package's `copyright`. The build checks the files are byte for byte the
   ones Debian shipped in `firmware-crystalhd`.
-- **chdplay** (`chdplay.cpp`), a player. FFmpeg dropped its Crystal HD decoders in 2024, so it uses
-  FFmpeg only to read files and streams and to decode the sound. The card decodes the H.264 video
-  and scales it to the panel width. Files, HTTPS and HLS play, with the sound as the clock.
+- **chdplay** (`chdplay.cpp`, MIT like the rest of this repository), a player. FFmpeg dropped its
+  Crystal HD decoders in 2024, so it uses FFmpeg only to read files and streams and to decode the
+  sound. The card decodes the H.264 video and scales it to the panel width. Files, HTTPS and HLS
+  play, with the sound as the clock.
 
 ```
 sudo chdplay [--scale W|0] [--fps N] [--bench] [--noaudio] [--timeout S] [--lead S]
