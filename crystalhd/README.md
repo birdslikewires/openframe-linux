@@ -8,14 +8,15 @@ OpenFrame kernel ([openframe-kernel](https://github.com/birdslikewires/openframe
 
 It holds:
 
-- **libcrystalhd** 3.6, from [twopoint71/crystalhd](https://github.com/twopoint71/crystalhd) at
-  commit `ec67f08`, with `libcrystalhd.patch`. The patch fixes the random stall on the BCM70015:
-  - The fork's commit d8ad111 asked the driver for its free input space with bit 31 clear, so the
+- **libcrystalhd** 3.6, from [birdslikewires/crystalhd](https://github.com/birdslikewires/crystalhd),
+  which is [twopoint71/crystalhd](https://github.com/twopoint71/crystalhd) with our fixes. They fix
+  the random stall on the BCM70015:
+  - twopoint71's commit d8ad111 asked the driver for its free input space with bit 31 clear, so the
     library sized each send by its own 1 MB ring instead of the card's 768 KB buffer. The card
     refused every oversized send, and the library retried it for ever.
-  - The patch also releases a lock on an error path, which otherwise hung the next send.
-  - It sends only whole dwords until the end of the stream, as the driver refuses unaligned
-    addresses for good.
+  - A lock is now released on an error path, where it otherwise hung the next send.
+  - Sends are whole dwords until the end of the stream, as the driver refuses unaligned addresses
+    for good.
 - **The firmware**, `bcm70015fw.bin` and `bcm70012fw.bin`, in `/usr/lib/firmware`, where the
   library loads it from. Broadcom's licence allows redistribution of the unmodified files with its
   notice, which is in the package's `copyright`. The build checks the files are byte for byte the
@@ -40,12 +41,14 @@ workflow, tests it on a clean Trixie, and publishes it to the same apt repositor
 `openframe-scripts`. `build.sh` does the build in an i386 Debian Trixie container:
 
 ```
-docker run --rm --platform linux/386 -v "$PWD/crystalhd:/src:ro" -v "$PWD/out:/out" \
-  i386/debian:trixie sh /src/build.sh /src 26.11.1 /out
+docker run --rm --security-opt seccomp=unconfined --platform linux/386 \
+  -v "$PWD/crystalhd:/src:ro" -v "$PWD/out:/out" i386/debian:trixie sh /src/build.sh /src 26.11.1 /out
 ```
 
-The version is year.month.N, counted by `version.sh` like `openframe-scripts`. To move to a newer
-upstream, change `COMMIT` in `build.sh` and refresh the patch against it.
+The version is year.month.N, counted by `version.sh` like `openframe-scripts`. The library comes from
+a fixed commit, `COMMIT` in `build.sh`: to take changes, commit them to birdslikewires/crystalhd, push,
+and change `COMMIT` here. On an x86 Linux host the container needs `--security-opt seccomp=unconfined`
+as above, or Docker's default filter stops the i386 apt resolving names.
 
 The dependencies are Debian's FFmpeg, ALSA and libdrm libraries: about 155 MB on a fresh system,
 which fits the OpenFrame 2's 2 GB internal memory.

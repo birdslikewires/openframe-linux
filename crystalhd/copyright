@@ -1,8 +1,9 @@
 openframe-crystalhd
 
-Built from https://github.com/twopoint71/crystalhd at commit
-ec67f0862630bed2852bdba68cd26d14796a0caa, with crystalhd/libcrystalhd.patch and
-crystalhd/chdplay.cpp from https://github.com/birdslikewires/openframe-linux.
+Built from https://github.com/birdslikewires/crystalhd at commit
+67bac2dac7a9056bf9d596b6e0fb5f011781b843 (https://github.com/twopoint71/crystalhd
+with OpenFrame fixes), with crystalhd/chdplay.cpp from
+https://github.com/birdslikewires/openframe-linux.
 
 
 Files: /usr/lib/*/libcrystalhd.so.*
@@ -16,8 +17,8 @@ License: LGPL-2.1
  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
  PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
  .
- The full text is in /usr/share/common-licenses/LGPL-2.1. The source is at the two
- places above: the upstream commit and the patch applied to it.
+ The full text is in /usr/share/common-licenses/LGPL-2.1. The source is at the commit
+ above.
 
 
 Files: /usr/lib/firmware/bcm70015fw.bin /usr/lib/firmware/bcm70012fw.bin

@@ -3,9 +3,9 @@
 # firmware, and chdplay. Run as root in an i386 Debian Trixie container (the workflow uses
 # i386/debian:trixie), as: sh build.sh <this folder> <version> <output folder>
 #
-# The library and firmware come from twopoint71/crystalhd at a fixed commit, checked by its
-# hash, with libcrystalhd.patch applied. The firmware is also checked against the copies
-# Debian shipped in firmware-crystalhd (0.0~git20120110.fdd2f19-1), byte for byte.
+# The library and firmware come from birdslikewires/crystalhd (twopoint71/crystalhd with our
+# fixes) at a fixed commit, checked by its hash. The firmware is also checked against the
+# copies Debian shipped in firmware-crystalhd (0.0~git20120110.fdd2f19-1), byte for byte.
 
 set -eu
 
@@ -13,8 +13,8 @@ here=$1
 version=$2
 out=$3
 
-UPSTREAM=https://github.com/twopoint71/crystalhd.git
-COMMIT=ec67f0862630bed2852bdba68cd26d14796a0caa
+UPSTREAM=https://github.com/birdslikewires/crystalhd.git
+COMMIT=67bac2dac7a9056bf9d596b6e0fb5f011781b843
 FW70015_MD5=213e2424b5f497105786b9e39f2f42ff
 FW70012_MD5=47a30682b1b7355c2238f5d5f1920bcb
 PKGNAME=openframe-crystalhd
@@ -31,7 +31,6 @@ git init -q "$src"
 git -C "$src" fetch -q --depth 1 "$UPSTREAM" "$COMMIT"
 git -C "$src" -c advice.detachedHead=false checkout -q FETCH_HEAD
 [ "$(git -C "$src" rev-parse HEAD)" = "$COMMIT" ] || { echo "Fetched the wrong commit"; exit 1; }
-git -C "$src" apply "$here/libcrystalhd.patch"
 
 printf '%s  %s\n%s  %s\n' \
   "$FW70015_MD5" "$src/firmware/fwbin/70015/bcm70015fw.bin" \
