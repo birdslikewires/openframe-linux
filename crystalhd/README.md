@@ -27,13 +27,30 @@ It holds:
   play, with the sound as the clock.
 
 ```
-sudo chdplay [--scale W|0] [--fps N] [--bench] [--noaudio] [--timeout S] [--lead S]
-             [--maxtemp C] file|URL
+sudo chdplay [--audio URL] [--buffer S] [--scale W|0] [--fps N] [--bench] [--noaudio]
+             [--timeout S] [--lead S] [--maxtemp C] file|URL
 ```
 
-`--maxtemp` (default 88) stops playback if the chip's own sensor passes that many degrees. There's no
-heatsink on the card, and 1080p at 60 frames a second heats the BCM70015 by about a degree a second;
-24 and 30 frames a second settle at about 66–74 °C.
+For streams:
+
+- Each input is read on its own thread, and network inputs reconnect when the server drops them.
+- When an input runs dry, playback pauses until it has `--buffer` seconds in hand (default 2,
+  doubling after each stall up to 8). It doesn't drop everything that arrives late. The sound
+  resumes on the sample where it stopped.
+- `--audio URL` takes the sound from a second input, for sources that keep video and audio
+  apart. YouTube has no 1080p60 stream with sound built in, for example:
+
+  ```
+  sudo chdplay --audio "$(yt-dlp -g -f 140 URL)" "$(yt-dlp -g -f 299 URL)"
+  ```
+
+  Format 299 is 1080p60 H.264 and 140 is AAC. The card can't decode VP9 or AV1.
+- Pictures are timed from the stream's timestamps, so streams with gaps and changing frame rates
+  stay in sync.
+
+`--maxtemp` (default 88) stops playback if the chip's own sensor passes that many degrees. A bare
+card under 1080p at 60 frames a second heats by about a degree a second. With a thermal pad onto
+the OpenFrame 2's metal back, it settles at about 68 °C after hours of 1080p60.
 
 ## Building
 
