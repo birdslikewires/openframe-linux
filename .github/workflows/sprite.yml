@@ -1,0 +1,171 @@
+name: sprite-import-publish
+run-name: openframe-sprite import and publish
+
+# openframe-sprite, the touch shell, is built and released by its own repository
+# (birdslikewires/openframe-sprite). This brings each new release into the linux.openbeak.net
+# repository, which images install it from (run_on_build/00-of-prep.sh). It looks every three
+# hours, and can be run by hand for a release straight away. The repository steps below are
+# crystalhd.yml's, which are package.yml's: change them together. It shares their concurrency
+# group, so the repo branch is never updated by two at once.
+
+on:
+  schedule:
+    - cron: '17 */3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-package
+  cancel-in-progress: false
+
+jobs:
+  import-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install tools
+        run: sudo apt-get install -y apt-utils dpkg-dev
+
+      - name: Ensure repo branch exists
+        run: |
+          git fetch origin repo:refs/remotes/origin/repo 2>/dev/null || \
+            git push origin HEAD:repo
+
+      - name: Checkout repo branch
+        uses: actions/checkout@v7
+        with:
+          ref: repo
+          path: apt-repo
+
+      # The latest release, unless the repository has it already. The download is checked
+      # against the release's SHA256SUMS, and the package against its tag.
+      - name: Fetch the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view -R birdslikewires/openframe-sprite --json tagName --jq .tagName)
+          VERSION=${tag#v}
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          deb="openframe-sprite_${VERSION}_i386.deb"
+          if [ -f "apt-repo/pool/trixie/${deb}" ]; then
+            echo "openframe-sprite ${VERSION} is in the repository already: nothing to do"
+            echo "UP_TO_DATE=yes" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          mkdir -p out
+          gh release download "$tag" -R birdslikewires/openframe-sprite -D out -p "$deb" -p SHA256SUMS
+          (cd out && grep " ${deb}\$" SHA256SUMS | sha256sum -c -)
+          [ "$(dpkg-deb -f "out/${deb}" Package)" = openframe-sprite ]
+          [ "$(dpkg-deb -f "out/${deb}" Version)" = "${VERSION}" ]
+          [ "$(dpkg-deb -f "out/${deb}" Architecture)" = i386 ]
+          rm out/SHA256SUMS
+          echo "Importing openframe-sprite ${VERSION}"
+
+      # As package.yml: every key imported signs, and the key the units are given stays the one
+      # openframe-scripts ships.
+      - name: Import GPG signing keys
+        if: env.UP_TO_DATE != 'yes'
+        env:
+          KEY: ${{ secrets.APT_SIGNING_KEY }}
+          KEY_NEW: ${{ secrets.APT_SIGNING_KEY_OPENFRAME }}
+        run: |
+          echo "${KEY}" | gpg --batch --import
+          [ -z "${KEY_NEW}" ] || echo "${KEY_NEW}" | gpg --batch --import
+          SIGNERS=$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/ { s = 1; next } s && /^fpr/ { print $10; s = 0 }')
+          echo "Signing with: ${SIGNERS}"
+          for k in overlay-*/usr/share/keyrings/openframe-apt.gpg; do
+            [ -f "$k" ] || continue
+            SHIPPED=$(gpg --batch --with-colons --show-keys "$k" | awk -F: '/^pub/ { s = 1; next } s && /^fpr/ { print $10; s = 0 }')
+            for f in ${SHIPPED}; do
+              echo "${SIGNERS}" | grep -qx "$f" || { echo "$k holds $f, which this run doesn't sign with: not publishing."; exit 1; }
+            done
+            echo "PUBLISH_KEY=${SHIPPED}" >> $GITHUB_ENV
+          done
+          echo "SIGN_ARGS=$(for f in ${SIGNERS}; do printf -- '--local-user %s! ' "$f"; done)" >> $GITHUB_ENV
+
+      # Built for Trixie only. openframe-scripts' builds index the whole pool, so they keep
+      # this package listed too.
+      - name: Update the apt repository
+        if: env.UP_TO_DATE != 'yes'
+        run: |
+          codename=trixie
+          mkdir -p "apt-repo/pool/${codename}"
+          rm -f "apt-repo/pool/${codename}/"openframe-sprite_*.deb
+          cp out/openframe-sprite_*.deb "apt-repo/pool/${codename}/"
+
+          mkdir -p "apt-repo/dists/${codename}/main/binary-i386"
+          cd apt-repo
+          dpkg-scanpackages "pool/${codename}" > "dists/${codename}/main/binary-i386/Packages"
+          gzip -kf "dists/${codename}/main/binary-i386/Packages"
+
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="OpenFrame" \
+            -o APT::FTPArchive::Release::Label="OpenFrame Linux" \
+            -o APT::FTPArchive::Release::Suite="${codename}" \
+            -o APT::FTPArchive::Release::Codename="${codename}" \
+            -o APT::FTPArchive::Release::Architectures="all i386" \
+            -o APT::FTPArchive::Release::Components="main" \
+            -o APT::FTPArchive::Release::Description="OpenFrame Linux packages" \
+            release "dists/${codename}" > "dists/${codename}/Release"
+
+          gpg --batch --yes ${SIGN_ARGS} \
+            --detach-sign --armor -o "dists/${codename}/Release.gpg" "dists/${codename}/Release"
+          gpg --batch --yes ${SIGN_ARGS} \
+            --clearsign -o "dists/${codename}/InRelease" "dists/${codename}/Release"
+
+          gpg --export ${PUBLISH_KEY:-} > key.gpg
+
+      - name: Generate directory listing
+        if: env.UP_TO_DATE != 'yes'
+        run: |
+          cd apt-repo
+          {
+            printf '<!DOCTYPE html>\n<html>\n'
+            printf '<head><title>Index of /</title></head>\n'
+            printf '<body>\n<h1>Index of /</h1><hr><pre>'
+
+            human_size() {
+              local size=$1
+              if [ "$size" -ge 1073741824 ]; then
+                echo "$((size / 1073741824))G"
+              elif [ "$size" -ge 1048576 ]; then
+                echo "$((size / 1048576))M"
+              elif [ "$size" -ge 1024 ]; then
+                echo "$((size / 1024))K"
+              else
+                echo "$size"
+              fi
+            }
+
+            for f in pool/*/*.deb; do
+              [ -f "$f" ] || continue
+              fname=$(basename "$f")
+              fsize=$(stat -c '%s' "$f")
+              fdate=$(date -d "@$(stat -c '%Y' "$f")" '+%d-%b-%Y %H:%M')
+              hsize=$(human_size "$fsize")
+              namelen=${#fname}
+              padlen=$((51 - namelen))
+              [ ${padlen} -lt 1 ] && padlen=1
+              padding=$(printf '%*s' ${padlen} '')
+              printf '\n<a href="%s">%s</a>%s%s  %8s' \
+                "${f}" "${fname}" "${padding}" "${fdate}" "${hsize}"
+            done
+
+            printf '\n</pre><hr></body>\n</html>\n'
+          } > index.html
+
+      - name: Push apt repository
+        if: env.UP_TO_DATE != 'yes'
+        run: |
+          cd apt-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No changes to commit" || \
+            git commit -m "apt: openframe-sprite ${VERSION}"
+          git push origin repo

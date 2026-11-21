@@ -210,4 +210,12 @@ apt-get install -y openframe-firmware
 rm -f /var/lib/openframe-firmware/pending
 echo
 
+# sprite, the touch shell (birdslikewires/openframe-sprite, published into the
+# linux.openbeak.net repository by sprite.yml). Its postinst takes tty1 from the login
+# prompt, so the image starts into sprite; the login prompt is still there over SSH, and
+# comes back on tty1 if sprite is removed or keeps failing.
+echo "Installing sprite..."
+apt-get install -y openframe-sprite
+echo
+
 exit 0

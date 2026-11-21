@@ -1,0 +1,8 @@
+# The OpenFrame touchscreen (OpenFrame 1 and 2: "AmSC OpenPeak Touchscreen Hyup05_3", USB
+# 04b4:1974). Its reported range overshoots the 800x480 panel, by about 2% across and 6% down,
+# so taps landed up to 16 px out towards the corners. These ranges, fitted from finger taps on
+# an OpenFrame 1 (2026-11-21), bring that to under 10 px. sprite's Settings > Calibrate touch
+# corrects each unit further on top of this.
+evdev:input:b0003v04B4p1974*
+ EVDEV_ABS_00=-347:33043
+ EVDEV_ABS_01=-632:33952

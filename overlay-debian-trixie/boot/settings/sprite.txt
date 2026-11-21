@@ -1,0 +1,10 @@
+## sprite, the touch screen.
+
+# The app to open whenever the OpenFrame starts, instead of the home screen. Give its name
+# as the home screen shows it, e.g. startup=Clock. Leave it empty for the home screen.
+# Holding an app's tile on the screen, then 'Open at startup', sets this too.
+startup=
+
+# Touchscreen calibration, from Settings > Calibrate touch on the screen: six numbers that
+# correct where touches land. Empty for the standard calibration.
+calibration=

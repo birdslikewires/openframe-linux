@@ -14,7 +14,7 @@
 overlay_dir="$1"
 paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
   "${overlay_dir}usr/share/kernel" "${overlay_dir}usr/lib/firmware/updates" \
-  "${overlay_dir}usr/lib/udev/rules.d" "${overlay_dir}usr/lib/openframe" \
+  "${overlay_dir}usr/lib/udev/rules.d" "${overlay_dir}usr/lib/udev/hwdb.d" "${overlay_dir}usr/lib/openframe" \
   "${overlay_dir}usr/share/initramfs-tools" "${overlay_dir}usr/lib/systemd/system" \
   "${overlay_dir}usr/lib/sysctl.d" "${overlay_dir}etc/dpkg/dpkg.cfg.d/openframe-*" \
   "${overlay_dir}usr/share/keyrings" "${overlay_dir}usr/local/bin/readlightsensor" \

@@ -6,6 +6,8 @@ Image files are available on the [Releases](https://github.com/birdslikewires/op
 
 All of the overlays and scripts used to create the image files are in this repo, with deprecated versions for earlier versions of Debian if we wander back through the commits.
 
+Images start into [sprite](https://github.com/birdslikewires/openframe-sprite), the touch shell: a home screen of apps and settings, with one app at a time full screen. It can open one app at startup instead, for an OpenFrame with a single job. The login prompt is still there over SSH, and comes back on the screen if sprite is removed (`sudo apt remove openframe-sprite`) or keeps failing.
+
 
 ## First-Boot Provisioning
 
@@ -66,6 +68,7 @@ The `settings` folder in the `OF-BOOT` volume holds everything meant to be chang
 
 In `wifi.txt` and `ethernet.txt`, leave `address`, `gateway` and `dns` empty for an address from the router (DHCP). For a fixed one, give the address with its prefix or mask (`192.168.1.50/24`, `192.168.1.50/255.255.255.0`, or just `192.168.1.50` for a /24) and the gateway (usually your router's address). DNS is the gateway unless you list servers, separated by commas; servers listed with an automatic address replace the router's. A setting that isn't right is left out (the network stays automatic) and the login prompt says so. With both networks connected, the wired one carries the traffic.
 - `setup.txt`: a project to install when the system first starts, and any settings for it; see First-Boot Provisioning.
+- `sprite.txt`: sprite's settings: `startup=` names an app to open whenever the OpenFrame starts, instead of the home screen (holding an app's tile and choosing "Open at startup" sets it too), and `calibration=` holds the touchscreen calibration from sprite's Settings.
 - `flash.txt`: `flash=yes` makes the stick install itself onto an OpenFrame's internal memory, and `backup=no` leaves out the internal memory's backup; see above. It's removed from the internal memory's system, and from a stick once it no longer carries the image copy.
 
 Older images kept `network.yaml` and `backlight.txt` in the root of `OF-BOOT`. They move into `settings` once `openframe-scripts` is updated: a `network.yaml` with only the Wi-Fi name and password filled in becomes `wifi.txt`, and one with more in it becomes `settings/network.yaml`. The same happens to a `network.yaml` copied into the root of a new image. The MAC address isn't written into it any more.

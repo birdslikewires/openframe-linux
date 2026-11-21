@@ -13,6 +13,7 @@ on:
       - 'overlay-*/usr/share/kernel/**'
       - 'overlay-*/usr/lib/firmware/updates/**'
       - 'overlay-*/usr/lib/udev/rules.d/**'
+      - 'overlay-*/usr/lib/udev/hwdb.d/**'
       - 'overlay-*/usr/lib/openframe/**'
       - 'overlay-*/usr/share/initramfs-tools/**'
       - 'overlay-*/usr/lib/systemd/system/**'
@@ -136,6 +137,13 @@ jobs:
             if [ -d "${overlay_dir}usr/lib/udev/rules.d" ]; then
               mkdir -p "${PKG}/usr/lib/udev/rules.d"
               install -m 644 "${overlay_dir}usr/lib/udev/rules.d/"*.rules "${PKG}/usr/lib/udev/rules.d/"
+            fi
+
+            # udev hardware database entries (the touchscreen's calibration). udev's own
+            # trigger rebuilds hwdb.bin when a package changes them.
+            if [ -d "${overlay_dir}usr/lib/udev/hwdb.d" ]; then
+              mkdir -p "${PKG}/usr/lib/udev/hwdb.d"
+              install -m 644 "${overlay_dir}usr/lib/udev/hwdb.d/"*.hwdb "${PKG}/usr/lib/udev/hwdb.d/"
             fi
 
             # The key the OpenFrame apt repositories are signed with (the postinst keeps
