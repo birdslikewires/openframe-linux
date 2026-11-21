@@ -188,8 +188,10 @@ Basic build server cleaning script. Give it directories to clean line-by-line in
 
 ## Licence
 
-This repository is under the MIT licence (see [LICENSE](LICENSE)), except for the files below, which
-come from elsewhere and keep their own terms.
+This repository is under the GNU General Public License, version 3 or (at your option) any later
+version (see [LICENSE](LICENSE)). Copyright 2014-2026 Andrew Davison. It was under the MIT licence
+until November 2026, and copies from before then can still be used under those terms. The files
+below come from elsewhere and keep their own terms.
 
 - `overlay-*/usr/lib/firmware/updates/brcm/` and `overlay-*/usr/lib/firmware/updates/rtl_nic/`:
   firmware from linux-firmware, each folder with its licence file.
