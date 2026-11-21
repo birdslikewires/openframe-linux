@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  actions: write    # to start sprite.yml (see "Wait for openframe-sprite")
 
 concurrency:
   group: build-image
@@ -117,6 +118,36 @@ jobs:
           done
           echo "openframe-scripts ${version} did not appear in the apt repository after 30 minutes."
           exit 1
+
+      # openframe-sprite is built in its own repository and brought into the apt repository by
+      # sprite.yml (every three hours, or by hand), which the image installs it from: wait for
+      # its latest release to be there. If it isn't, sprite.yml is started rather than waited
+      # for. (It's in the build-package concurrency group, not this one, so it can run.)
+      - name: Wait for openframe-sprite in apt repository
+        run: |
+          version=$(gh release view --repo birdslikewires/openframe-sprite --json tagName --jq '.tagName | ltrimstr("v")')
+          if ! echo "${version}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "openframe-sprite's latest release tag isn't a version: '${version}'."
+            exit 1
+          fi
+          url="https://linux.openbeak.net/dists/trixie/main/binary-i386/Packages"
+          for attempt in $(seq 1 60); do
+            published=$(curl -fsSL "$url" | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-sprite" { print $2; exit }')
+            if [ -n "$published" ] && dpkg --compare-versions "$published" ge "$version"; then
+              echo "openframe-sprite ${published} is available from the apt repository."
+              exit 0
+            fi
+            if [ "$attempt" -eq 1 ]; then
+              echo "Starting sprite.yml to bring openframe-sprite ${version} in."
+              gh workflow run sprite.yml --repo "${GITHUB_REPOSITORY}" || echo "Couldn't start sprite.yml: waiting for its next scheduled run."
+            fi
+            echo "Waiting for openframe-sprite ${version} in the apt repository (it has ${published:-none}; attempt ${attempt}/60)..."
+            sleep 30
+          done
+          echo "openframe-sprite ${version} did not appear in the apt repository after 30 minutes."
+          exit 1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
         env:
