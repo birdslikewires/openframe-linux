@@ -8,3 +8,8 @@ startup=
 # Touchscreen calibration, from Settings > Calibrate touch on the screen: six numbers that
 # correct where touches land. Empty for the standard calibration.
 calibration=
+
+# The clock in the top bar: clock=24h (the default) or clock=12h, and seconds=no (the default)
+# or seconds=yes. Settings on the screen changes these too.
+clock=24h
+seconds=no
