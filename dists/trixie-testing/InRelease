@@ -1,0 +1,51 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: all i386
+Codename: trixie-testing
+Components: main
+Date: Sun, 22 Nov 2026 23:28:39 +0000
+Description: OpenFrame Linux packages before release, for test units
+Label: OpenFrame Linux testing
+Origin: OpenFrame
+Suite: trixie-testing
+MD5Sum:
+ 6f2a3d4ac43cb227ef3668a94b78f535             1185 main/binary-i386/Packages
+ 5264c9999a43c8a387dcba8bdef59962              690 main/binary-i386/Packages.gz
+SHA1:
+ 8f67a1135aa27095a2b4a9f44b939cc7edbfb8d8             1185 main/binary-i386/Packages
+ af7fcf8acf05b525f6c8edca72a046e78b52d6c9              690 main/binary-i386/Packages.gz
+SHA256:
+ 6e1b27ca9c3da99864ee048c6ebf477e9ae8280dc261876a013698c57c1ffff3             1185 main/binary-i386/Packages
+ 7f1e2044cc8ac73ff1f75c4df1a9e84f6005c78015beca6353524a7cbefebf2f              690 main/binary-i386/Packages.gz
+SHA512:
+ 39db3f50520c4fbbd4cd624f14b7844f74498ef986423be422629bff59b0120f0268ae85322b62be1c174f2cfa109c63281cdf45812664de9c024f08a340a22d             1185 main/binary-i386/Packages
+ 1a6793cde10b9bd1cbbc0772b38a705814314c63b8f0de591f102c4acbaeddc51b9270f7cbd0315996627f96d8905cc5bee0839ad82456e73af6274692447d1e              690 main/binary-i386/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEEJ2gOKJnfyrTveuqy06MK4QTmvhcFAmsDeqcACgkQ06MK4QTm
+vhfc+g/9HQGTao49EUprCMZxWfKmGH/gZiao42rWnNc++N8fAMV88ttODRBFHag3
+4djrfBpPjHV3NZJWvJujeORksl0JQrsaacmhGB24V+kgzFGOKS58DE4GjZwGbBSF
+/XZoJjYzMZcrP/kNEB4naZ/sBXhj30RKNgHD3UhJOV5QxNXW9zQvYYwAiVj5WrTK
+xcdPJRI8RJsjRRT4xcTqbPBz0nVYzQ4X9/RisaxRl7fSABSasfNZ5f7yY3eha6+q
+FX0ulNp2EtyxWhESd6CYPYudATOREXdSGRcI9hOYGODMRoRX79fKRVtdlnrXGcO2
+F1wNb4y8rymCC65/WHY6oGT3gnBVmzqRbwv/aXy+3L7Fu63Ue9CWMDcEayc27Mpq
+ZTaKXEDtusKjvrV0w2zHiia+T9gzl4y9T8niH/5G2LLSFz7u4qAohYufNad9o8T0
+q2g1n6xGcvnUVpntUnbs8VUIyllQ2fMlm9u9wlK4J716JVrFsbjRj2DWLsw2BUI1
+EjD4iJv0E88qIYZ0fHkBimwiS4aHWoQ2RvbGpsYBjwc+MOk3tnvmNf2FQlP57s88
+KyJXvfAccfPsvSlmrtMLo9uKjAnq30tzUHY931MseIv4x5sdu3pS6PC0mzFukV6M
+BE6aeXjeAomNWkAlkoLTHYX+ywOQZRkFafR2DrF1Mm4hRwFDZi6JAjMEAQEKAB0W
+IQQXnE8C5V9AltaQ87/tgBtoP86FUwUCawN6pwAKCRDtgBtoP86FU4kED/wO4I6t
+YCQ6aVLJ6wZgVYN94JKDuQG6AcHdj9cUrYZ6aRZJbKggHdC9yfK5tkGFS2+1m+Se
+dF3d0T/u3buwTRjQPrOKOF09a0r1g91Ub/Yhl9AXxUy5KE2ancLr2qTEvRoXZ3z7
+IKKEavsMg8otXPjvvVdUJKfJSVLekvieDkfCSKN1s0zV3lWoDzyL2SXMpcK3LujX
+OKy/gtYQbcoppMHTo8bjSjlBKfbxncnpnmlEST1ZxATJRjO1Knm+36ockKjm7NAL
+O+Dt5QDMgLAzvba8AvwsO6EwCWZ6fbNlgwQzTkW4nS4kpDHEsLj8Q0gbTeg15Alf
+wE/cEEBizkl5J92Fe6k31ceuSZ+um3lcLZvLP4ikxCDbFlpJ5mTRjgFViyRmznst
+8Wi7scOXNrublTDeshchUKGLdRWwjxZORvVbtpsff2jH8GgOurBKWdZP3itp1qhp
+qt2n/OnN9nVDagT+LqiTjYpLpiDUp8Aal+rwDP6ixgYLJvT7bwfwMOPtNBgpOELl
+llz9sH9RxRUHX/AEXu9MB7/qv6MvM3CYy5Mfl0iFb7DfZRKLmmaj5sZWeibYHvR6
+pI3v0cxb0WqTACTZLmUCt1WhQQfoH7rkBLooKFBdWxJOiwaZ0KAvqZw7skDW1Bpc
+DhMc4QLFbu2lwzX3a1CiyFF/VRrRqq4vyJLqMA==
+=85bZ
+-----END PGP SIGNATURE-----
