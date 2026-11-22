@@ -11,6 +11,11 @@
 ##               there by hand, outside it, stay.
 ##  Images give "of" no password: until one is set, here or in sprite's Settings, SSH
 ##  needs a key. They used to give every unit the same one.
+##  "ssh-settings check" is ssh.service's ExecCondition (ssh.service.d/openframe.conf): the
+##  SSH server starts only once someone could log in, so a new unit doesn't listen with no
+##  way in. It's true (0) if root has a key, or a person's account (uid 1000 and up, with a
+##  shell) has a password or a key; false (1, and systemd skips the server) if not. sprite
+##  starts the server when its Settings set a password.
 ##  On a flash stick (one that carries the image copy, for OpenFrame Flash), the password
 ##  is set but stays in the file: Flash copies the stick's settings to each unit it
 ##  installs, and each then sets it and empties it in its own.
@@ -24,6 +29,33 @@ BEGIN="# from OF-BOOT settings/ssh.txt (ssh-settings replaces this block at each
 END="# end of the keys from ssh.txt"
 
 log() { echo "ssh-settings: $*"; }
+
+# A key in a home's authorized_keys (or authorized_keys2), options before it or not.
+has_key() {
+	cat "$1/.ssh/authorized_keys" "$1/.ssh/authorized_keys2" 2>/dev/null | grep -v '^[[:space:]]*#' |
+		grep -q -E '(^|[[:space:]])(ssh-(ed25519|rsa|dss)|ecdsa-sha2-nistp[0-9]+|sk-[a-z0-9-]+@openssh\.com) '
+}
+
+# Whether anyone can log in over SSH: root by key (its password isn't allowed), or a person
+# by password or key.
+can_log_in() {
+	local name uid home shell hash
+	has_key /root && return 0
+	while IFS=: read -r name _ uid _ _ home shell; do
+		(( uid >= 1000 && uid < 60000 )) || continue
+		case "$shell" in */nologin|*/false|'') continue ;; esac
+		hash=$(getent shadow "$name" | cut -d: -f2)
+		case "$hash" in ''|'*'|'!'*|x) ;; *) return 0 ;; esac
+		has_key "$home" && return 0
+	done < <(getent passwd)
+	return 1
+}
+
+if [ "${1:-}" = check ]; then
+	can_log_in && exit 0
+	echo "ssh-settings: nobody can log in yet (no password or key): the SSH server stays off"
+	exit 1
+fi
 
 [ -r "$SETTINGS" ] || exit 0
 getent passwd "$USERNAME" >/dev/null || { log "no user $USERNAME"; exit 0; }

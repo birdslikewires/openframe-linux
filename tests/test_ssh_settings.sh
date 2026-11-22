@@ -39,6 +39,9 @@ is_pass() {
 }
 AK=/home/of/.ssh/authorized_keys
 
+# The SSH server's condition: nobody can log in with no password and no key.
+"$S" check >/dev/null 2>&1 && bad "check: nobody can log in at first" || ok "check: nobody can log in at first"
+
 # Nothing set: nothing changes.
 cp /src/overlay-debian-trixie/boot/settings/ssh.txt "$T"
 before=$(hash)
@@ -58,6 +61,8 @@ diff <(grep -v '^password=' /tmp/before.txt) <(grep -v '^password=' "$T") >/dev/
 	ok "the rest of ssh.txt is as it was" || bad "the rest of ssh.txt is as it was" "$(diff /tmp/before.txt "$T")"
 grep -qxF "$K1" "$AK" && [ "$(stat -c '%U %a' "$AK")" = "of 600" ] && [ "$(stat -c '%U %a' /home/of/.ssh)" = "of 700" ] &&
 	ok "the key is in authorized_keys, of's own" || bad "the key is in authorized_keys, of's own" "$(ls -la /home/of/.ssh; cat "$AK")"
+
+"$S" check >/dev/null 2>&1 && ok "check: of can log in with a password" || bad "check: of can log in with a password"
 
 # Started again with the password emptied: it stays.
 "$S" >/dev/null 2>&1
@@ -94,6 +99,20 @@ before=$(hash)
 out=$("$S" 2>&1)
 [ "$(hash)" = "$before" ] && grep -q 'control characters' <<< "$out" && ok "a control character is refused" ||
 	bad "a control character is refused" "$out"
+
+# The condition by key alone: of's, root's (whose password doesn't count), and not a
+# system user's.
+usermod -p '*' of
+"$S" check >/dev/null 2>&1 && ok "check: of can log in with a key alone" || bad "check: of can log in with a key alone"
+rm -f "$AK"
+"$S" check >/dev/null 2>&1 && bad "check: no password and no key again" || ok "check: no password and no key again"
+usermod -p "$(perl -e 'print crypt("rootpass", q($6$saltsalt$))')" root
+"$S" check >/dev/null 2>&1 && bad "check: root's password doesn't count" || ok "check: root's password doesn't count"
+mkdir -p /root/.ssh && echo "from=\"192.168.1.0/24\" $K1" > /root/.ssh/authorized_keys
+"$S" check >/dev/null 2>&1 && ok "check: root's key (with options) counts" || bad "check: root's key (with options) counts"
+rm -rf /root/.ssh
+useradd -r -m -s /usr/sbin/nologin -p "$(perl -e 'print crypt("x", q($6$saltsalt$))')" svc
+"$S" check >/dev/null 2>&1 && bad "check: a system user's password doesn't count" || ok "check: a system user's password doesn't count"
 
 echo
 [ "$FAILS" -eq 0 ] && echo "all passed" || echo "$FAILS failed"
