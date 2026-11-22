@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## ssh-settings v26.11.22 (22nd November 2026)
+## ssh-settings v26.11.1 (22nd November 2026)
 ##  Applies OF-BOOT/settings/ssh.txt (/boot/settings/ssh.txt) at each start, before the
 ##  SSH server, for of-ssh-settings.service:
 ##    password=  set as the password of "of" (for SSH), then emptied in the file,
