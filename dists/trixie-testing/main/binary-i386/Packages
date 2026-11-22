@@ -1,16 +1,16 @@
 Package: openframe-crystalhd
-Version: 26.11.10
+Version: 26.11.11
 Architecture: i386
 Maintainer: OpenFrame <andy@dvsn.net>
 Installed-Size: 2776
 Depends: libasound2t64 (>= 1.0.16), libavcodec61 (>= 7:7.1.5), libavformat61 (>= 7:7.1.5), libavutil59 (>= 7:7.1.5), libc6 (>= 2.38), libdrm2 (>= 2.4.17), libgcc-s1 (>= 7), libstdc++6 (>= 11), libswresample5 (>= 7:7.1.5), libswscale8 (>= 7:7.1.5)
 Conflicts: libcrystalhd3, firmware-crystalhd
 Replaces: libcrystalhd3, firmware-crystalhd
-Filename: pool/trixie-testing/openframe-crystalhd_26.11.10_i386.deb
-Size: 1144200
-MD5sum: 93fab694bb67ca0f279d8379925cdca2
-SHA1: 6be755f3d33632eee155bb62ff36a740fcaa4c85
-SHA256: 98263efa9a9e9b04d9fea594a0e159d3fe2430a8d034976b31d37afa0c27b0fe
+Filename: pool/trixie-testing/openframe-crystalhd_26.11.11_i386.deb
+Size: 1144020
+MD5sum: d5bd6a21df9582dbcffc7d472abf8851
+SHA1: cf3c4d18588b97af18372235b68174fcf700cdee
+SHA256: 49eb01582b8890d309e35b89f0dd5fa74e0cc4159336ff21072e2374cc6a9fd7
 Section: video
 Priority: optional
 Homepage: https://github.com/birdslikewires/openframe-linux
