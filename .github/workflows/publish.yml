@@ -1,5 +1,5 @@
 name: image-publish
-run-name: image publish from run ${{ inputs.run_id }}
+run-name: image publish ${{ inputs.run_id && format('from run {0}', inputs.run_id) || format('for promoted kernel {0}', github.event.client_payload.kernel_version) }}
 
 # Publishes an image an earlier push build already made, as the GitHub Release for
 # its kernel, replacing the image any release that kernel already has (the release itself stays). For when the image
@@ -7,7 +7,11 @@ run-name: image publish from run ${{ inputs.run_id }}
 # kernel tag): test the build's artifact, then publish that same image instead of
 # building another.
 
+# Or, when openframe-kernel promotes a kernel (kernel-promoted), the image check.yml had built
+# with it while it was in testing ("image build vX (testing kernel)"): the one that was tested.
 on:
+  repository_dispatch:
+    types: [kernel-promoted]
   workflow_dispatch:
     inputs:
       run_id:
@@ -29,8 +33,25 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       REPO: ${{ github.repository }}
       RUN_ID: ${{ inputs.run_id }}
+      PROMOTED: ${{ github.event.client_payload.kernel_version }}
 
     steps:
+      - name: Find the tested image of a promoted kernel
+        if: github.event_name == 'repository_dispatch'
+        run: |
+          if ! echo "$PROMOTED" | grep -qE '^[0-9]+\.[0-9]+(\.[0-9]+)?$'; then
+            echo "kernel_version isn't a version: '$PROMOTED'."; exit 1
+          fi
+          id=$(gh run list --repo "$REPO" --workflow build.yml --status success --limit 100 \
+            --json databaseId,displayTitle \
+            --jq "[.[] | select(.displayTitle == \"image build v${PROMOTED} (testing kernel)\")][0].databaseId // empty")
+          if [ -z "$id" ]; then
+            echo "No tested image of kernel ${PROMOTED}: check.yml builds one to release instead, at its next run."
+            exit 1
+          fi
+          echo "Publishing run $id, the image tested with kernel ${PROMOTED}."
+          echo "RUN_ID=$id" >> "$GITHUB_ENV"
+
       - name: Check the build
         id: run
         run: |
@@ -41,8 +62,10 @@ jobs:
             echo "Run $RUN_ID isn't a successful image build from main ($name, $conclusion, $branch)."
             exit 1
           fi
-          if [ "$event" != "push" ]; then
-            echo "Run $RUN_ID was started by $event; only push builds keep their image as an artifact."
+          # push builds, and builds for a kernel in testing (started by check.yml), keep their
+          # image as an artifact; release builds don't.
+          if [ "$event" != "push" ] && [ "$event" != "workflow_dispatch" ]; then
+            echo "Run $RUN_ID was started by $event; only push builds and testing-kernel builds keep their image."
             exit 1
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"

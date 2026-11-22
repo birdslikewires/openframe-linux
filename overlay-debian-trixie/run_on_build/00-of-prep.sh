@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 00-of-prep.sh v26.11.2 (16th November 2026)
+# 00-of-prep.sh v26.11.3 (22nd November 2026)
 #  Set up the basics.
 
 #set -x
@@ -167,6 +167,27 @@ install -m 644 /usr/share/keyrings/openframe-apt.gpg /etc/apt/keyrings/openframe
 KBRANCH=$(echo "${KERNEL_VERSION#v}" | cut -d. -f1-2)
 echo "deb [signed-by=/etc/apt/keyrings/openframe-kernel.gpg] https://kernel.openbeak.net/ $VERSION_CODENAME $KBRANCH" \
   > /etc/apt/sources.list.d/openframe-kernel.list
+# A build that installs from the repositories' testing suites (OF_TESTING, from build.yml):
+# "kernel" for an image made with a kernel still in testing, "all" for a push build, which
+# tests what was pushed. Only while building: the list goes again at the end, so the image
+# takes released updates like any other (OF-BOOT/settings/test.txt makes a test unit).
+TESTLIST=/etc/apt/sources.list.d/openframe-testing-build.list
+: > "$TESTLIST"
+# Adds repository $1's testing suite (component $3, keyring $2), if it has one yet: each
+# repository's first publish to testing makes it, and apt fails on a suite that isn't there.
+add_testing() {
+	if curl -fsI "https://$1/dists/${VERSION_CODENAME}-testing/InRelease" >/dev/null 2>&1; then
+		echo "deb [signed-by=/etc/apt/keyrings/$2.gpg] https://$1/ ${VERSION_CODENAME}-testing $3" >> "$TESTLIST"
+	else
+		echo "$1 has no testing suite yet: released packages only from there."
+	fi
+}
+case "${OF_TESTING:-}" in
+	kernel|all)
+		echo "Installing from testing too (OF_TESTING=${OF_TESTING})..."
+		add_testing kernel.openbeak.net openframe-kernel "$KBRANCH"
+		;;
+esac
 apt-get update
 echo
 
@@ -199,6 +220,10 @@ echo "Configuring OpenFrame firmware repository..."
 install -m 644 /usr/share/keyrings/openframe-apt.gpg /etc/apt/keyrings/openframe-firmware.gpg
 echo "deb [signed-by=/etc/apt/keyrings/openframe-firmware.gpg] https://firmware.openbeak.net/ $VERSION_CODENAME main" \
   > /etc/apt/sources.list.d/openframe-firmware.list
+if [ "${OF_TESTING:-}" = all ]; then
+	add_testing linux.openbeak.net openframe-linux main
+	add_testing firmware.openbeak.net openframe-firmware main
+fi
 apt-get update
 echo
 
@@ -223,5 +248,8 @@ echo
 echo "Installing sprite..."
 apt-get install -y openframe-sprite
 echo
+
+# The testing suites were for building only (see TESTLIST above).
+rm -f "$TESTLIST"
 
 exit 0

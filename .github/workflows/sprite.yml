@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  issues: write   # the testing issue (ci/testing-issue.sh)
 
 concurrency:
   group: build-package
@@ -52,7 +53,7 @@ jobs:
           VERSION=${tag#v}
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           deb="openframe-sprite_${VERSION}_i386.deb"
-          if [ -f "apt-repo/pool/trixie/${deb}" ]; then
+          if [ -f "apt-repo/pool/trixie/${deb}" ] || [ -f "apt-repo/pool/trixie-testing/${deb}" ]; then
             echo "openframe-sprite ${VERSION} is in the repository already: nothing to do"
             echo "UP_TO_DATE=yes" >> "$GITHUB_ENV"
             exit 0
@@ -92,80 +93,22 @@ jobs:
           done
           echo "SIGN_ARGS=$(for f in ${SIGNERS}; do printf -- '--local-user %s! ' "$f"; done)" >> $GITHUB_ENV
 
-      # Built for Trixie only. openframe-scripts' builds index the whole pool, so they keep
-      # this package listed too.
+      # Built for Trixie only.
       - name: Update the apt repository
         if: env.UP_TO_DATE != 'yes'
         run: |
-          codename=trixie
-          mkdir -p "apt-repo/pool/${codename}"
-          rm -f "apt-repo/pool/${codename}/"openframe-sprite_*.deb
-          cp out/openframe-sprite_*.deb "apt-repo/pool/${codename}/"
+          # To the testing suite: test units take it now, every other OpenFrame once it's
+          # promoted ("promote" on the testing issue, promote.yml).
+          bash ci/apt-suite.sh add trixie-testing out/openframe-sprite_*.deb
           # What's new, for of-update: news/<package>.news, beside the pool
           if [ -f out/openframe-sprite.news ]; then
             mkdir -p apt-repo/news && cp out/openframe-sprite.news apt-repo/news/
           fi
-
-          mkdir -p "apt-repo/dists/${codename}/main/binary-i386"
-          cd apt-repo
-          dpkg-scanpackages "pool/${codename}" > "dists/${codename}/main/binary-i386/Packages"
-          gzip -kf "dists/${codename}/main/binary-i386/Packages"
-
-          apt-ftparchive \
-            -o APT::FTPArchive::Release::Origin="OpenFrame" \
-            -o APT::FTPArchive::Release::Label="OpenFrame Linux" \
-            -o APT::FTPArchive::Release::Suite="${codename}" \
-            -o APT::FTPArchive::Release::Codename="${codename}" \
-            -o APT::FTPArchive::Release::Architectures="all i386" \
-            -o APT::FTPArchive::Release::Components="main" \
-            -o APT::FTPArchive::Release::Description="OpenFrame Linux packages" \
-            release "dists/${codename}" > "dists/${codename}/Release"
-
-          gpg --batch --yes ${SIGN_ARGS} \
-            --detach-sign --armor -o "dists/${codename}/Release.gpg" "dists/${codename}/Release"
-          gpg --batch --yes ${SIGN_ARGS} \
-            --clearsign -o "dists/${codename}/InRelease" "dists/${codename}/Release"
-
-          gpg --export ${PUBLISH_KEY:-} > key.gpg
+          gpg --export ${PUBLISH_KEY:-} > apt-repo/key.gpg
 
       - name: Generate directory listing
         if: env.UP_TO_DATE != 'yes'
-        run: |
-          cd apt-repo
-          {
-            printf '<!DOCTYPE html>\n<html>\n'
-            printf '<head><title>Index of /</title></head>\n'
-            printf '<body>\n<h1>Index of /</h1><hr><pre>'
-
-            human_size() {
-              local size=$1
-              if [ "$size" -ge 1073741824 ]; then
-                echo "$((size / 1073741824))G"
-              elif [ "$size" -ge 1048576 ]; then
-                echo "$((size / 1048576))M"
-              elif [ "$size" -ge 1024 ]; then
-                echo "$((size / 1024))K"
-              else
-                echo "$size"
-              fi
-            }
-
-            for f in pool/*/*.deb; do
-              [ -f "$f" ] || continue
-              fname=$(basename "$f")
-              fsize=$(stat -c '%s' "$f")
-              fdate=$(date -d "@$(stat -c '%Y' "$f")" '+%d-%b-%Y %H:%M')
-              hsize=$(human_size "$fsize")
-              namelen=${#fname}
-              padlen=$((51 - namelen))
-              [ ${padlen} -lt 1 ] && padlen=1
-              padding=$(printf '%*s' ${padlen} '')
-              printf '\n<a href="%s">%s</a>%s%s  %8s' \
-                "${f}" "${fname}" "${padding}" "${fdate}" "${hsize}"
-            done
-
-            printf '\n</pre><hr></body>\n</html>\n'
-          } > index.html
+        run: bash ci/apt-suite.sh listing
 
       - name: Push apt repository
         if: env.UP_TO_DATE != 'yes'
@@ -175,5 +118,12 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --quiet && echo "No changes to commit" || \
-            git commit -m "apt: openframe-sprite ${VERSION}"
+            git commit -m "apt: openframe-sprite ${VERSION}, testing"
           git push origin repo
+
+      # The testing issue: what test units have that other OpenFrames don't, for "promote".
+      - name: Update the testing issue
+        if: env.UP_TO_DATE != 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash ci/testing-issue.sh "Sprite ${VERSION} is in testing."

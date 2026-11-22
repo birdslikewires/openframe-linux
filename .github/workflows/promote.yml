@@ -1,0 +1,106 @@
+name: promote
+run-name: promote or reject what's waiting in testing
+
+# Releases what's waiting in linux.openbeak.net's testing suite (openframe-scripts, Sprite,
+# Crystal HD) to every OpenFrame: "promote" as a comment on the open testing issue
+# (ci/testing-issue.sh keeps it), by the repository's owner, moves every package in
+# trixie-testing to trixie, where units take it overnight. "reject" closes the issue and keeps
+# them in testing; the next publish opens it again. Comments from anyone else, or on any other
+# issue, do nothing. It can also be run by hand, which promotes.
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: build-package
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (!github.event.issue.pull_request && github.event.comment.author_association == 'OWNER' &&
+       contains(github.event.issue.labels.*.name, 'testing'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Read the comment
+        env:
+          BODY: ${{ github.event.comment.body }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = workflow_dispatch ]; then
+            echo "ACTION=promote" >> "$GITHUB_ENV"; exit 0
+          fi
+          word=$(printf '%s' "$BODY" | tr 'A-Z' 'a-z' | tr -cs 'a-z' ' ' | awk '{ print $1 }')
+          case "$word" in
+            promote|reject) echo "ACTION=$word" >> "$GITHUB_ENV" ;;
+            *) echo "Not promote or reject: nothing to do."; echo "ACTION=none" >> "$GITHUB_ENV" ;;
+          esac
+
+      - name: Checkout
+        if: env.ACTION == 'promote'
+        uses: actions/checkout@v7
+
+      - name: Install tools
+        if: env.ACTION == 'promote'
+        run: sudo apt-get install -y apt-utils dpkg-dev
+
+      - name: Checkout repo branch
+        if: env.ACTION == 'promote'
+        uses: actions/checkout@v7
+        with:
+          ref: repo
+          path: apt-repo
+
+      - name: Import GPG signing keys
+        if: env.ACTION == 'promote'
+        env:
+          KEY: ${{ secrets.APT_SIGNING_KEY }}
+          KEY_NEW: ${{ secrets.APT_SIGNING_KEY_OPENFRAME }}
+        run: |
+          echo "${KEY}" | gpg --batch --import
+          [ -z "${KEY_NEW}" ] || echo "${KEY_NEW}" | gpg --batch --import
+          SIGNERS=$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/ { s = 1; next } s && /^fpr/ { print $10; s = 0 }')
+          for k in overlay-*/usr/share/keyrings/openframe-apt.gpg; do
+            [ -f "$k" ] || continue
+            SHIPPED=$(gpg --batch --with-colons --show-keys "$k" | awk -F: '/^pub/ { s = 1; next } s && /^fpr/ { print $10; s = 0 }')
+            for f in ${SHIPPED}; do
+              echo "${SIGNERS}" | grep -qx "$f" || { echo "$k holds $f, which this run doesn't sign with: not publishing."; exit 1; }
+            done
+          done
+          echo "SIGN_ARGS=$(for f in ${SIGNERS}; do printf -- '--local-user %s! ' "$f"; done)" >> $GITHUB_ENV
+
+      - name: Promote
+        if: env.ACTION == 'promote'
+        run: |
+          bash ci/apt-suite.sh promote | tee promoted.txt
+          bash ci/apt-suite.sh listing
+          cd apt-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No changes to commit" || \
+            git commit -m "apt: promote $(grep -c '^promoted' ../promoted.txt) package(s) from testing"
+          git push origin repo
+
+      - name: Update the testing issue
+        if: env.ACTION == 'promote'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          list=$(sed -n 's/^promoted //p' promoted.txt | tr '\n' ',' | sed 's/,$//; s/,/, /g')
+          bash ci/testing-issue.sh "Promoted to every OpenFrame: ${list:-nothing}."
+
+      - name: Reject
+        if: env.ACTION == 'reject'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue close "${{ github.event.issue.number }}" -R "${GITHUB_REPOSITORY}" \
+            --comment "Kept in testing: other OpenFrames won't get these. The next publish opens this again."

@@ -1,5 +1,5 @@
 name: image-build-publish
-run-name: image build${{ inputs.kernel_version && format(' and publish {0}', inputs.kernel_version) || '' }}
+run-name: image build${{ inputs.kernel_version && (inputs.testing_kernel && format(' {0} (testing kernel)', inputs.kernel_version) || format(' and publish {0}', inputs.kernel_version)) || '' }}
 
 on:
   push:
@@ -12,9 +12,14 @@ on:
   workflow_dispatch:
     inputs:
       kernel_version:
-        description: 'Kernel release tag to build for (e.g. v6.18.60, the v is optional). If set, a GitHub Release will be created.'
+        description: 'Kernel release tag to build for (e.g. v6.18.60, the v is optional). If set, a GitHub Release will be created, unless the kernel is in testing.'
         required: false
         default: ''
+      testing_kernel:
+        description: 'The kernel is still in testing (check.yml, from a new kernel): no release, the image stays an artifact for 90 days, for promote'
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -30,6 +35,14 @@ jobs:
     container:
       image: debian:trixie
       options: --privileged
+    env:
+      # What the image installs from the repositories' testing suites (00-of-prep.sh): a push
+      # build tests what's pushed, so everything; an image for a kernel in testing, only that
+      # kernel, so promoting it later releases nothing else that isn't promoted; a release,
+      # nothing.
+      OF_TESTING: ${{ github.event_name == 'push' && 'all' || (inputs.testing_kernel && 'kernel' || '') }}
+      # A GitHub release: a kernel given by hand, or by check.yml for a promoted kernel.
+      RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.kernel_version != '' && !inputs.testing_kernel }}
 
     steps:
       # Before the checkout: without git in the container, it would download the files
@@ -83,13 +96,17 @@ jobs:
         run: |
           version="${KERNEL_VERSION#v}"
           branch=$(echo "$version" | cut -d. -f1-2)
-          url="https://kernel.openbeak.net/dists/trixie/${branch}/binary-i386/Packages"
+          suites="trixie"
+          [ -n "${OF_TESTING}" ] && suites="trixie trixie-testing"   # a kernel in testing
           for attempt in $(seq 1 90); do
-            if curl -fsSL "$url" | awk -v pkg="linux-image-openframe-${branch}" -v ver="$version" \
-              '$1 == "Package:" { p = $2 } $1 == "Version:" && p == pkg && $2 == ver { found = 1 } END { exit !found }'; then
-              echo "Kernel ${version} is available from the apt repository."
-              exit 0
-            fi
+            for suite in $suites; do
+              url="https://kernel.openbeak.net/dists/${suite}/${branch}/binary-i386/Packages"
+              if curl -fsSL "$url" 2>/dev/null | awk -v pkg="linux-image-openframe-${branch}" -v ver="$version" \
+                '$1 == "Package:" { p = $2 } $1 == "Version:" && p == pkg && $2 == ver { found = 1 } END { exit !found }'; then
+                echo "Kernel ${version} is available from the apt repository (${suite})."
+                exit 0
+              fi
+            done
             echo "Waiting for kernel ${version} in the apt repository (attempt ${attempt}/90)..."
             sleep 30
           done
@@ -109,6 +126,10 @@ jobs:
           url="https://linux.openbeak.net/dists/trixie/main/binary-i386/Packages"
           for attempt in $(seq 1 60); do
             published=$(curl -fsSL "$url" | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-scripts" { print $2; exit }')
+            if [ "${OF_TESTING}" = all ]; then   # a push build installs from testing too
+              t=$(curl -fsSL "${url%/dists/*}/dists/trixie-testing/main/binary-i386/Packages" 2>/dev/null | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-scripts" { print $2; exit }')
+              if [ -n "$t" ] && { [ -z "$published" ] || dpkg --compare-versions "$t" gt "$published"; }; then published="$t"; fi
+            fi
             if [ -n "$published" ] && dpkg --compare-versions "$published" ge "$version"; then
               echo "openframe-scripts ${published} is available from the apt repository."
               exit 0
@@ -133,6 +154,10 @@ jobs:
           url="https://linux.openbeak.net/dists/trixie/main/binary-i386/Packages"
           for attempt in $(seq 1 60); do
             published=$(curl -fsSL "$url" | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-sprite" { print $2; exit }')
+            if [ "${OF_TESTING}" = all ]; then   # a push build installs from testing too
+              t=$(curl -fsSL "${url%/dists/*}/dists/trixie-testing/main/binary-i386/Packages" 2>/dev/null | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-sprite" { print $2; exit }')
+              if [ -n "$t" ] && { [ -z "$published" ] || dpkg --compare-versions "$t" gt "$published"; }; then published="$t"; fi
+            fi
             if [ -n "$published" ] && dpkg --compare-versions "$published" ge "$version"; then
               echo "openframe-sprite ${published} is available from the apt repository."
               exit 0
@@ -181,7 +206,7 @@ jobs:
       # the same name): of-ext4-...-v6.18.63-eeff360.img.gz. Only the file's name: the image
       # inside is as built. publish.yml drops the commit again when it publishes one.
       - name: Name the artifact by its commit
-        if: github.event_name != 'workflow_dispatch' || github.event.inputs.kernel_version == ''
+        if: env.RELEASE != 'true'
         run: |
           sha=$(echo "${GITHUB_SHA}" | cut -c1-7)
           img=$(ls *.img.gz)
@@ -192,17 +217,18 @@ jobs:
           ls -l
 
       - name: Upload image artifact
-        if: github.event_name != 'workflow_dispatch' || github.event.inputs.kernel_version == ''
+        if: env.RELEASE != 'true'
         uses: actions/upload-artifact@v7
         with:
           name: openframe-trixie
           path: |
             *.img.gz
             *.md5
-          retention-days: 14
+          # an image for a kernel in testing waits for promote (publish.yml), however long it takes
+          retention-days: ${{ inputs.testing_kernel && 90 || 14 }}
 
       - name: Create GitHub Release
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.kernel_version != ''
+        if: env.RELEASE == 'true'
         run: |
           gh release create "${{ steps.kernel.outputs.version }}" \
             --repo ${{ github.repository }} \
@@ -213,7 +239,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Delete old GitHub releases and tags
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.kernel_version != ''
+        if: env.RELEASE == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

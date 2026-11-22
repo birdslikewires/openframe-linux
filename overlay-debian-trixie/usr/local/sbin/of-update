@@ -156,8 +156,15 @@ prune_list() {
 # like it comes from the future.
 lists() {
 	timeout 120 systemctl start time-sync.target >/dev/null 2>&1 || true
+	local out
 	for try in 1 2 3; do
-		apt-get -qq update >/dev/null 2>&1 && return 0
+		out=$(apt-get -qq update 2>&1) && return 0
+		# A test unit whose testing suites aren't all there yet (a repository makes its own at
+		# its first publish to testing) still takes everything else.
+		if [ -n "$out" ] && ! grep '^E:' <<< "$out" | grep -qv -- '-testing'; then
+			log "no testing suite there yet: $(grep '^E:' <<< "$out" | head -1)"
+			return 0
+		fi
 		(( try < 3 )) && sleep 60
 	done
 	return 1

@@ -17,10 +17,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # The newest kernel release, and whether it's still in testing (a pre-release until
+      # it's promoted in openframe-kernel).
       - name: Get latest kernel release tag
         id: kernel
         run: |
-          tag=$(gh release list --repo birdslikewires/openframe-kernel --limit 1 --json tagName --jq '.[0].tagName')
+          read -r tag pre < <(gh release list --repo birdslikewires/openframe-kernel --limit 1 \
+            --json tagName,isPrerelease --jq '.[0] | "\(.tagName) \(.isPrerelease)"')
           if [ -z "$tag" ]; then
             echo "Failed to get latest kernel release tag."
             exit 1
@@ -30,28 +33,44 @@ jobs:
             echo "The kernel's latest release tag isn't a version: '$tag'."
             exit 1
           fi
+          tag="v${tag#v}"
           echo "tag=$tag" >> $GITHUB_OUTPUT
+          echo "testing=$pre" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check if image already built for this kernel
+      # In testing: an image with it, kept as an artifact for "promote" (once: not again while
+      # one is building or built). Promoted: its image is published from that artifact
+      # (publish.yml, on kernel-promoted); a release build here only if there's no such image.
+      - name: Decide what to build
         id: check
         run: |
-          if gh release view "${{ steps.kernel.outputs.tag }}" --repo ${{ github.repository }} > /dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Image already exists for kernel ${{ steps.kernel.outputs.tag }}, skipping."
+          TAG="${{ steps.kernel.outputs.tag }}"
+          tested=$(gh run list --repo ${{ github.repository }} --workflow build.yml --limit 100 \
+            --json displayTitle,conclusion,status \
+            --jq "[.[] | select(.displayTitle == \"image build ${TAG} (testing kernel)\") | select(.status != \"completed\" or .conclusion == \"success\")] | length")
+          if [ "${{ steps.kernel.outputs.testing }}" = true ]; then
+            if [ "$tested" -gt 0 ]; then
+              echo "build=none" >> $GITHUB_OUTPUT; echo "An image for ${TAG} (in testing) is built or building."
+            else
+              echo "build=testing" >> $GITHUB_OUTPUT; echo "Kernel ${TAG} is in testing: building its image to test."
+            fi
+          elif gh release view "$TAG" --repo ${{ github.repository }} > /dev/null 2>&1; then
+            echo "build=none" >> $GITHUB_OUTPUT; echo "Image already released for kernel ${TAG}."
+          elif [ "$tested" -gt 0 ]; then
+            echo "build=none" >> $GITHUB_OUTPUT; echo "Kernel ${TAG} is promoted; publish.yml publishes its tested image."
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "No image found for kernel ${{ steps.kernel.outputs.tag }}, dispatching build."
+            echo "build=release" >> $GITHUB_OUTPUT; echo "Kernel ${TAG} is released with no image: building one."
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Dispatch image build
-        if: steps.check.outputs.exists == 'false'
+        if: steps.check.outputs.build != 'none'
         run: |
           gh workflow run build.yml \
             --repo ${{ github.repository }} \
-            -f kernel_version="${{ steps.kernel.outputs.tag }}"
+            -f kernel_version="${{ steps.kernel.outputs.tag }}" \
+            -f testing_kernel="${{ steps.check.outputs.build == 'testing' }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -28,7 +28,10 @@ cat > /stub/apt-get <<'EOF'
 #!/bin/bash
 echo "apt-get $*" >> /tmp/calls
 case " $* " in
-	*" update "*) [ -e /tmp/UPDATE_FAIL ] && exit 100; exit 0 ;;
+	*" update "*)
+		[ -e /tmp/UPDATE_FAIL ] && { echo "E: Failed to fetch http://deb.debian.org/dists/trixie/InRelease"; exit 100; }
+		[ -e /tmp/NO_TESTING ] && { echo "E: The repository 'https://kernel.openbeak.net trixie-testing Release' does not have a Release file."; exit 100; }
+		exit 0 ;;
 	*" -s "*) # as apt prints them: the first is one of ours, the rest Debian's
 		for i in $(seq 1 "$(cat /tmp/PENDING 2>/dev/null || echo 0)"); do
 			if [ $i = 1 ]; then echo "Inst pkg$i [1] (2 OpenFrame Linux:trixie [all])"
@@ -128,6 +131,14 @@ touch /tmp/UU_FAIL
 reset
 "$U" run now >/dev/null 2>&1
 [ "$(field result)" = ok ] && [ -z "$(field message)" ] && ok "a good run clears the failure" || bad "a good run clears the failure" "$("$U" status)"
+
+# A testing suite that isn't there yet (a test unit before its repository's first testing
+# publish) doesn't stop the rest.
+reset
+touch /tmp/NO_TESTING
+"$U" check >/dev/null 2>&1 && [ "$(field result)" != failed ] && ok "a missing testing suite doesn't stop an update" ||
+	bad "a missing testing suite doesn't stop an update" "$("$U" status)"
+rm -f /tmp/NO_TESTING
 
 # check: the lists and the count, nothing installed.
 reset
