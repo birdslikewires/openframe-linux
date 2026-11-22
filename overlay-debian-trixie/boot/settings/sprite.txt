@@ -1,4 +1,4 @@
-## sprite, the touch screen.
+## Sprite, the touch screen.
 
 # The app to open whenever the OpenFrame starts, instead of the home screen. Give its name
 # as the home screen shows it, e.g. startup=Clock. Leave it empty for the home screen.

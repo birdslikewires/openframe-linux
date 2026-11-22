@@ -3,8 +3,8 @@
 # A password for "of", for logging in over SSH. It's set when the OpenFrame next starts,
 # and then taken out of this file, so it's never left here to read. Leave it empty to
 # keep the password already set. Until one is set, "of" has no password, and SSH needs a
-# key (below); with neither, the SSH server stays off. sprite's Settings can set one too. On a flash stick it stays here, so that
-# each unit the stick installs gets it.
+# key (below); with neither, the SSH server stays off. Sprite's Settings can set one too.
+# On a flash stick it stays here, so that each unit the stick installs gets it.
 
 password=
 
