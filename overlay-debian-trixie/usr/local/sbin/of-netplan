@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-netplan v26.11.16 (16th November 2026)
+## of-netplan v26.11.17 (22nd November 2026)
 ##  Manages the network configuration and MAC addresses on OpenFrame devices.
 ##
 ##  The settings are in the settings folder on the boot volume (OF-BOOT/settings,
@@ -21,8 +21,8 @@
 ##  From those we write /etc/netplan/network.yaml, adding the LAN MAC (below). Nothing
 ##  we decide goes back to the boot volume. A network.yaml that can't be used (not
 ##  YAML, or netplan refuses it), a Wi-Fi password that can't be right, or an address
-##  that isn't one, is left out, so the network still works (automatically), and the
-##  login prompt says what's wrong.
+##  that isn't one, is ignored, so the network still works (automatically), and the
+##  login prompt says what's wrong (from issue.note, which sprite's Settings shows too).
 ##
 ##  Images before November 2026 had network.yaml in the root of the boot volume, and
 ##  we wrote the LAN MAC into it. One found there, from an older system or copied there
@@ -331,7 +331,7 @@ static_settings() {
 		elif is_ip4 "$g"; then
 			printf -v "${p}_GW" '%s' "$(norm_ip4 "$g")"
 		else
-			NOTES+=("$3: the gateway in settings/$2 isn't an address, so there's none.")
+			NOTES+=("$3: the gateway in settings/$2 isn't an address, so it's been ignored.")
 		fi
 	fi
 	# Split without filename expansion (dns=* is just a mistake, not a list of files).
@@ -341,7 +341,7 @@ static_settings() {
 		if is_ip4 "$x"; then
 			dns+=("\"$(norm_ip4 "$x")\"")
 		else
-			NOTES+=("$3: '$x' in dns in settings/$2 isn't an address, so it's left out.")
+			NOTES+=("$3: '$x' in dns in settings/$2 isn't an address, so it's been ignored.")
 		fi
 	done
 	v="${p}_GW"
