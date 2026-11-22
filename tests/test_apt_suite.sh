@@ -8,14 +8,18 @@
 set -u
 HERE=$(cd "$(dirname "$0")/.." && pwd)
 if [ "$(id -u)" -ne 0 ] || [ ! -e /.dockerenv ]; then
-	# i386, as an OpenFrame is, so apt takes the repository's i386 index as a unit does
-	exec docker run --rm --platform linux/386 -v "$HERE:/src:ro" debian:trixie bash /src/tests/test_apt_suite.sh
+	# i386, as an OpenFrame is, so apt takes the repository's i386 index as a unit does. As
+	# openframe-sprite's CI runs it: the default seccomp profile stops 32-bit programs' newer
+	# system calls on GitHub's runners (the network, for one).
+	exec docker run --rm --security-opt seccomp=unconfined --platform linux/386 -v "$HERE:/src:ro" \
+		i386/debian:trixie bash /src/tests/test_apt_suite.sh
 fi
 FAILS=0
 ok() { echo "ok   $1"; }
 bad() { echo "FAIL $1"; [ -n "${2:-}" ] && sed 's/^/       /' <<< "$2" | tail -12; FAILS=$((FAILS + 1)); }
 export DEBIAN_FRONTEND=noninteractive
-apt-get -qq update >/dev/null && apt-get -qq install -y dpkg-dev apt-utils gnupg >/dev/null 2>&1
+apt-get -qq update >/dev/null 2>&1; apt-get -qq install -y dpkg-dev apt-utils gnupg >/dev/null 2>&1 ||
+	{ echo "FAIL couldn't install the tools (dpkg-dev, apt-utils, gnupg): no network?"; exit 1; }
 # Already in a container that isn't i386 (a CI job's own): apt takes i386 only, as a unit does
 [ "$(dpkg --print-architecture)" = i386 ] || echo 'APT::Architecture "i386";' > /etc/apt/apt.conf.d/99i386
 
