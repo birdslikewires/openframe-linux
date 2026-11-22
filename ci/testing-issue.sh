@@ -1,7 +1,8 @@
 #!/bin/bash
 # testing-issue.sh: keeps the repository's "Waiting in testing" issue in step with the apt
 # repository (ci/apt-suite.sh waiting), after a publish to the testing suite or a promotion.
-# One open issue, labelled testing and assigned to the repository's owner, lists what test units
+# One open issue, labelled testing and assigned to ASSIGNEE (the workflows give Andy's login: the
+# repositories belong to an organisation, which can't be assigned), lists what test units
 # have that other OpenFrames don't yet; each change is a comment on it, which GitHub sends to the
 # assignee (the GitHub app, and email). With nothing waiting, it's closed. "promote" or "reject"
 # on it starts promote.yml. Run from the repository's root, after apt-suite.sh, with GH_TOKEN
@@ -35,7 +36,7 @@ if [ -n "$num" ]; then
 else
 	gh label create testing -R "$R" --color FBCA04 --description "Waiting in testing, for promote or reject" --force >/dev/null
 	gh issue create -R "$R" --title "Waiting in testing: ${SITE}" --label testing \
-		--assignee "${R%%/*}" --body "$body
+		${ASSIGNEE:+--assignee "$ASSIGNEE"} --body "$body
 
 $1" >/dev/null
 fi

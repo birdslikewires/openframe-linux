@@ -121,4 +121,5 @@ jobs:
       - name: Update the testing issue
         env:
           GH_TOKEN: ${{ github.token }}
+          ASSIGNEE: ${{ vars.TESTING_ASSIGNEE || 'andydvsn' }}   # who's told (an organisation can't be)
         run: bash ci/testing-issue.sh "Crystal HD $(dpkg-deb -f out/openframe-crystalhd_*.deb Version) is in testing."

@@ -300,5 +300,6 @@ jobs:
       - name: Update the testing issue
         env:
           GH_TOKEN: ${{ github.token }}
+          ASSIGNEE: ${{ vars.TESTING_ASSIGNEE || 'andydvsn' }}   # who's told (an organisation can't be)
         run: |
           bash ci/testing-issue.sh "openframe-scripts $(bash package/version.sh overlay-debian-trixie/) is in testing (${GITHUB_SHA::7})."

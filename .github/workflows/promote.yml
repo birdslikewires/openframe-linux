@@ -3,7 +3,7 @@ run-name: promote or reject what's waiting in testing
 
 # Releases what's waiting in linux.openbeak.net's testing suite (openframe-scripts, Sprite,
 # Crystal HD) to every OpenFrame: "promote" as a comment on the open testing issue
-# (ci/testing-issue.sh keeps it), by the repository's owner, moves every package in
+# (ci/testing-issue.sh keeps it), by Andy (vars.TESTING_ASSIGNEE, or andydvsn), moves every package in
 # trixie-testing to trixie, where units take it overnight. "reject" closes the issue and keeps
 # them in testing; the next publish opens it again. Comments from anyone else, or on any other
 # issue, do nothing. It can also be run by hand, which promotes.
@@ -25,7 +25,7 @@ jobs:
   promote:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (!github.event.issue.pull_request && github.event.comment.author_association == 'OWNER' &&
+      (!github.event.issue.pull_request && github.event.comment.user.login == (vars.TESTING_ASSIGNEE || 'andydvsn') &&
        contains(github.event.issue.labels.*.name, 'testing'))
     runs-on: ubuntu-latest
 
@@ -111,6 +111,7 @@ jobs:
         if: env.ACTION == 'promote'
         env:
           GH_TOKEN: ${{ github.token }}
+          ASSIGNEE: ${{ vars.TESTING_ASSIGNEE || 'andydvsn' }}   # who's told (an organisation can't be)
         run: |
           list=$(sed -n 's/^promoted //p' promoted.txt | tr '\n' ',' | sed 's/,$//; s/,/, /g')
           bash ci/testing-issue.sh "Promoted to every OpenFrame: ${list:-nothing}."

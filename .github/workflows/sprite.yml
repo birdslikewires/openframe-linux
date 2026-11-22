@@ -126,4 +126,5 @@ jobs:
         if: env.UP_TO_DATE != 'yes'
         env:
           GH_TOKEN: ${{ github.token }}
+          ASSIGNEE: ${{ vars.TESTING_ASSIGNEE || 'andydvsn' }}   # who's told (an organisation can't be)
         run: bash ci/testing-issue.sh "Sprite ${VERSION} is in testing."
