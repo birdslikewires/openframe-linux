@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+
+## ssh-settings v26.11.22 (22nd November 2026)
+##  Applies OF-BOOT/settings/ssh.txt (/boot/settings/ssh.txt) at each start, before the
+##  SSH server, for of-ssh-settings.service:
+##    password=  set as the password of "of" (for SSH), then emptied in the file,
+##               so it's never left on the boot volume, which anyone can read (FAT has no
+##               permissions). Empty: the password stays as it is.
+##    key=       public keys that may log in as "of", one a line. They go in a block of
+##               their own in ~of/.ssh/authorized_keys, replaced each time; keys added
+##               there by hand, outside it, stay.
+##  Images give "of" no password: until one is set, here or in sprite's Settings, SSH
+##  needs a key. They used to give every unit the same one.
+##  On a flash stick (one that carries the image copy, for OpenFrame Flash), the password
+##  is set but stays in the file: Flash copies the stick's settings to each unit it
+##  installs, and each then sets it and empties it in its own.
+##  Values are read as of-netplan reads its files: the key's case and spaces around it
+##  don't matter, and one pair of matching quotes is taken off.
+
+USERNAME="of"
+SETTINGS="/boot/settings/ssh.txt"
+IMAGECOPY="/usr/lib/openframe/flash/image.img.gz" # there on a flash stick
+BEGIN="# from OF-BOOT settings/ssh.txt (ssh-settings replaces this block at each start)"
+END="# end of the keys from ssh.txt"
+
+log() { echo "ssh-settings: $*"; }
+
+[ -r "$SETTINGS" ] || exit 0
+getent passwd "$USERNAME" >/dev/null || { log "no user $USERNAME"; exit 0; }
+HOMEDIR=$(getent passwd "$USERNAME" | cut -d: -f6)
+
+PASS=""
+KEYS=()
+while IFS= read -r line || [ -n "$line" ]; do
+	line="${line%$'\r'}"
+	line="${line#$'\xef\xbb\xbf'}"
+	[[ "$line" == *=* && "$line" != \#* ]] || continue
+	k="${line%%=*}"
+	v="${line#*=}"
+	k="${k//[[:space:]]/}"
+	k="${k,,}"
+	v="${v#"${v%%[![:space:]]*}"}"
+	v="${v%"${v##*[![:space:]]}"}"
+	if (( ${#v} >= 2 )) && [[ ${v:0:1} == [\"\'] && ${v: -1} == "${v:0:1}" ]]; then
+		v="${v:1:${#v}-2}"
+	fi
+	case "$k" in
+		password) PASS="$v" ;;
+		key) [ -n "$v" ] && KEYS+=("$v") ;;
+	esac
+done < "$SETTINGS"
+
+# The password: set, then emptied in the file (a synced copy renamed into place, with the
+# boot volume writable only while that happens).
+if [ -n "$PASS" ]; then
+	if [[ "$PASS" =~ [[:cntrl:]] ]]; then
+		log "the password in ssh.txt has control characters in it: not set"
+	elif ! printf '%s:%s\n' "$USERNAME" "$PASS" | chpasswd; then
+		log "chpasswd refused the password in ssh.txt"
+	elif [ -e "$IMAGECOPY" ]; then
+		log "password for $USERNAME set from ssh.txt; a flash stick, so it stays there, for the units it installs"
+	else
+		log "password for $USERNAME set from ssh.txt"
+		NEW=$(mktemp) && trap 'rm -f "$NEW"' EXIT &&
+		awk 'index($0, "=") {
+				k = substr($0, 1, index($0, "=") - 1); gsub(/[[:space:]]/, "", k)
+				if (tolower(k) == "password" && $0 !~ /^[[:space:]]*#/) { print "password="; next }
+			}
+			{ print }' "$SETTINGS" > "$NEW" || { log "couldn't empty the password in ssh.txt"; NEW=""; }
+		if [ -n "$NEW" ] && /usr/lib/openframe/bootrw open; then
+			cp "$NEW" "$SETTINGS.new" && sync && mv -f "$SETTINGS.new" "$SETTINGS" && sync ||
+				log "couldn't empty the password in ssh.txt"
+			/usr/lib/openframe/bootrw close
+		fi
+	fi
+fi
+unset PASS
+
+# The keys: only lines that look like OpenSSH public keys (a type, then base64).
+VALID=()
+for key in "${KEYS[@]}"; do
+	if [[ "$key" =~ ^(ssh-(ed25519|rsa|dss)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com)\ [A-Za-z0-9+/]+=*(\ .*)?$ ]] &&
+	   [[ ! "$key" =~ [[:cntrl:]] ]]; then
+		VALID+=("$key")
+	else
+		log "ignoring a key= line that isn't an SSH public key"
+	fi
+done
+AK="$HOMEDIR/.ssh/authorized_keys"
+if (( ${#VALID[@]} )) || { [ -f "$AK" ] && grep -qxF "$BEGIN" "$AK"; }; then
+	install -d -m 700 -o "$USERNAME" -g "$(id -gn "$USERNAME")" "$HOMEDIR/.ssh"
+	NEWAK=$(mktemp)
+	if [ -f "$AK" ]; then
+		awk -v b="$BEGIN" -v e="$END" '$0 == b { skip = 1; next } skip && $0 == e { skip = 0; next } !skip' "$AK" > "$NEWAK"
+	fi
+	if (( ${#VALID[@]} )); then
+		{ echo "$BEGIN"; printf '%s\n' "${VALID[@]}"; echo "$END"; } >> "$NEWAK"
+	fi
+	install -m 600 -o "$USERNAME" -g "$(id -gn "$USERNAME")" "$NEWAK" "$AK.new" && mv -f "$AK.new" "$AK"
+	rm -f "$NEWAK"
+	log "${#VALID[@]} key(s) from ssh.txt for $USERNAME"
+fi
+exit 0

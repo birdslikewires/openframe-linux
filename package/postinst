@@ -41,6 +41,7 @@ UNUSEDMARKER="/var/lib/openframe-scripts/unused-default"
 SETTINGSMARKER="/var/lib/openframe-scripts/settings-folder-default"
 FLASHMARKER="/var/lib/openframe-scripts/flash-service-default"
 SSHKEYSMARKER="/var/lib/openframe-scripts/ssh-keys-service-default"
+SSHSETTINGSMARKER="/var/lib/openframe-scripts/ssh-settings-default"
 REGDBMARKER="/var/lib/openframe-scripts/regdb-upstream-default"
 
 # True inside a chroot, as when an image is being built.
@@ -302,6 +303,20 @@ case "$1" in
 			systemctl enable --quiet of-ssh-keys.service of-ssh-keys-rsa.service 2>/dev/null || true
 			mkdir -p "${SSHKEYSMARKER%/*}"
 			touch "$SSHKEYSMARKER"
+		fi
+
+		# Once per system: the service that applies OF-BOOT/settings/ssh.txt (a password and
+		# keys for logging in as "of") at each start, with a template ssh.txt if there isn't
+		# one. The password stays as it is; new images give "of" none, rather than the one
+		# every unit had.
+		if [ ! -e "$SSHSETTINGSMARKER" ]; then
+			systemctl enable --quiet of-ssh-settings.service 2>/dev/null || true
+			if [ -d /boot/settings ] && [ ! -e /boot/settings/ssh.txt ] && [ -f /usr/lib/openframe/settings/ssh.txt ]; then
+				cp /usr/lib/openframe/settings/ssh.txt /boot/settings/ssh.txt.new && sync &&
+					mv -f /boot/settings/ssh.txt.new /boot/settings/ssh.txt && sync || true
+			fi
+			mkdir -p "${SSHSETTINGSMARKER%/*}"
+			touch "$SSHSETTINGSMARKER"
 		fi
 
 		# The clock's floor: systemd moves the clock forward to /usr/lib/clock-epoch's time

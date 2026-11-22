@@ -60,6 +60,12 @@ jobs:
       - name: Test the flash's backups
         run: bash tests/test_flash_backup.sh
 
+      # ssh-settings, which applies OF-BOOT/settings/ssh.txt: the password set and then
+      # emptied in the file, the keys in a block of their own in authorized_keys. It needs
+      # root and a user called of, so it runs in a Debian Trixie container of its own.
+      - name: Test the SSH settings
+        run: bash tests/test_ssh_settings.sh
+
       - name: Ensure repo branch exists
         run: |
           git fetch origin repo:refs/remotes/origin/repo 2>/dev/null || \

@@ -63,8 +63,11 @@ echo
 if [ "$OPENFRAMEUSER" != "root" ]; then
 
 	echo "Creating '$OPENFRAMEUSER' user and setting policy..."
-	# Create user with 'joggler' as the password.
-	useradd -m -p sa0dkJX04f4tM -s /bin/bash $OPENFRAMEUSER
+	# No password ('*' matches none): each unit's owner sets one, in OF-BOOT/settings/ssh.txt
+	# or sprite's Settings; every unit used to have the same one, 'joggler'. Key logins work
+	# without one, and sudo needs none (/etc/sudoers.d/of-nopasswd): this is the person's
+	# account, and nothing runs as it unless someone's logged in (sprite has a user of its own).
+	useradd -m -p '*' -s /bin/bash $OPENFRAMEUSER
 	addgroup admin
 	adduser $OPENFRAMEUSER adm
 	adduser $OPENFRAMEUSER admin
@@ -78,7 +81,8 @@ if [ "$OPENFRAMEUSER" != "root" ]; then
 
 else
 
-	echo "root:joggler" | chpasswd
+	# No password here either (as above); a key in ssh.txt is the way in.
+	usermod -p '*' root
 	HOMEPATH="/root"
 
 fi
@@ -125,6 +129,8 @@ echo "Enable systemd services..."
 # ones made here). Enabled here too, from this image's own copies of the units, in case
 # the openframe-scripts this image gets is older than them.
 /bin/systemctl enable of-ssh-keys.service of-ssh-keys-rsa.service
+# OF-BOOT/settings/ssh.txt: the password and keys for logging in, applied at each start.
+/bin/systemctl enable of-ssh-settings.service
 # lm-sensors' own service runs 'sensors -s' at every boot (about 2 s here) to write
 # limits from its config into the chips. We set none, and want nothing written to them.
 /bin/systemctl disable lm-sensors.service

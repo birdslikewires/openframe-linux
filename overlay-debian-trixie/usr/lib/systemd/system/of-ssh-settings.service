@@ -1,0 +1,14 @@
+# OF-BOOT/settings/ssh.txt: the password and keys for logging in as "of", applied at each
+# start before the SSH server (see /usr/lib/openframe/ssh-settings).
+[Unit]
+Description=OpenFrame SSH settings from OF-BOOT
+ConditionPathExists=/boot/settings/ssh.txt
+After=local-fs.target
+Before=ssh.service sshd.service sshd@.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/openframe/ssh-settings
+
+[Install]
+WantedBy=multi-user.target
