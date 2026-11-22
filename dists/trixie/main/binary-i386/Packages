@@ -37,16 +37,16 @@ Description: OpenFrame management scripts
  Scripts for managing OpenFrame devices.
 
 Package: openframe-sprite
-Version: 26.11.10
+Version: 26.11.22
 Architecture: i386
 Maintainer: OpenFrame Project <noreply@openbeak.net>
-Installed-Size: 7088
+Installed-Size: 7092
 Depends: libbsd0 (>= 0.7.0), libc6 (>= 2.38), libdisplay-info2 (>= 0.2.0), libdrm2 (>= 2.4.119), libinput10 (>= 1.26.0), libliftoff0 (>= 0.4.1), libmd0 (>= 0.0.0), libpixman-1-0 (>= 0.30.0), libseat1 (>= 0.5.0), libudev1 (>= 183), libwayland-client0 (>= 1.20.0), libwayland-server0 (>= 1.22.0), libxau6 (>= 1:1.0.11), libxcb-composite0, libxcb-errors0 (>= 1.0.1), libxcb-ewmh2 (>= 0.4.2), libxcb-icccm4 (>= 0.4.2), libxcb-render0, libxcb-res0 (>= 1.10), libxcb-xfixes0 (>= 1.15), libxcb1, libxcvt0 (>= 0.1.0), libxdmcp6, libxfont2 (>= 1:2.0.1), libxkbcommon0 (>= 0.5.0), libxshmfence1, x11-xkb-utils, xkb-data, libx11-6, libxext6, libxcursor1, libxfixes3, libxi6, libxrandr2, libxss1, libasound2t64, openframe-scripts
-Filename: pool/trixie/openframe-sprite_26.11.10_i386.deb
-Size: 2310892
-MD5sum: 376c1c9105e895a9d8918aebb2d7ba8b
-SHA1: cd770616cc6a1b72fc9e5d82ed7b0e70ca7be960
-SHA256: 57d35dc88be0092c75d9f75386ce80248b5c0518887a946427d49ca17b4e2a03
+Filename: pool/trixie/openframe-sprite_26.11.22_i386.deb
+Size: 2321128
+MD5sum: 11ebd1218e842a5467966c1bbb30fcac
+SHA1: c5f3fb101d87bc57ccac4775cc9e128dee53e77b
+SHA256: e8d8f423b7e37e88209db48f860331cec78c29cb6f4691f77f8562786825ec89
 Section: x11
 Priority: optional
 Homepage: https://github.com/birdslikewires/openframe-sprite
