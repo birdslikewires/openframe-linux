@@ -103,6 +103,8 @@ Everything OpenBeak publishes goes to a **testing** suite first (`trixie-testing
 
 Each repository keeps an issue, *Waiting in testing* (*Kernel x.y.z is ready to test* for a kernel), assigned to its owner, so GitHub sends a note when something new is in testing. Commenting **promote** on it releases it to every OpenFrame (`promote.yml`), and they install it the next night. **reject** keeps it back. A kernel's image is built with it while it's in testing and published as the latest image when the kernel is promoted. A push build's image installs everything from testing. `ci/apt-suite.sh` does the repositories' part (`tests/test_apt_suite.sh`).
 
+Promotion order looks after itself. A package that needs a newer version of another says so (Sprite's `Depends: openframe-scripts (>= ...)`), so units hold it back until both are released. And before promoting, `promote.yml` checks that everything the released suite would then hold installs on an OpenFrame that isn't a test unit (`ci/promote-check.sh`, in an i386 Trixie container). If it wouldn't, nothing is promoted, and the issue says why.
+
 
 ## Overlays
 

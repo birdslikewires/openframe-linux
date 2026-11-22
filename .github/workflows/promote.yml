@@ -76,6 +76,24 @@ jobs:
           done
           echo "SIGN_ARGS=$(for f in ${SIGNERS}; do printf -- '--local-user %s! ' "$f"; done)" >> $GITHUB_ENV
 
+      # Every package the released suite would then hold must install on an OpenFrame that isn't
+      # a test unit (ci/promote-check.sh), so nothing goes out needing what's still in testing.
+      - name: Check it all installs once promoted
+        if: env.ACTION == 'promote'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APT_SITE: linux.openbeak.net
+        run: |
+          if ! bash ci/promote-check.sh > check.txt 2>&1; then
+            cat check.txt
+            if [ -n "${{ github.event.issue.number }}" ]; then
+              printf 'Not promoted: once promoted, not everything would install on an OpenFrame that isn'"'"'t a test unit.\n\n```\n%s\n```\n' \
+                "$(tail -20 check.txt)" | gh issue comment "${{ github.event.issue.number }}" -R "${GITHUB_REPOSITORY}" --body-file -
+            fi
+            exit 1
+          fi
+          cat check.txt
+
       - name: Promote
         if: env.ACTION == 'promote'
         run: |
