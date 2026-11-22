@@ -22,15 +22,15 @@ Description: Broadcom Crystal HD video decoder support for OpenFrames
  The card's kernel driver, crystalhd, comes with the OpenFrame kernel.
 
 Package: openframe-scripts
-Version: 1:26.11.115
+Version: 1:26.11.116
 Architecture: all
 Maintainer: OpenFrame <andy@dvsn.net>
 Depends: bash, dosfstools, e2fsprogs, yq
-Filename: pool/trixie/openframe-scripts_26.11.115_all.deb
-Size: 283728
-MD5sum: 1fd452d1960bc31be4bdb40eefc1a42a
-SHA1: c93059434edf8fd6fe81d9a34410e0a7784492bc
-SHA256: 8ab4ca00c4054eafe3e34195fb92a0fc4db6bb74b8b76f8e2cec6ba424ac03a2
+Filename: pool/trixie/openframe-scripts_26.11.116_all.deb
+Size: 285910
+MD5sum: 0c13477faa752fef053a4e38c55ee954
+SHA1: 1381b7a38128b8e735568f77153dd53bc994b830
+SHA256: 4662a637732e5611dd791039b075a766910a2813caeb0fbd6854f376f9fb950d
 Section: admin
 Priority: optional
 Description: OpenFrame management scripts
