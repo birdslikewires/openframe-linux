@@ -37,10 +37,10 @@ jobs:
       options: --privileged
     env:
       # What the image installs from the repositories' testing suites (00-of-prep.sh): a push
-      # build tests what's pushed, so everything; an image for a kernel in testing, only that
-      # kernel, so promoting it later releases nothing else that isn't promoted; a release,
-      # nothing.
-      OF_TESTING: ${{ github.event_name == 'push' && 'all' || (inputs.testing_kernel && 'kernel' || '') }}
+      # build, or one started by hand with no kernel given, tests what's in testing, so
+      # everything; an image for a kernel in testing, only that kernel, so promoting it later
+      # releases nothing else that isn't promoted; a release, nothing.
+      OF_TESTING: ${{ (github.event_name == 'push' || inputs.kernel_version == '') && 'all' || (inputs.testing_kernel && 'kernel' || '') }}
       # A GitHub release: a kernel given by hand, or by check.yml for a promoted kernel.
       RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.kernel_version != '' && !inputs.testing_kernel }}
 
