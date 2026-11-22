@@ -31,7 +31,8 @@ $(while read -r pkg tver rver; do printf '| %s | %s | %s |\n' "$pkg" "$tver" "$r
 Comment **promote** to release them to every OpenFrame: they install overnight. Comment **reject** to close this and keep them back for now; the next publish opens it again."
 
 if [ -n "$num" ]; then
-	gh issue edit "$num" -R "$R" --body "$body" >/dev/null
+	# (and assigned, in case it was opened without: GitHub tells only the assignee)
+	gh issue edit "$num" -R "$R" --body "$body" ${ASSIGNEE:+--add-assignee "$ASSIGNEE"} >/dev/null
 	gh issue comment "$num" -R "$R" --body "$1" >/dev/null
 else
 	gh label create testing -R "$R" --color FBCA04 --description "Waiting in testing, for promote or reject" --force >/dev/null
