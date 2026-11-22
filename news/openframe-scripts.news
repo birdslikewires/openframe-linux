@@ -1,0 +1,2 @@
+1:26.11.121	The OpenFrame now keeps itself up to date overnight, and restarts at about 4am when an update needs it.
+1:26.11.117	The SSH server stays off until there's a way to log in, by password or key.
