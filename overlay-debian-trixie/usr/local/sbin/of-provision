@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-provision v26.11.9 (16th November 2026)
+## of-provision v26.11.10 (22nd November 2026)
 ##  Installs a project named in setup.txt on the boot volume (in its settings folder,
 ##  /boot/settings, or in its root as on older images) when the system first starts:
 ##  downloads the project's install.sh and runs it as the normal user. Lets community
@@ -131,12 +131,17 @@ log_to_boot() {
 }
 
 # Gives up without rebooting: the getty on tty1 stayed away for us, so bring it back
-# (it starts once we've finished).
+# (it starts once we've finished). Only when it's what tty1 runs, though: on a system
+# where sprite has tty1 instead (getty@tty1 disabled), starting the getty would cancel
+# sprite's start, which waits for us (sprite.service conflicts with the getty), and the
+# login prompt would come up in place of sprite. sprite starts by itself once we're done.
 give_up() {
 	# The getty's own check (of-provision.conf) would still see us started with a project
 	# to install, and stay away: this tells it we've finished.
 	mkdir -p /run/of-provision && touch /run/of-provision/done
-	systemctl start --no-block getty@tty1.service >/dev/null 2>&1
+	if systemctl -q is-enabled getty@tty1.service 2>/dev/null; then
+		systemctl start --no-block getty@tty1.service >/dev/null 2>&1
+	fi
 	exit "${1:-1}"
 }
 
