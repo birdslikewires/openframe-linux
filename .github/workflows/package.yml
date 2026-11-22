@@ -261,6 +261,11 @@ jobs:
             rm -f "apt-repo/pool/${codename}/"openframe-scripts_*.deb
             cp "${PKG}.deb" "apt-repo/pool/${codename}/"
 
+            # What's new, for of-update and Sprite's Updates tab: the owners' notes for every
+            # version (commits' News: trailers), beside the pool.
+            mkdir -p apt-repo/news
+            bash package/version.sh "${overlay_dir}" --news > apt-repo/news/openframe-scripts.news
+
             mkdir -p "apt-repo/dists/${codename}/main/binary-i386"
             cd apt-repo
             dpkg-scanpackages "pool/${codename}" > "dists/${codename}/main/binary-i386/Packages"

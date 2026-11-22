@@ -37,6 +37,8 @@ case " $* " in
 			else echo "Inst pkg$i [1] (2 Debian:13.8/stable, Debian-Security:13/stable-security [i386]) []"; fi
 		done
 		[ -e /tmp/WITH_BASH ] && echo "Inst bash [1] ($(dpkg-query -W -f='${Version}' bash) Debian:13.8/stable [i386])" ;;
+	*" --print-uris "*" download "*) # where a package comes from: a repository in /tmp/repo
+		p="${*##* }"; echo "'file:///tmp/repo/pool/${p%%=*}_2_all.deb' ${p%%=*}_2_all.deb 1000 SHA256:x" ;;
 	*" --print-uris "*)
 		for i in $(seq 1 "$(cat /tmp/PENDING 2>/dev/null || echo 0)"); do echo "'http://x/pkg${i}_2_i386.deb' pkg${i}_2_i386.deb 1000 SHA256:x"; done ;;
 esac
@@ -56,15 +58,23 @@ cat > /stub/dpkg-query <<'EOF'
 # After the stand-in unattended-upgrade has "installed" things (/tmp/INSTALLED: package, tab,
 # version), their versions, as of-update asks for them; before, the real dpkg-query.
 [ -s /tmp/INSTALLED ] || exec /usr/bin/dpkg-query "$@"
+both=no
+for n in "$@"; do case "$n" in *'${Package}'*) both=yes ;; esac; done
 for n in "$@"; do
 	case "$n" in -*) continue ;; esac
-	grep "^$n	" /tmp/INSTALLED
+	if [ $both = yes ]; then grep "^$n	" /tmp/INSTALLED; else grep "^$n	" /tmp/INSTALLED | cut -f2 | tr -d '\n'; fi
 done
 EOF
 cat > /stub/systemctl <<'EOF'
 #!/bin/bash
 echo "systemctl $*" >> /tmp/calls
 exit 0
+EOF
+cat > /stub/curl <<'EOF'
+#!/bin/bash
+# file:// only (the container has no curl): -o <file> <url>
+while [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2 ;; -*) shift ;; *) url="$1"; shift ;; esac; done
+src="${url#file://}"; [ -f "$src" ] || exit 22; cp "$src" "$out"
 EOF
 cat > /stub/timeout <<'EOF'
 #!/bin/bash
@@ -144,6 +154,25 @@ touch /tmp/WITH_BASH
 "$U" check >/dev/null 2>&1
 [ "$("$U" status | sed -n 's/^item=bash //p' | cut -d' ' -f3)" = 1 ] && ok "an update that's in is marked done" ||
 	bad "an update that's in is marked done" "$("$U" status; cat /var/lib/of-update/pending.list)"
+
+# What's new: the notes for a waiting update of ours, from its repository's news/, newer
+# than the version in and no newer than the one waiting; Debian's get none.
+reset
+mkdir -p /tmp/repo/news
+printf '3\tNot this one: newer than the update\n2\tNew in two\n2\tAlso in two\n1\tAlready in\n' > /tmp/repo/news/pkg1.news
+printf 'pkg1\t1\n' > /tmp/INSTALLED
+echo 2 > /tmp/PENDING
+"$U" check >/dev/null 2>&1
+news=$("$U" news)
+[ "$(grep -c '^part=' <<< "$news")" = 1 ] && grep -qx 'part=pkg1 2 openframe' <<< "$news" &&
+	ok "news names our waiting updates, not Debian's" || bad "news names our waiting updates, not Debian's" "$news"
+[ "$(grep '^news=' <<< "$news" | cut -f2- | tr '\t\n' ':|')" = "2:New in two|2:Also in two|" ] &&
+	ok "with the notes between the version in and the one waiting, in order" ||
+	bad "with the notes between the version in and the one waiting, in order" "$news"
+rm -rf /tmp/repo/news
+"$U" check >/dev/null 2>&1
+[ "$("$U" news | grep -c '^news=')" = 2 ] && ok "notes already fetched stay if the next fetch fails" ||
+	bad "notes already fetched stay if the next fetch fails" "$("$U" news)"
 
 # A restart: none needed, none; needed, yes; needed while installing, not yet.
 reset

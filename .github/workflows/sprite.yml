@@ -60,6 +60,10 @@ jobs:
           mkdir -p out
           gh release download "$tag" -R birdslikewires/openframe-sprite -D out -p "$deb" -p SHA256SUMS
           (cd out && grep " ${deb}\$" SHA256SUMS | sha256sum -c -)
+          # its owners' notes, if the release has them (from 26.11 onwards): published beside it
+          if gh release download "$tag" -R birdslikewires/openframe-sprite -D out -p openframe-sprite.news 2>/dev/null; then
+            (cd out && grep " openframe-sprite.news\$" SHA256SUMS | sha256sum -c -)
+          fi
           [ "$(dpkg-deb -f "out/${deb}" Package)" = openframe-sprite ]
           [ "$(dpkg-deb -f "out/${deb}" Version)" = "${VERSION}" ]
           [ "$(dpkg-deb -f "out/${deb}" Architecture)" = i386 ]
@@ -97,6 +101,10 @@ jobs:
           mkdir -p "apt-repo/pool/${codename}"
           rm -f "apt-repo/pool/${codename}/"openframe-sprite_*.deb
           cp out/openframe-sprite_*.deb "apt-repo/pool/${codename}/"
+          # What's new, for of-update: news/<package>.news, beside the pool
+          if [ -f out/openframe-sprite.news ]; then
+            mkdir -p apt-repo/news && cp out/openframe-sprite.news apt-repo/news/
+          fi
 
           mkdir -p "apt-repo/dists/${codename}/main/binary-i386"
           cd apt-repo

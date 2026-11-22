@@ -28,6 +28,12 @@
 ##        these scripts, the kernel) and "debian" (everything else). firmware=pending says
 ##        installed firmware will be flashed at the next start. And while they
 ##        download, got= and size= (bytes so far, and in all).
+##    of-update news
+##        What's new in OpenBeak's waiting updates, for Sprite: for each, a part= line
+##        (package, new version, tier), then its notes newer than the version installed, a
+##        news= line each: package, version, note, tab-separated. The notes are each
+##        repository's news/<package>.news, beside its pool (from commits' News: trailers),
+##        fetched when updates are looked for; the kernel's repository has none.
 ##    of-update reboot
 ##        Restart if an update needs it (/run/reboot-required: a new kernel, or firmware to
 ##        flash at the next start) and none is being installed. of-update-reboot.timer runs
@@ -48,6 +54,7 @@ VARDIR="/var/lib/of-update"
 STATUS="$VARDIR/status"
 LIST="$VARDIR/pending.list" # what's waiting: package, version, tier, bytes to fetch, file, old version
 ARCHIVES="/var/cache/apt/archives"
+NEWSDIR="$VARDIR/news"
 CATCHUP_AFTER=$(( 20 * 3600 ))
 
 log() { echo "of-update: $*"; }
@@ -110,6 +117,26 @@ write_list() {
 	chmod 644 "$tmp" && mv -f "$tmp" "$LIST"
 }
 
+# Fetches the owners' notes for each of OpenBeak's waiting updates (news/<package>.news, beside
+# the pool of the repository it comes from), so they can be read before updating. Quietly: a
+# repository without them (the kernel's) just has none, and an old copy is kept if the fetch
+# fails.
+fetch_news() {
+	local P V T url
+	mkdir -p "$NEWSDIR"
+	[ -s "$LIST" ] || return 0
+	while IFS=$'\t' read -r P V T _; do
+		[ "$T" = debian ] && continue
+		url=$(apt-get --print-uris -qq download "$P=$V" 2>/dev/null | head -1 | cut -d"'" -f2)
+		case "$url" in */pool/*) ;; *) continue ;; esac
+		if curl -fsS --max-time 20 -o "$NEWSDIR/$P.news.new" "${url%%/pool/*}/news/$P.news" 2>/dev/null; then
+			mv -f "$NEWSDIR/$P.news.new" "$NEWSDIR/$P.news"
+		else
+			rm -f "$NEWSDIR/$P.news.new"
+		fi
+	done < "$LIST"
+}
+
 # Drops from $LIST what's installed now (its new version in), leaving whatever didn't go in.
 # Quick: asking apt again takes half a minute on an OF1, with everything already done.
 prune_list() {
@@ -164,6 +191,7 @@ run)
 	set_state checking
 	lists || fail "the update servers couldn't be reached"
 	write_list
+	fetch_news
 	N=$(wc -l < "$LIST")
 	put "checked=$(date +%s)" "pending=$N"
 	if (( N > 0 )); then
@@ -190,6 +218,7 @@ check)
 	set_state checking
 	lists || fail "the update servers couldn't be reached"
 	write_list
+	fetch_news
 	put "checked=$(date +%s)" "pending=$(wc -l < "$LIST")"
 	;;
 status)
@@ -221,6 +250,21 @@ status)
 		done < "$LIST"
 		[ "$STATE" = downloading ] && echo "got=$GOT" && echo "size=$SIZE"
 	fi
+	;;
+news)
+	[ -s "$LIST" ] || exit 0
+	while IFS=$'\t' read -r P V T _; do
+		[ "$T" = debian ] && continue
+		printf 'part=%s %s %s\n' "$P" "$V" "$T"
+		[ -s "$NEWSDIR/$P.news" ] || continue
+		NOW=$(dpkg-query -W -f='${Version}' "$P" 2>/dev/null)
+		# newest first: the notes from the waiting version back to (not including) the one in
+		while IFS=$'\t' read -r NV NOTE; do
+			dpkg --compare-versions "$NV" le "$V" || continue
+			[ -n "$NOW" ] && dpkg --compare-versions "$NV" le "$NOW" && break
+			printf 'news=%s\t%s\t%s\n' "$P" "$NV" "$NOTE"
+		done < "$NEWSDIR/$P.news"
+	done < "$LIST"
 	;;
 reboot)
 	[ -e /run/reboot-required ] || exit 0

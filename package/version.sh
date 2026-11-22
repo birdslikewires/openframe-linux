@@ -1,6 +1,7 @@
 #!/bin/bash
 # Prints the openframe-scripts version built from overlay directory $1 (such as
-# overlay-debian-trixie/), from the repository's root with its full history. The
+# overlay-debian-trixie/), from the repository's root with its full history; with --news
+# as $2, the owners' notes for every version (below). The
 # package workflow builds that version, and the image workflow waits for it.
 #
 # Version is year.month.N, where N counts the commits that changed the package in
@@ -12,6 +13,7 @@
 # YYYYMMDD-1 versions.
 
 overlay_dir="$1"
+[ "${2:-}" = --news ] && NEWS=1
 paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
   "${overlay_dir}usr/share/kernel" "${overlay_dir}usr/lib/firmware/updates" \
   "${overlay_dir}usr/lib/udev/rules.d" "${overlay_dir}usr/lib/udev/hwdb.d" "${overlay_dir}usr/lib/openframe" \
@@ -19,9 +21,25 @@ paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
   "${overlay_dir}usr/lib/sysctl.d" "${overlay_dir}etc/dpkg/dpkg.cfg.d/openframe-*" \
   "${overlay_dir}usr/share/keyrings" "${overlay_dir}usr/local/bin/readlightsensor" \
   "${overlay_dir}usr/lib/systemd/timesyncd.conf.d" "${overlay_dir}etc/apt/apt.conf.d/50openframe-*" \
+  "${overlay_dir}etc/apt/apt.conf.d/52openframe-*" \
   "${overlay_dir}etc/sensors.d/openframe.conf" "${overlay_dir}boot/backlight.txt" \
   "${overlay_dir}boot/settings" \
   .github/workflows/package.yml package)
+EPOCH="1:"
+# With --news: the owners' notes instead, from the "News:" trailers of the commits that made
+# each version, newest first, a line each: the version, a tab, the note. A commit may carry
+# several; most carry none ("Bug fixes and improvements", as Sprite puts it).
+if [ "${NEWS:-}" ]; then
+	TZ=UTC git log --reverse --format='%H %cd' --date=format-local:%y.%m -- "${paths[@]}" |
+		awk '{ n[$2]++; m = $2; sub(/\..*/, "", m); mm = substr($2, 4) + 0; print $1, m "." mm "." n[$2] }' |
+		while read -r hash ver; do
+			i=$((${i:-0} + 1))
+			git log -1 --format='%(trailers:key=News,valueonly,unfold)' "$hash" | sed '/^$/d' |
+				awk -v i="$i" -v v="$EPOCH$ver" '{ print i "\t" NR "\t" v "\t" $0 }'
+		done | sort -t "$(printf '\t')" -k1,1nr -k2,2n | cut -f3-
+	exit 0
+fi
+
 month=$(TZ=UTC git log -1 --format=%cd --date=format-local:%y.%m -- "${paths[@]}")
 count=$(TZ=UTC git log --format=%cd --date=format-local:%y.%m -- "${paths[@]}" | grep -cx "${month}")
 [ -n "$month" ] && [ "$count" -gt 0 ] || { echo "Can't work out the version: no history?" >&2; exit 1; }
