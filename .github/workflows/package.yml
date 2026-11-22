@@ -21,6 +21,7 @@ on:
       - 'overlay-*/usr/lib/systemd/timesyncd.conf.d/**'
       - 'overlay-*/etc/dpkg/dpkg.cfg.d/openframe-*'
       - 'overlay-*/etc/apt/apt.conf.d/50openframe-*'
+      - 'overlay-*/etc/apt/apt.conf.d/52openframe-*'
       - 'overlay-*/etc/sensors.d/openframe.conf'
       - 'overlay-*/usr/share/keyrings/**'
       - 'package/**'
@@ -65,6 +66,12 @@ jobs:
       # root and a user called of, so it runs in a Debian Trixie container of its own.
       - name: Test the SSH settings
         run: bash tests/test_ssh_settings.sh
+
+      # of-update, the automatic updates, against stand-ins for apt-get, unattended-upgrade and
+      # systemctl: catching up only when behind, downloads before installing, failures kept,
+      # and a restart that waits for an update being installed.
+      - name: Test the automatic updates
+        run: bash tests/test_of_update.sh
 
       - name: Ensure repo branch exists
         run: |
@@ -195,6 +202,10 @@ jobs:
             if [ -d "${overlay_dir}usr/lib/systemd/system" ]; then
               mkdir -p "${PKG}/usr/lib/systemd/system"
               install -m 644 "${overlay_dir}usr/lib/systemd/system/"*.service "${PKG}/usr/lib/systemd/system/"
+              # and their timers (of-update's)
+              for timer in "${overlay_dir}usr/lib/systemd/system/"*.timer; do
+                [ -f "$timer" ] && install -m 644 "$timer" "${PKG}/usr/lib/systemd/system/"
+              done
               # Drop-ins for units other things create (xinit.service.d, ...).
               for dropin in "${overlay_dir}usr/lib/systemd/system/"*.service.d; do
                 [ -d "$dropin" ] || continue
@@ -213,13 +224,14 @@ jobs:
             # dpkg, apt and lm-sensors settings, as conffiles so local changes are kept: the
             # /boot hook (openframe-boot), no translated messages (openframe-nolocale), no
             # firmware for drivers our kernel doesn't build (openframe-unused-firmware), apt's
-            # small lists and caches (50openframe-slim), and names for the temperature
-            # readings (sensors.d/openframe.conf). Images get the same files from the
-            # overlay, so dpkg finds them identical and doesn't ask.
+            # small lists and caches (50openframe-slim), automatic updates (52openframe-updates),
+            # and names for the temperature readings (sensors.d/openframe.conf). Images get the
+            # same files from the overlay, so dpkg finds them identical and doesn't ask.
             : > "${PKG}/DEBIAN/conffiles"
             for conf in etc/dpkg/dpkg.cfg.d/openframe-boot etc/dpkg/dpkg.cfg.d/openframe-nolocale \
                         etc/dpkg/dpkg.cfg.d/openframe-unused-firmware \
-                        etc/apt/apt.conf.d/50openframe-slim etc/sensors.d/openframe.conf; do
+                        etc/apt/apt.conf.d/50openframe-slim etc/apt/apt.conf.d/52openframe-updates \
+                        etc/sensors.d/openframe.conf; do
               [ -f "${overlay_dir}${conf}" ] || continue
               mkdir -p "${PKG}/${conf%/*}"
               install -m 644 "${overlay_dir}${conf}" "${PKG}/${conf}"
@@ -240,7 +252,7 @@ jobs:
             install -m 755 package/preinst "${PKG}/DEBIAN/preinst"
             install -m 755 package/postrm "${PKG}/DEBIAN/postrm"
 
-            printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash, dosfstools, e2fsprogs, yq\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
+            printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash, dosfstools, e2fsprogs, yq, unattended-upgrades\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
               "${version}" > "${PKG}/DEBIAN/control"
 
             dpkg-deb --build --root-owner-group "${PKG}"

@@ -85,6 +85,16 @@ sudo dpkg-reconfigure tzdata
 
 Running `dpkg-reconfigure locales` will present a menu to generate and select a locale (e.g. `en_GB.UTF-8` for the UK), while `dpkg-reconfigure tzdata` lets you select your timezone (e.g. Europe/London).
 
+### Automatic Updates
+
+OpenFrames keep themselves up to date: Debian's updates, and OpenBeak's (Sprite, these scripts, the kernel and the firmware), installed by `unattended-upgrades` through `of-update`, so owners never need to log in for them.
+
+- **When:** every night at a time of the unit's own between 01:00 and 03:00 (`of-update-night.timer`), and ten minutes after a start if the last good update was over 20 hours ago (`of-update-catchup.timer`), for units that are off at night or only on now and then.
+- **How:** the package lists, then every download, then the installing, a package at a time (`MinimalSteps`), so a power cut leaves little half-done, and `of-dpkg-recover` finishes it at the next start. Settings files changed on the unit are kept. The settings are in `/etc/apt/apt.conf.d/52openframe-updates`; apt's own daily timers are off.
+- **Restarts:** a new kernel, or firmware to flash, takes effect at the next restart (`/run/reboot-required`, the Debian way). The unit restarts by itself between 04:00 and 04:30 when one's needed (`of-update-reboot.timer`), never while an update is being installed.
+- **Sprite** shows it all in Settings, under Updates: what's happening, with progress, what's waiting, and buttons to check, update or restart now. `sudo of-update status` says the same over SSH, and `sudo of-update run now` updates straight away.
+- To stop it: `sudo systemctl disable --now of-update-night.timer of-update-catchup.timer of-update-reboot.timer` (enabled once per system, so that sticks).
+
 
 ## Overlays
 

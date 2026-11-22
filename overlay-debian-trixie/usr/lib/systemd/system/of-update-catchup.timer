@@ -1,0 +1,12 @@
+# of-update ten minutes after each start, out of the way of the start itself. It does
+# nothing unless the last good update was over 20 hours ago: for units that are off at night,
+# or only on now and then.
+[Unit]
+Description=Update the OpenFrame if it has fallen behind
+
+[Timer]
+OnBootSec=10min
+Unit=of-update@catchup.service
+
+[Install]
+WantedBy=timers.target

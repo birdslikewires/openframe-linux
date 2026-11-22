@@ -43,6 +43,7 @@ FLASHMARKER="/var/lib/openframe-scripts/flash-service-default"
 SSHKEYSMARKER="/var/lib/openframe-scripts/ssh-keys-service-default"
 SSHSETTINGSMARKER="/var/lib/openframe-scripts/ssh-settings-default"
 REGDBMARKER="/var/lib/openframe-scripts/regdb-upstream-default"
+UPDATESMARKER="/var/lib/openframe-scripts/auto-updates-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -317,6 +318,21 @@ case "$1" in
 			fi
 			mkdir -p "${SSHSETTINGSMARKER%/*}"
 			touch "$SSHSETTINGSMARKER"
+		fi
+
+		# Once per system: automatic updates (of-update, through unattended-upgrades): at
+		# night, after a start when the last was over 20 hours ago, and a restart at night
+		# when an update needs one. apt's own daily timers are off (52openframe-updates turns
+		# their jobs off too). Disabling of-update's timers afterwards sticks.
+		if [ ! -e "$UPDATESMARKER" ]; then
+			systemctl disable --quiet apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+			systemctl enable --quiet of-update-night.timer of-update-catchup.timer of-update-reboot.timer 2>/dev/null || true
+			if ! in_chroot; then
+				systemctl stop apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+				systemctl start of-update-night.timer of-update-reboot.timer 2>/dev/null || true
+			fi
+			mkdir -p "${UPDATESMARKER%/*}"
+			touch "$UPDATESMARKER"
 		fi
 
 		# The clock's floor: systemd moves the clock forward to /usr/lib/clock-epoch's time

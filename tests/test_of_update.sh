@@ -1,0 +1,177 @@
+#!/bin/bash
+# test_of_update.sh: of-update (overlay-debian-trixie/usr/local/sbin/of-update), the automatic
+# updates, against stand-ins for apt-get, unattended-upgrade and systemctl: a catch-up does
+# nothing after a recent update and runs after an old one; everything is downloaded before
+# anything is installed; nothing waiting means no downloads; failures are recorded;
+# status says what Sprite needs; and a restart waits while an update is being installed.
+# It needs root, /run and /var/lib, so it runs itself in a Debian Trixie container (Docker)
+# unless it's root already:
+#   bash tests/test_of_update.sh
+# Prints one line per case; exits non-zero if any case fails.
+set -u
+HERE=$(cd "$(dirname "$0")/.." && pwd)
+if [ "$(id -u)" -ne 0 ] || [ ! -e /.dockerenv ]; then
+	exec docker run --rm -v "$HERE:/src:ro" debian:trixie bash /src/tests/test_of_update.sh
+fi
+
+FAILS=0
+ok() { echo "ok   $1"; }
+bad() { echo "FAIL $1"; [ -n "${2:-}" ] && sed 's/^/       /' <<< "$2" | tail -10; FAILS=$((FAILS + 1)); }
+
+U=/usr/local/sbin/of-update
+install -m 755 /src/overlay-debian-trixie/usr/local/sbin/of-update "$U"
+mkdir -p /stub
+CALLS=/tmp/calls
+# Stand-ins: each says it was called (and with what) in $CALLS. PENDING is how many updates
+# apt-get -s finds; UU_FAIL makes unattended-upgrade fail; UPDATE_FAIL makes the lists fail.
+cat > /stub/apt-get <<'EOF'
+#!/bin/bash
+echo "apt-get $*" >> /tmp/calls
+case " $* " in
+	*" update "*) [ -e /tmp/UPDATE_FAIL ] && exit 100; exit 0 ;;
+	*" -s "*) # as apt prints them: the first is one of ours, the rest Debian's
+		for i in $(seq 1 "$(cat /tmp/PENDING 2>/dev/null || echo 0)"); do
+			if [ $i = 1 ]; then echo "Inst pkg$i [1] (2 OpenFrame Linux:trixie [all])"
+			elif [ $i = 3 ] && [ -e /tmp/TIERS ]; then echo "Inst openframe-firmware [1] (2 OpenFrame:trixie [i386])"
+			elif [ $i = 4 ] && [ -e /tmp/TIERS ]; then echo "Inst ofapp-clock [1] (2 OpenFrame Apps:trixie [all])"
+			else echo "Inst pkg$i [1] (2 Debian:13.8/stable, Debian-Security:13/stable-security [i386]) []"; fi
+		done
+		[ -e /tmp/WITH_BASH ] && echo "Inst bash [1] ($(dpkg-query -W -f='${Version}' bash) Debian:13.8/stable [i386])" ;;
+	*" --print-uris "*)
+		for i in $(seq 1 "$(cat /tmp/PENDING 2>/dev/null || echo 0)"); do echo "'http://x/pkg${i}_2_i386.deb' pkg${i}_2_i386.deb 1000 SHA256:x"; done ;;
+esac
+exit 0
+EOF
+cat > /stub/unattended-upgrade <<'EOF'
+#!/bin/bash
+echo "unattended-upgrade $* state=$(sed -n 's/^state=//p' /run/of-update/state)" >> /tmp/calls
+[ -e /tmp/UU_HOLD ] && sleep 3
+[ -e /tmp/UU_FAIL ] && exit 1
+# installing: what's waiting is now in (the dpkg-query stand-in says so)
+[ "$*" = "" ] && [ ! -e /tmp/UU_FAIL ] && cut -f1,2 /var/lib/of-update/pending.list > /tmp/INSTALLED && echo 0 > /tmp/PENDING
+exit 0
+EOF
+cat > /stub/dpkg-query <<'EOF'
+#!/bin/bash
+# After the stand-in unattended-upgrade has "installed" things (/tmp/INSTALLED: package, tab,
+# version), their versions, as of-update asks for them; before, the real dpkg-query.
+[ -s /tmp/INSTALLED ] || exec /usr/bin/dpkg-query "$@"
+for n in "$@"; do
+	case "$n" in -*) continue ;; esac
+	grep "^$n	" /tmp/INSTALLED
+done
+EOF
+cat > /stub/systemctl <<'EOF'
+#!/bin/bash
+echo "systemctl $*" >> /tmp/calls
+exit 0
+EOF
+cat > /stub/timeout <<'EOF'
+#!/bin/bash
+shift; exec "$@"
+EOF
+chmod 755 /stub/*
+export PATH="/stub:$PATH"
+STATUS=/var/lib/of-update/status
+reset() { rm -f /tmp/calls /tmp/PENDING /tmp/UU_FAIL /tmp/UPDATE_FAIL /tmp/UU_HOLD /tmp/WITH_BASH /tmp/INSTALLED /tmp/TIERS /run/reboot-required /run/reboot-required.pkgs; touch /tmp/calls; }
+field() { "$U" status | sed -n "s/^$1=//p"; }
+
+# Nothing waiting: the lists, no downloads, a good run recorded.
+reset
+"$U" run night >/dev/null 2>&1
+[ "$(field result)" = ok ] && [ -n "$(field last)" ] && [ "$(field pending)" = 0 ] && ! grep -q unattended /tmp/calls &&
+	ok "nothing waiting: no downloads, a good run" || bad "nothing waiting: no downloads, a good run" "$(cat /tmp/calls; "$U" status)"
+[ "$(field state)" = idle ] && ok "idle afterwards" || bad "idle afterwards" "$("$U" status)"
+
+# A catch-up just after: nothing at all.
+reset
+"$U" run catchup >/dev/null 2>&1
+[ ! -s /tmp/calls ] && ok "a catch-up after a recent update does nothing" || bad "a catch-up after a recent update does nothing" "$(cat /tmp/calls)"
+
+# A day later: it runs, downloads before installing, and the count goes to 0.
+reset
+sed -i "s/^last=.*/last=$(( $(date +%s) - 25 * 3600 ))/" "$STATUS"
+echo 3 > /tmp/PENDING
+"$U" run catchup >/dev/null 2>&1
+grep -q "^apt-get -qq update" /tmp/calls && ok "an old update is caught up" || bad "an old update is caught up" "$(cat /tmp/calls)"
+[ "$(grep unattended /tmp/calls)" = "$(printf 'unattended-upgrade --download-only state=downloading\nunattended-upgrade  state=installing')" ] &&
+	ok "everything's downloaded before anything's installed" || bad "everything's downloaded before anything's installed" "$(cat /tmp/calls)"
+[ "$(field pending)" = 0 ] && [ "$(field result)" = ok ] && (( $(date +%s) - $(field last) < 60 )) &&
+	ok "and the run is recorded" || bad "and the run is recorded" "$("$U" status)"
+grep -q "apt-get clean" /tmp/calls && ok "the downloads are cleared away" || bad "the downloads are cleared away" "$(cat /tmp/calls)"
+
+# Unreachable servers, and updates that don't install: recorded, the last good run kept.
+reset
+LAST=$(field last)
+touch /tmp/UPDATE_FAIL
+sed -i 's/sleep 60/sleep 0/' "$U" # (no waiting between tries here)
+"$U" run now >/dev/null 2>&1 && bad "unreachable servers fail" || ok "unreachable servers fail"
+[ "$(field result)" = failed ] && [ "$(field message)" = "the update servers couldn't be reached" ] && [ "$(field last)" = "$LAST" ] &&
+	ok "and say so, keeping the last good run" || bad "and say so, keeping the last good run" "$("$U" status)"
+[ "$(grep -c "update" /tmp/calls)" = 3 ] && ok "after three tries" || bad "after three tries" "$(cat /tmp/calls)"
+reset
+echo 2 > /tmp/PENDING
+touch /tmp/UU_FAIL
+"$U" run now >/dev/null 2>&1
+[ "$(field result)" = failed ] && [ "$(field state)" = idle ] && ok "a failed download is recorded, and it's idle again" ||
+	bad "a failed download is recorded, and it's idle again" "$("$U" status)"
+reset
+"$U" run now >/dev/null 2>&1
+[ "$(field result)" = ok ] && [ -z "$(field message)" ] && ok "a good run clears the failure" || bad "a good run clears the failure" "$("$U" status)"
+
+# check: the lists and the count, nothing installed.
+reset
+echo 5 > /tmp/PENDING
+"$U" check >/dev/null 2>&1
+[ "$(field pending)" = 5 ] && ! grep -q unattended /tmp/calls && ok "check counts without installing" || bad "check counts without installing" "$(cat /tmp/calls; "$U" status)"
+
+# The list: each update, ours or Debian's, and whether it's in yet.
+items=$("$U" status | sed -n 's/^item=//p')
+[ "$(sed -n 1p <<< "$items")" = "pkg1 2 openframe 0 1" ] && [ "$(sed -n 2p <<< "$items")" = "pkg2 2 debian 0 1" ] && [ "$(wc -l <<< "$items")" = 5 ] &&
+	ok "status lists the updates, ours marked" || bad "status lists the updates, ours marked" "$items"
+reset
+echo 5 > /tmp/PENDING
+touch /tmp/TIERS
+"$U" check >/dev/null 2>&1
+items=$("$U" status | sed -n 's/^item=//p' | cut -d' ' -f1,3 | tr '\n' ,)
+[ "$items" = "pkg1 openframe,pkg2 debian,openframe-firmware firmware,ofapp-clock apps,pkg5 debian," ] &&
+	ok "the firmware and apps are tiers of their own" || bad "the firmware and apps are tiers of their own" "$items"
+[ "$(field firmware)" = no ] && echo openframe-firmware > /run/reboot-required.pkgs && [ "$(field firmware)" = pending ] &&
+	ok "status says when firmware will be flashed" || bad "status says when firmware will be flashed" "$("$U" status)"
+reset
+echo 1 > /tmp/PENDING
+touch /tmp/WITH_BASH
+"$U" check >/dev/null 2>&1
+[ "$("$U" status | sed -n 's/^item=bash //p' | cut -d' ' -f3)" = 1 ] && ok "an update that's in is marked done" ||
+	bad "an update that's in is marked done" "$("$U" status; cat /var/lib/of-update/pending.list)"
+
+# A restart: none needed, none; needed, yes; needed while installing, not yet.
+reset
+"$U" reboot >/dev/null 2>&1
+! grep -q reboot /tmp/calls && ok "no restart unless one's needed" || bad "no restart unless one's needed" "$(cat /tmp/calls)"
+echo linux-image-x > /run/reboot-required.pkgs; touch /run/reboot-required
+[ "$(field restart)" = yes ] && ok "status says a restart is needed" || bad "status says a restart is needed" "$("$U" status)"
+"$U" reboot >/dev/null 2>&1
+grep -q "^systemctl reboot" /tmp/calls && ok "a needed restart happens" || bad "a needed restart happens" "$(cat /tmp/calls)"
+reset
+touch /run/reboot-required /tmp/UU_HOLD
+echo 1 > /tmp/PENDING
+"$U" run now >/dev/null 2>&1 &
+RUN=$!
+sleep 1.5
+[ "$(field state)" = installing ] || [ "$(field state)" = downloading ] && ok "status shows the update while it runs" ||
+	bad "status shows the update while it runs" "$("$U" status)"
+"$U" reboot >/dev/null 2>&1
+! grep -q "^systemctl reboot" /tmp/calls && ok "but not while an update is being installed" || bad "but not while an update is being installed" "$(cat /tmp/calls)"
+"$U" after poweroff >/dev/null 2>&1 # waits for it
+wait $RUN
+tail -1 /tmp/calls | grep -q "^systemctl poweroff" && grep -q "unattended-upgrade  state" /tmp/calls &&
+	ok "'after poweroff' waits for the update, then switches off" || bad "'after poweroff' waits for the update, then switches off" "$(cat /tmp/calls)"
+
+# A state left by a run that was killed doesn't stick.
+printf 'state=installing\nsince=1\n' > /run/of-update/state
+[ "$(field state)" = idle ] && ok "a stale state reads as idle" || bad "a stale state reads as idle" "$("$U" status)"
+
+echo
+[ "$FAILS" -eq 0 ] && echo "all passed" || echo "$FAILS failed"
+exit "$FAILS"

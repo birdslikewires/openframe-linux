@@ -1,0 +1,14 @@
+# of-update every night, at a time of the unit's own between 01:00 and 03:00. Nothing's
+# written to disk: a unit that's off at night catches up after its next start instead
+# (of-update-catchup.timer).
+[Unit]
+Description=Update the OpenFrame at night
+
+[Timer]
+OnCalendar=*-*-* 01:00
+RandomizedDelaySec=2h
+FixedRandomDelay=yes
+Unit=of-update@night.service
+
+[Install]
+WantedBy=timers.target

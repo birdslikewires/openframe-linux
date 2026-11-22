@@ -1,0 +1,30 @@
+// OpenFrame: automatic updates (openframe-scripts). of-update runs unattended-upgrades at
+// night and after a start when it's fallen behind (of-update-*.timer), not apt's own
+// timers, so apt's daily jobs are off here.
+APT::Periodic::Update-Package-Lists "0";
+APT::Periodic::Download-Upgradeable-Packages "0";
+APT::Periodic::Unattended-Upgrade "0";
+APT::Periodic::AutocleanInterval "0";
+
+// Everything this unit's sources offer: Debian's release, its point releases and security
+// updates, and OpenBeak's repositories (Sprite and these scripts, the kernel, the
+// firmware), which are all built for OpenFrames.
+Unattended-Upgrade::Origins-Pattern {
+	"origin=Debian,codename=${distro_codename}-updates";
+	"origin=OpenFrame,codename=${distro_codename}";
+	"origin=OpenFrame Kernel,codename=${distro_codename}";
+};
+
+// Each package a small step, so a power cut leaves little half-done (of-dpkg-recover
+// finishes it at the next start). No restarts from here: of-update-reboot.timer restarts at
+// night when one's needed. What upgrades leave behind is removed.
+Unattended-Upgrade::MinimalSteps "true";
+Unattended-Upgrade::Automatic-Reboot "false";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+
+// Nobody's there to answer questions about changed settings files: keep the unit's own.
+Dpkg::Options {
+	"--force-confdef";
+	"--force-confold";
+};

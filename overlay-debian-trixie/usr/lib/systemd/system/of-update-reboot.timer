@@ -1,0 +1,12 @@
+# The night's restart, if an update needs one: between 04:00 and 04:30, after of-update's
+# night run (01:00 to 03:00). About 30 seconds at a quiet time.
+[Unit]
+Description=Restart the OpenFrame at night if an update needs it
+
+[Timer]
+OnCalendar=*-*-* 04:00
+RandomizedDelaySec=30min
+Unit=of-update-reboot.service
+
+[Install]
+WantedBy=timers.target

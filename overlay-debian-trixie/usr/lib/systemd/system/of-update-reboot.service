@@ -1,0 +1,9 @@
+# Restarts the OpenFrame if an installed update needs it (a new kernel, or firmware to flash at
+# the next start) and nothing's being installed (of-update reboot).
+[Unit]
+Description=Restart the OpenFrame to finish updating
+ConditionPathExists=/run/reboot-required
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/of-update reboot

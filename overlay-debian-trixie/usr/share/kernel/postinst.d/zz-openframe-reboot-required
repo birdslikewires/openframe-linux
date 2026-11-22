@@ -1,0 +1,10 @@
+#!/bin/sh
+# zz-openframe-reboot-required
+#  A newly installed kernel runs from the next start, so says that one's needed, the
+#  Debian way (/run/reboot-required, with the package named in .pkgs): of-update restarts
+#  the unit at night for it, and Sprite's Settings offer to now. Not while building an image.
+
+systemd-detect-virt -q --chroot 2>/dev/null && exit 0
+touch /run/reboot-required
+grep -qx "linux-image-$1" /run/reboot-required.pkgs 2>/dev/null || echo "linux-image-$1" >> /run/reboot-required.pkgs
+exit 0

@@ -1,0 +1,14 @@
+# of-update (/usr/local/sbin/of-update): brings the OpenFrame up to date. %i is why: night
+# (of-update-night.timer), catchup (of-update-catchup.timer, after each start) or now
+# (Sprite's Settings). Gently: it shouldn't be noticed while the unit's in use.
+[Unit]
+Description=Update the OpenFrame (%i)
+Wants=network-online.target
+After=network-online.target time-sync.target of-dpkg-recover.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/of-update run %i
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=2h

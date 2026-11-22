@@ -1,0 +1,245 @@
+#!/usr/bin/env bash
+
+## of-update v26.11.1 (22nd November 2026)
+##  Keeps the OpenFrame up to date by itself: Debian's updates, and OpenBeak's (Sprite,
+##  these scripts, the kernel and the firmware), installed by unattended-upgrades as set up
+##  in /etc/apt/apt.conf.d/52openframe-updates. Owners never have to log in for them.
+##
+##    of-update run night|catchup|now
+##        The lists, then the downloads, then the installing, each package a small step
+##        (MinimalSteps), so a power cut leaves little half-done and of-dpkg-recover
+##        finishes it at the next start. Everything is downloaded before anything is
+##        installed: a download that's cut off costs nothing. Run by of-update@.service:
+##        "night" from of-update-night.timer (between 01:00 and 03:00); "catchup" from
+##        of-update-catchup.timer, ten minutes after each start, which does nothing unless
+##        the last good run was over 20 hours ago, so a unit that's only on now and then
+##        still catches up; "now" when someone asks (Sprite's Settings).
+##    of-update check
+##        Fetch the package lists and count what's waiting, without installing.
+##    of-update status
+##        key=value lines, for Sprite's helper: state (idle, checking, downloading,
+##        installing), since, last (the last good run), result (ok or failed), message,
+##        pending (updates waiting at the last look), checked (when that was), and
+##        restart=yes when an installed update takes effect only after a restart. Then the
+##        updates themselves, an item= line each: package, new version, its tier, 1 once
+##        it's installed, and the version it replaces (none for a new package). The tiers,
+##        as Sprite shows them: "firmware" (openframe-firmware), "apps" (the app shop's
+##        repository, or an ofapp- package), "openframe" (the rest of OpenBeak's: Sprite,
+##        these scripts, the kernel) and "debian" (everything else). firmware=pending says
+##        installed firmware will be flashed at the next start. And while they
+##        download, got= and size= (bytes so far, and in all).
+##    of-update reboot
+##        Restart if an update needs it (/run/reboot-required: a new kernel, or firmware to
+##        flash at the next start) and none is being installed. of-update-reboot.timer runs
+##        it nightly, between 04:00 and 04:30.
+##    of-update after reboot|poweroff
+##        Wait for an update that's being installed to finish, then restart or switch off
+##        (Sprite's Power buttons while one is).
+##
+##  /run/of-update/state is the state now (anyone may read it: Sprite shows a sign in its
+##  bar while an update installs). /var/lib/of-update/status keeps the rest between starts.
+
+set -u
+export LC_ALL=C DEBIAN_FRONTEND=noninteractive
+
+RUNDIR="/run/of-update"
+LOCK="/run/of-update.lock"
+VARDIR="/var/lib/of-update"
+STATUS="$VARDIR/status"
+LIST="$VARDIR/pending.list" # what's waiting: package, version, tier, bytes to fetch, file, old version
+ARCHIVES="/var/cache/apt/archives"
+CATCHUP_AFTER=$(( 20 * 3600 ))
+
+log() { echo "of-update: $*"; }
+
+# The state now: idle, checking, downloading or installing.
+set_state() {
+	mkdir -p "$RUNDIR" && chmod 755 "$RUNDIR"
+	printf 'state=%s\nsince=%s\n' "$1" "$(date +%s)" > "$RUNDIR/state.new" &&
+		chmod 644 "$RUNDIR/state.new" && mv -f "$RUNDIR/state.new" "$RUNDIR/state"
+}
+
+get() { sed -n "s/^$1=//p" "$STATUS" 2>/dev/null | head -1; }
+
+# Sets key=value pairs in the status file, keeping the others.
+put() {
+	local tmp k
+	mkdir -p "$VARDIR"
+	tmp=$(mktemp "$VARDIR/.status.XXXXXX") || return
+	cp "$STATUS" "$tmp" 2>/dev/null
+	for kv in "$@"; do
+		k="${kv%%=*}"
+		sed -i "/^$k=/d" "$tmp"
+		printf '%s\n' "$kv" >> "$tmp"
+	done
+	chmod 644 "$tmp" && mv -f "$tmp" "$STATUS"
+}
+
+# Writes what's waiting to $LIST, a line each, tab-separated: package, new version, its tier
+# (firmware, apps, openframe or debian: see status), its download in bytes (0 if it's here
+# already), its file, and the version
+# installed now (empty for a new package). From apt's
+# simulation (the versions and where from) and its download list (the sizes).
+write_list() {
+	local tmp
+	mkdir -p "$VARDIR"
+	tmp=$(mktemp "$VARDIR/.list.XXXXXX") || return
+	{
+		apt-get --print-uris -qq -o Debug::NoLocking=1 dist-upgrade 2>/dev/null | sed 's/^/U /'
+		apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null | grep '^Inst ' | sed 's/^/S /'
+	} | awk '
+		$1 == "U" { f = $3; p = f; sub(/_.*/, "", p); size[p] = $4; file[p] = f; next }
+		$1 == "S" {
+			line = substr($0, 8)                  # after "S Inst "
+			p = line; sub(/ .*/, "", p)
+			rest = substr(line, length(p) + 2)
+			old = ""
+			if (match(rest, /^\[[^]]*\] /)) {     # [the version installed now]
+				old = substr(rest, 2, RLENGTH - 3)
+				rest = substr(rest, RLENGTH + 1)
+			}
+			if (!match(rest, /^\([^ ]+ /)) next
+			v = substr(rest, 2, RLENGTH - 2)
+			from = substr(rest, RLENGTH + 1)
+			ours = from ~ /^OpenFrame/ || from ~ /, OpenFrame/
+			if (p == "openframe-firmware") group = "firmware"
+			else if (p ~ /^ofapp-/ || from ~ /OpenFrame Apps/) group = "apps"
+			else group = ours ? "openframe" : "debian"
+			printf "%s\t%s\t%s\t%s\t%s\t%s\n", p, v, group, (p in size ? size[p] : 0), (p in file ? file[p] : ""), old
+		}' > "$tmp"
+	chmod 644 "$tmp" && mv -f "$tmp" "$LIST"
+}
+
+# Drops from $LIST what's installed now (its new version in), leaving whatever didn't go in.
+# Quick: asking apt again takes half a minute on an OF1, with everything already done.
+prune_list() {
+	[ -s "$LIST" ] || return 0
+	local -A NOW
+	local tmp P V REST
+	while IFS=$'\t' read -r P V; do NOW[$P]="$V"; done < <(cut -f1 "$LIST" | xargs dpkg-query -W -f='${Package}\t${Version}\n' 2>/dev/null)
+	tmp=$(mktemp "$VARDIR/.list.XXXXXX") || return
+	while IFS=$'\t' read -r P V REST; do
+		[ "${NOW[$P]:-}" = "$V" ] || printf '%s\t%s\t%s\n' "$P" "$V" "$REST"
+	done < "$LIST" > "$tmp"
+	chmod 644 "$tmp" && mv -f "$tmp" "$LIST"
+}
+
+# The package lists, a few tries: the network may only just be up. The clock first, as
+# OpenFrames have no clock battery, and apt refuses a repository whose Release file looks
+# like it comes from the future.
+lists() {
+	timeout 120 systemctl start time-sync.target >/dev/null 2>&1 || true
+	for try in 1 2 3; do
+		apt-get -qq update >/dev/null 2>&1 && return 0
+		(( try < 3 )) && sleep 60
+	done
+	return 1
+}
+
+# True if an update is being installed (another of-update holds the lock).
+running() {
+	! ( flock -n 8 ) 8>"$LOCK"
+}
+
+fail() {
+	log "$1"
+	put "result=failed" "message=$1"
+	exit 1
+}
+
+case "${1:-}" in
+run)
+	REASON="${2:-now}"
+	case "$REASON" in night|catchup|now) ;; *) echo "usage: of-update run night|catchup|now" >&2; exit 2 ;; esac
+	if [ "$REASON" = catchup ]; then
+		LAST=$(get last)
+		if [ -n "$LAST" ] && (( $(date +%s) - LAST < CATCHUP_AFTER )); then
+			exit 0
+		fi
+		log "the last update was $( [ -n "$LAST" ] && echo "$(( ($(date +%s) - LAST) / 3600 )) hours ago" || echo never): catching up"
+	fi
+	exec 9>"$LOCK"
+	flock -n 9 || { log "an update is already running"; exit 0; }
+	trap 'set_state idle' EXIT
+	set_state checking
+	lists || fail "the update servers couldn't be reached"
+	write_list
+	N=$(wc -l < "$LIST")
+	put "checked=$(date +%s)" "pending=$N"
+	if (( N > 0 )); then
+		log "$N update(s) waiting: downloading"
+		set_state downloading
+		unattended-upgrade --download-only || fail "the updates couldn't all be downloaded"
+		log "installing"
+		set_state installing
+		unattended-upgrade
+		OK=$?
+		apt-get clean
+		prune_list
+		N=$(wc -l < "$LIST")
+		put "pending=$N"
+		(( OK == 0 )) || fail "some updates didn't install"
+	fi
+	put "last=$(date +%s)" "result=ok" "message="
+	log "up to date$( [ -e /run/reboot-required ] && echo ", once it restarts")"
+	;;
+check)
+	exec 9>"$LOCK"
+	flock -n 9 || { log "an update is running"; exit 0; }
+	trap 'set_state idle' EXIT
+	set_state checking
+	lists || fail "the update servers couldn't be reached"
+	write_list
+	put "checked=$(date +%s)" "pending=$(wc -l < "$LIST")"
+	;;
+status)
+	STATE=idle SINCE=""
+	if [ -r "$RUNDIR/state" ]; then
+		STATE=$(sed -n 's/^state=//p' "$RUNDIR/state")
+		SINCE=$(sed -n 's/^since=//p' "$RUNDIR/state")
+	fi
+	# A state left behind by a run that was killed: nobody holds the lock.
+	[ "$STATE" != idle ] && ! running && STATE=idle
+	echo "state=${STATE:-idle}"
+	echo "since=$SINCE"
+	for k in last result message pending checked; do echo "$k=$(get $k)"; done
+	echo "restart=$( [ -e /run/reboot-required ] && echo yes || echo no)"
+	echo "firmware=$(grep -qx openframe-firmware /run/reboot-required.pkgs 2>/dev/null && echo pending || echo no)"
+	if [ -s "$LIST" ]; then
+		# Each update, and whether it's in yet (its version now installed).
+		declare -A NOW
+		while IFS=$'\t' read -r P V; do NOW[$P]="$V"; done < <(cut -f1 "$LIST" | xargs dpkg-query -W -f='${Package}\t${Version}\n' 2>/dev/null)
+		GOT=0 SIZE=0
+		while IFS=$'\t' read -r P V G B F OLD; do
+			echo "item=$P $V $G $( [ "${NOW[$P]:-}" = "$V" ] && echo 1 || echo 0) ${OLD:-none}"
+			if [ "$STATE" = downloading ] && (( B > 0 )); then
+				SIZE=$(( SIZE + B ))
+				if [ -e "$ARCHIVES/$F" ]; then GOT=$(( GOT + B ))
+				elif [ -e "$ARCHIVES/partial/$F" ]; then GOT=$(( GOT + $(stat -c %s "$ARCHIVES/partial/$F") ))
+				fi
+			fi
+		done < "$LIST"
+		[ "$STATE" = downloading ] && echo "got=$GOT" && echo "size=$SIZE"
+	fi
+	;;
+reboot)
+	[ -e /run/reboot-required ] || exit 0
+	if running; then
+		log "a restart is needed, but an update is being installed: not now"
+		exit 0
+	fi
+	log "restarting to finish updating ($(tr '\n' ' ' < /run/reboot-required.pkgs 2>/dev/null))"
+	systemctl reboot
+	;;
+after)
+	case "${2:-}" in reboot|poweroff) ;; *) echo "usage: of-update after reboot|poweroff" >&2; exit 2 ;; esac
+	exec 9>"$LOCK"
+	flock 9 # waits for the update being installed
+	exec 9>&-
+	systemctl "$2"
+	;;
+*)
+	sed -n 's/^##//p' "$0"
+	exit 2
+	;;
+esac
