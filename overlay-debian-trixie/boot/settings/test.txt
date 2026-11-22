@@ -1,0 +1,9 @@
+## Testing: OpenBeak's updates before everyone else.
+
+# yes makes this OpenFrame a test unit, from its next start: it takes OpenBeak's updates
+# (Sprite, the system, the kernel and the firmware) as soon as they're built, before they're
+# released to everyone, so they can be tried out. Leave it at no unless you're helping to test:
+# an update that isn't ready yet could stop the OpenFrame from starting. Setting it back to no
+# keeps what's installed until the released updates catch up.
+
+testing=no

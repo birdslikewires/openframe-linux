@@ -44,6 +44,7 @@ SSHKEYSMARKER="/var/lib/openframe-scripts/ssh-keys-service-default"
 SSHSETTINGSMARKER="/var/lib/openframe-scripts/ssh-settings-default"
 REGDBMARKER="/var/lib/openframe-scripts/regdb-upstream-default"
 UPDATESMARKER="/var/lib/openframe-scripts/auto-updates-default"
+TESTSETTINGSMARKER="/var/lib/openframe-scripts/test-settings-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -318,6 +319,19 @@ case "$1" in
 			fi
 			mkdir -p "${SSHSETTINGSMARKER%/*}"
 			touch "$SSHSETTINGSMARKER"
+		fi
+
+		# Once per system: the service that applies OF-BOOT/settings/test.txt at each start
+		# (testing=yes makes a test unit, taking OpenBeak's updates before they're released),
+		# with a template test.txt (testing=no) if there isn't one.
+		if [ ! -e "$TESTSETTINGSMARKER" ]; then
+			systemctl enable --quiet of-test-settings.service 2>/dev/null || true
+			if [ -d /boot/settings ] && [ ! -e /boot/settings/test.txt ] && [ -f /usr/lib/openframe/settings/test.txt ]; then
+				cp /usr/lib/openframe/settings/test.txt /boot/settings/test.txt.new && sync &&
+					mv -f /boot/settings/test.txt.new /boot/settings/test.txt && sync || true
+			fi
+			mkdir -p "${TESTSETTINGSMARKER%/*}"
+			touch "$TESTSETTINGSMARKER"
 		fi
 
 		# Once per system: automatic updates (of-update, through unattended-upgrades): at

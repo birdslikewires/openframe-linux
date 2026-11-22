@@ -73,6 +73,11 @@ jobs:
       - name: Test the automatic updates
         run: bash tests/test_of_update.sh
 
+      # test-settings, which applies OF-BOOT/settings/test.txt: testing=yes adds the testing
+      # suites (a test unit), anything else takes them away.
+      - name: Test the test unit setting
+        run: bash tests/test_test_settings.sh
+
       - name: Ensure repo branch exists
         run: |
           git fetch origin repo:refs/remotes/origin/repo 2>/dev/null || \

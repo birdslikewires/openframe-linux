@@ -1,0 +1,14 @@
+# OF-BOOT/settings/test.txt: whether this OpenFrame is a test unit, taking OpenBeak's updates
+# before they're released (see /usr/lib/openframe/test-settings). Applied at each start,
+# before anything looks for updates.
+[Unit]
+Description=OpenFrame test unit setting from OF-BOOT
+After=local-fs.target
+Before=of-update@catchup.service of-update@night.service of-update@now.service apt-daily.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/openframe/test-settings
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+## test-settings v26.11.1 (22nd November 2026)
+##  Applies OF-BOOT/settings/test.txt (/boot/settings/test.txt) at each start, for
+##  of-test-settings.service: testing=yes makes this OpenFrame a test unit, which takes
+##  OpenBeak's updates from each repository's testing suite (trixie-testing) as soon as
+##  they're built, before they're promoted to everyone. Anything else (no, empty, no file)
+##  takes it out again.
+##  A test unit has /etc/apt/sources.list.d/openframe-testing.list: the unit's own OpenFrame
+##  repositories (openframe-linux.list, -kernel.list, -firmware.list), each with -testing on
+##  its suite. apt takes the highest version, so testing builds win while they're newer, and
+##  of-update installs them (52openframe-updates allows the -testing suites). Leaving keeps
+##  what's installed until the released versions catch up: nothing is downgraded.
+##  Sprite and sprite-ping tell a test unit by that list being there.
+##  Values are read as of-netplan reads its files: the key's case and spaces around it
+##  don't matter, and one pair of matching quotes is taken off.
+
+SETTINGS="/boot/settings/test.txt"
+LIST="/etc/apt/sources.list.d/openframe-testing.list"
+
+log() { echo "test-settings: $*"; }
+
+TESTING=""
+if [ -r "$SETTINGS" ]; then
+	while IFS= read -r line || [ -n "$line" ]; do
+		line="${line%$'\r'}"
+		line="${line#$'\xef\xbb\xbf'}"
+		[[ "$line" == *=* && "$line" != \#* ]] || continue
+		k="${line%%=*}"
+		v="${line#*=}"
+		k="${k//[[:space:]]/}"
+		v="${v#"${v%%[![:space:]]*}"}"
+		v="${v%"${v##*[![:space:]]}"}"
+		if (( ${#v} >= 2 )) && [[ ${v:0:1} == [\"\'] && ${v: -1} == "${v:0:1}" ]]; then
+			v="${v:1:${#v}-2}"
+		fi
+		[ "${k,,}" = testing ] && TESTING="${v,,}"
+	done < "$SETTINGS"
+fi
+
+case "$TESTING" in
+	yes|true|on|1)
+		NEW=$(mktemp) || exit 1
+		trap 'rm -f "$NEW"' EXIT
+		{
+			echo "# A test unit (OF-BOOT/settings/test.txt says testing=yes): OpenBeak's updates before"
+			echo "# they're released. Written by test-settings at each start; testing=no removes it."
+			for f in /etc/apt/sources.list.d/openframe-linux.list /etc/apt/sources.list.d/openframe-kernel.list \
+				 /etc/apt/sources.list.d/openframe-firmware.list; do
+				[ -r "$f" ] || continue
+				# deb [options] <url> <suite> <components>: the suite gains -testing
+				sed -nE 's#^(deb( \[[^]]*\])? +[a-z]+://[^ ]+ +)([a-z]+)( .*)$#\1\3-testing\4#p' "$f"
+			done
+		} > "$NEW"
+		if ! cmp -s "$NEW" "$LIST"; then
+			install -m 644 "$NEW" "$LIST"
+			log "a test unit: OpenBeak's testing updates are on"
+		fi
+		;;
+	*)
+		if [ -e "$LIST" ]; then
+			rm -f "$LIST"
+			log "not a test unit any more: OpenBeak's testing updates are off"
+		fi
+		;;
+esac
+exit 0
