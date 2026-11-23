@@ -134,7 +134,8 @@ mixer_of() {
 # on the Atom.)
 holders() {
 	local f p unit
-	find "$PROCFS"/ -mindepth 3 -maxdepth 3 -path "$PROCFS/[0-9]*/fd/*" -lname '/dev/snd/pcmC*D*p' 2>/dev/null |
+	# (and "... (deleted)": a DAC unplugged while it plays, whose player is to be restarted)
+	find "$PROCFS"/ -mindepth 3 -maxdepth 3 -path "$PROCFS/[0-9]*/fd/*" \( -lname '/dev/snd/pcmC*D*p' -o -lname '/dev/snd/pcmC*D*p (deleted)' \) 2>/dev/null |
 		while read -r f; do
 			p=${f%/fd/*}
 			unit=$(sed -n 's#^0::/system\.slice/\([^/]*\.service\)$#\1#p' "$p/cgroup" 2>/dev/null)
@@ -260,6 +261,14 @@ ctl.!default {
 		restart_playing
 	fi
 	[ "$DIRECT" = no ] && [ -z "$mixer" ] && softvol_ready "$C_ID"
+	# Direct: the DAC's own volume control at full, the amplifier setting the level, every
+	# time, not only as the switch is turned (a replug, a power cut or audio.txt edited by
+	# hand had ALSA put back a level it stored before, quiet with no slider to raise it).
+	# Its controls only; the stream is untouched.
+	if [ "$DIRECT" = yes ] && [ "$C_KIND" = usb ] && [ -n "$(mixer_of "$C_ID")" ]; then
+		volume "$C_ID" full
+		store_levels
+	fi
 	return 0
 }
 
@@ -276,6 +285,10 @@ softvol_ready() {
 }
 
 # Card $1's volume ($2: a percentage, or full for 0 dB) and unmuted, by its volume control.
+# The mixers' levels kept, so the next start (or ALSA, as a card comes back) has the ones
+# set here, not older ones.
+store_levels() { alsactl store 2>/dev/null; return 0; }
+
 volume() {
 	local m
 	m=$(mixer_of "$1")
@@ -345,6 +358,7 @@ set)
 		if [ "$DIRECT" = yes ]; then volume "$C_ID" full
 		elif [ "$DIR" = no ] && [ "$WAS" = yes ]; then volume "$C_ID" "$LOW"
 		fi
+		store_levels
 	fi
 	exit 0
 	;;
@@ -368,6 +382,7 @@ hotplug)
 	apply
 	# low, once it's the output (a software volume control is only there by then)
 	for id in "${NEW[@]}"; do volume "$id" "$LOW"; done
+	(( ${#NEW[@]} )) && store_levels
 	;;
 store)
 	alsactl store 2>/dev/null

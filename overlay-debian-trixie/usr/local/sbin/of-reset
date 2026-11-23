@@ -42,6 +42,17 @@ case "${1:-}" in
 	*) sed -n 's/^##//p' "$0"; exit 2 ;;
 esac
 [ "$(id -u)" -eq 0 ] || { echo "of-reset: needs root"; exit 1; }
+# Started in someone's login (sudo over SSH): it goes on as a service of its own, as Sprite
+# starts it. Ending the person's sessions, below, ends everything in them, this too (SIGTERM,
+# then SIGKILL), which stopped it halfway: settings reset, but the Wi-Fi password, keys and
+# machine-id left, and no restart.
+if [ -z "$DRY" ] && grep -q '/session-[^/]*\.scope$' /proc/self/cgroup 2>/dev/null; then
+	if systemd-run --no-block --quiet --collect --unit=of-reset "$(readlink -f "$0")" --yes; then
+		echo "of-reset: carrying on as a service of its own (journalctl -u of-reset); this login ends, and the OpenFrame restarts when it's done"
+		exit 0
+	fi
+	echo "of-reset: couldn't start as a service of its own; carrying on here"
+fi
 # Started over SSH, it carries on when that session ends (it ends the person's sessions
 # itself, below).
 [ -z "$DRY" ] && trap '' HUP PIPE

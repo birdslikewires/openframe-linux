@@ -43,8 +43,10 @@ case " $* " in
 		echo "Inst ${*##* } [1] (2 OpenFrame:trixie [all])"; exit 0 ;;
 	*" -y "*" install "*) for p in ${*##*install }; do printf '%s\t2\n' "$p" >> /tmp/INSTALLED; done; exit 0 ;;
 	*" update "*)
-		[ -e /tmp/UPDATE_FAIL ] && { echo "E: Failed to fetch http://deb.debian.org/dists/trixie/InRelease"; exit 100; }
-		[ -e /tmp/NO_TESTING ] && { echo "E: The repository 'https://kernel.openbeak.net trixie-testing Release' does not have a Release file."; exit 100; }
+		[ -e /tmp/UPDATE_FAIL ] && { echo "E: Failed to fetch http://deb.debian.org/dists/trixie/InRelease"
+			echo "E: Some index files failed to download. They have been ignored, or old ones used instead."; exit 100; }
+		[ -e /tmp/NO_TESTING ] && { echo "E: The repository 'https://kernel.openbeak.net trixie-testing Release' does not have a Release file."
+			echo "E: Some index files failed to download. They have been ignored, or old ones used instead."; exit 100; }
 		exit 0 ;;
 	*" -s "*) # as apt prints them: the first is one of ours, the rest Debian's
 		for i in $(seq 1 "$(cat /tmp/PENDING 2>/dev/null || echo 0)"); do
@@ -86,6 +88,8 @@ EOF
 cat > /stub/systemctl <<'EOF'
 #!/bin/bash
 echo "systemctl $*" >> /tmp/calls
+# FLASHING: OpenFrame Flash at work (a oneshot: activating)
+[ "$*" = "show -p ActiveState --value of-flash.service" ] && { [ -e /tmp/FLASHING ] && echo activating || echo inactive; }
 exit 0
 EOF
 cat > /stub/curl <<'EOF'
@@ -124,12 +128,19 @@ reset
 sed -i "s/^last=.*/last=$(( $(date +%s) - 25 * 3600 ))/" "$STATUS"
 echo 3 > /tmp/PENDING
 "$U" run catchup >/dev/null 2>&1
-grep -q "^apt-get -qq update" /tmp/calls && ok "an old update is caught up" || bad "an old update is caught up" "$(cat /tmp/calls)"
+grep -q "^apt-get -qq --error-on=any update" /tmp/calls && ok "an old update is caught up" || bad "an old update is caught up" "$(cat /tmp/calls)"
 [ "$(grep unattended /tmp/calls)" = "$(printf 'unattended-upgrade --download-only state=downloading\nunattended-upgrade  state=installing')" ] &&
 	ok "everything's downloaded before anything's installed" || bad "everything's downloaded before anything's installed" "$(cat /tmp/calls)"
 [ "$(field pending)" = 0 ] && [ "$(field result)" = ok ] && (( $(date +%s) - $(field last) < 60 )) &&
 	ok "and the run is recorded" || bad "and the run is recorded" "$("$U" status)"
 grep -q "apt-get clean" /tmp/calls && ok "the downloads are cleared away" || bad "the downloads are cleared away" "$(cat /tmp/calls)"
+
+# Not while OpenFrame Flash is at work.
+rm -f /tmp/calls; touch /tmp/FLASHING
+"$U" run now >/dev/null 2>&1
+rm -f /tmp/FLASHING
+! grep -q "update" /tmp/calls && ! grep -q "unattended-upgrade" /tmp/calls &&
+	ok "no update while OpenFrame Flash is at work" || bad "no update while OpenFrame Flash is at work" "$(cat /tmp/calls)"
 
 # Unreachable servers, and updates that don't install: recorded, the last good run kept.
 reset
@@ -245,7 +256,7 @@ reset
 : > /tmp/calls
 echo 1 > /tmp/PENDING
 "$U" run now >/dev/null 2>&1
-! grep -q "^apt-get -qq update" /tmp/calls && grep -q "unattended-upgrade  state" /tmp/calls &&
+! grep -q "^apt-get -qq --error-on=any update" /tmp/calls && grep -q "unattended-upgrade  state" /tmp/calls &&
 	ok "Update now just after Check now doesn't look again" || bad "Update now just after Check now doesn't look again" "$(cat /tmp/calls)"
 grep -q "state=checking" /tmp/calls && bad "and never says it's checking" "$(cat /tmp/calls)" || ok "and never says it's checking"
 
@@ -256,7 +267,7 @@ sleep 1
 mkdir -p /tmp/apt/sources.list.d; touch /tmp/apt/sources.list.d/openframe-testing.list
 : > /tmp/calls
 OF_UPDATE_APTSOURCES=/tmp/apt "$U" run now >/dev/null 2>&1
-grep -q "^apt-get -qq update" /tmp/calls && ok "Update now looks again if the sources changed since Check now" ||
+grep -q "^apt-get -qq --error-on=any update" /tmp/calls && ok "Update now looks again if the sources changed since Check now" ||
 	bad "Update now looks again if the sources changed since Check now" "$(cat /tmp/calls)"
 rm -rf /tmp/apt
 

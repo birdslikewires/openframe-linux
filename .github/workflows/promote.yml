@@ -110,7 +110,10 @@ jobs:
       - name: Promote
         if: env.ACTION == 'promote'
         run: |
-          bash ci/apt-suite.sh promote ${LISTED} | tee promoted.txt
+          # (not piped to tee: a pipe's status is tee's, so a promote that failed partway, its
+          # Release not re-signed, say, was committed and pushed all the same)
+          bash ci/apt-suite.sh promote ${LISTED} > promoted.txt
+          cat promoted.txt
           bash ci/apt-suite.sh listing
           cd apt-repo
           git config user.name "github-actions[bot]"

@@ -28,6 +28,11 @@ T=/boot/settings/audio.txt
 
 # amixer: each card's controls are files in /tmp/mix/<card>/ holding their level ("none" for
 # a switch with no volume)
+cat > /stub/alsactl <<'EOF'
+#!/bin/bash
+echo "alsactl $*" >> /tmp/alsactl.calls
+EOF
+chmod 755 /stub/alsactl
 cat > /stub/amixer <<'EOF'
 #!/bin/bash
 [ "$1" = -q ] && shift
@@ -157,6 +162,15 @@ $(cat /tmp/asound.conf)"
 bash $A set direct=no 2>/dev/null
 grep -q dmix /tmp/asound.conf && [ "$(cat /tmp/mix/DAC/PCM)" = 25 ] && ok "volume control again: mixed, low" || bad "volume control again" "$(cat /tmp/mix/DAC/PCM)"
 
+# Direct, and the DAC's level put back by ALSA as it comes in again (a replug, a power cut):
+# the next hotplug has it at full again, with no slider there to raise it.
+bash $A set direct=yes 2>/dev/null
+echo 30 > /tmp/mix/DAC/PCM
+bash $A hotplug 2>/dev/null
+[ "$(cat /tmp/mix/DAC/PCM)" = 100 ] && grep -q 'slave.pcm "hw:CARD=DAC"' /tmp/asound.conf &&
+	ok "direct after a replug: the DAC's volume at full again" || bad "direct after a replug" "$(cat /tmp/mix/DAC/PCM)"
+bash $A set direct=no 2>/dev/null
+
 # The OpenFrame's own chosen with the DAC in: kept, through a hotplug.
 bash $A set output=builtin 2>/dev/null
 bash $A hotplug 2>/dev/null
@@ -210,6 +224,17 @@ rm -f /tmp/restarts
 bash $A apply 2>/dev/null
 [ ! -e /tmp/restarts ] && ok "nothing changed: nothing restarted" || bad "nothing changed: nothing restarted" "$(cat /tmp/restarts)"
 rm -rf /tmp/procfs
+
+# The DAC unplugged while it plays: its device node is gone, so the player's link to it
+# reads "... (deleted)". It's still found, and restarted to play from the speaker.
+rm -rf /tmp/procfs /tmp/restarts
+mkdir -p /tmp/procfs/106/fd; ln -sf "/dev/snd/pcmC2D0p (deleted)" /tmp/procfs/106/fd/5
+echo "0::/system.slice/shairport-sync.service" > /tmp/procfs/106/cgroup
+cards mid
+bash $A set output=builtin 2>/dev/null
+[ "$(cat /tmp/restarts 2>/dev/null)" = "systemctl --no-block restart shairport-sync.service" ] &&
+	ok "a DAC unplugged while playing: the player is still found and restarted" || bad "a player of an unplugged DAC" "$(cat /tmp/restarts 2>&1)"
+rm -rf /tmp/procfs /tmp/restarts
 
 # What set doesn't know.
 cp $T /tmp/before

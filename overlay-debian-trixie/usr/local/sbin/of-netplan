@@ -468,9 +468,12 @@ read_user_yaml() {
 # still a netplan config replaces it, so a yq that fails can't fill the file with its
 # error message.
 build_live() {
-	local NAME="" T="$LIVE.new"
+	local NAME="" T="$LIVE.new" UM
 	[ -n "$WIFIUSE" ] && NAME="$WIFINAME"
 	mkdir -p "${LIVE%/*}"
+	# private from the start: it holds the Wi-Fi password, and checking it takes a second or
+	# more on the Atom, all of which it was readable by anyone (a sandboxed app included)
+	UM=$(umask); umask 077
 	if { if [ "$1" = "-" ]; then echo "$DEFAULTJSON"; else cat "$1"; fi; } |
 	   "$YQ" -y --arg lan "$LAN" --arg wlan "$WLAN" --arg mac "$2" \
 	         --arg name "$NAME" --arg pass "$WIFIPASS" \
@@ -499,9 +502,11 @@ build_live() {
 	   [ -s "$T" ] && "$YQ" -e '.network | type == "object"' "$T" > /dev/null 2>&1; then
 		chmod 600 "$T"
 		mv -f "$T" "$LIVE"
+		umask "$UM"
 		return 0
 	fi
 	rm -f "$T"
+	umask "$UM"
 	klog "Could not write $LIVE with $YQ."
 	return 1
 }
@@ -515,7 +520,7 @@ unchanged() {
 # Keeps a copy of file $1 as $2 in STATEDIR, or none if it isn't there.
 remember() {
 	if [ -e "$1" ]; then
-		cp "$1" "$STATEDIR/$2" && chmod 600 "$STATEDIR/$2"
+		( umask 077; cp "$1" "$STATEDIR/$2" ) && chmod 600 "$STATEDIR/$2" # (private from the start)
 	else
 		rm -f "$STATEDIR/$2"
 	fi

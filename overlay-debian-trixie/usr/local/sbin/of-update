@@ -186,10 +186,14 @@ lists() {
 	timeout 120 systemctl start time-sync.target >/dev/null 2>&1 || true
 	local out
 	for try in 1 2 3; do
-		out=$(apt-get -qq update 2>&1) && return 0
+		# --error-on=any: without it apt-get exits 0 having fetched nothing (offline, with
+		# warnings), and with the lists empty after a start (tmpfs) the run found nothing
+		# waiting and called it a good update, putting the catch-up off for a day
+		out=$(apt-get -qq --error-on=any update 2>&1) && return 0
 		# A test unit whose testing suites aren't all there yet (a repository makes its own at
-		# its first publish to testing) still takes everything else.
-		if [ -n "$out" ] && ! grep '^E:' <<< "$out" | grep -qv -- '-testing'; then
+		# its first publish to testing) still takes everything else: every error about a
+		# testing suite (apt's line after any failure names none)
+		if [ -n "$out" ] && ! grep '^E:' <<< "$out" | grep -v 'Some index files failed to download' | grep -qv -- '-testing'; then
 			log "no testing suite there yet: $(grep '^E:' <<< "$out" | head -1)"
 			return 0
 		fi
@@ -324,6 +328,11 @@ run)
 			log "the last update was $( [ -n "$LAST" ] && echo "$(( ($(date +%s) - LAST) / 3600 )) hours ago" || echo never): catching up"
 		fi
 	fi
+	# Not while OpenFrame Flash installs from this stick (its system is the stick's, which
+	# isn't grown, and the night run restarts): it's a oneshot, so "activating" as it works
+	case "$(systemctl show -p ActiveState --value of-flash.service 2>/dev/null)" in
+		active|activating) log "OpenFrame Flash is at work: no update now"; exit 0 ;;
+	esac
 	exec 9>"$LOCK"
 	flock -n 9 || { log "an update is already running"; exit 0; }
 	trap 'set_state idle; [ "$REASON" = night ] && night_restart' EXIT

@@ -24,11 +24,21 @@
 
 USERNAME="of"
 SETTINGS="/boot/settings/ssh.txt"
-IMAGECOPY="/usr/lib/openframe/flash/image.img.gz" # there on a flash stick
+FLASHTXT="/boot/settings/flash.txt"
 BEGIN="# from OF-BOOT settings/ssh.txt (ssh-settings replaces this block at each start)"
 END="# end of the keys from ssh.txt"
 
 log() { echo "ssh-settings: $*"; }
+
+# True on a flash stick (flash=yes or again in settings/flash.txt), as of-provision tells.
+# Not the image copy: every release stick carries that until its system fills up, so the
+# password stayed in the file, and was set again at each start over one set since.
+flash_stick() {
+	local M
+	M=$(sed -n 's/^[[:space:]]*flash[[:space:]]*=//Ip' "$FLASHTXT" 2>/dev/null |
+		tr -d '\r"'"'"' \t' | tr 'A-Z' 'a-z' | tail -1)
+	[ "$M" = "yes" ] || [ "$M" = "again" ]
+}
 
 # A key in a home's authorized_keys (or authorized_keys2), options before it or not.
 has_key() {
@@ -87,9 +97,13 @@ done < "$SETTINGS"
 if [ -n "$PASS" ]; then
 	if [[ "$PASS" =~ [[:cntrl:]] ]]; then
 		log "the password in ssh.txt has control characters in it: not set"
+	elif (( ${#PASS} < 8 || ${#PASS} > 64 )); then
+		# as Settings asks: SSH listens on the network once there's a password, and "of"
+		# can use sudo, so not one that's guessed in a few tries
+		log "the password in ssh.txt isn't 8 to 64 characters: not set"
 	elif ! printf '%s:%s\n' "$USERNAME" "$PASS" | chpasswd; then
 		log "chpasswd refused the password in ssh.txt"
-	elif [ -e "$IMAGECOPY" ]; then
+	elif flash_stick; then
 		log "password for $USERNAME set from ssh.txt; a flash stick, so it stays there, for the units it installs"
 	else
 		log "password for $USERNAME set from ssh.txt"

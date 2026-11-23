@@ -794,7 +794,9 @@ new_unit() {
 		echo "flash=$VERSION"
 		echo "image=$(kv "$BUNDLEINFO" name)"
 		echo "state=new"
-	} > "$UDIR/info.txt"
+	} > "$UDIR/info.txt.new" && sync && mv -f "$UDIR/info.txt.new" "$UDIR/info.txt"
+	# (whole or not at all: one cut short after cid= was this unit's folder with no state, a
+	# state Flash doesn't know, at every start after)
 	sync
 	keep_settings
 }
@@ -822,6 +824,9 @@ keep_settings() {
 backup() {
 	local FW="$UDIR/firmware.bin" IMG="$UDIR/mmc.img.gz" FIFO RAWMD5 GZMD5 i CUR NEED
 	kv_set "$UDIR/info.txt" state backing-up
+	# What a backup cut short left (a power cut): it's written again from the start, so its
+	# room is free, and not counted against the room for it
+	rm -f "$IMG.new"
 	# The firmware alone needs a few MB; with the internal memory, its size and some.
 	NEED=$(( 16 * 1024 * 1024 ))
 	[ -z "$MMC_SKIP" ] && NEED=$(( MMCSIZE + 64 * 1024 * 1024 ))

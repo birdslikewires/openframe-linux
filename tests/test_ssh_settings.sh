@@ -84,14 +84,31 @@ echo 'key=' >> "$T"
 grep -qxF "$HAND" "$AK" && ! grep -qxF "$K2" "$AK" && ! grep -q 'ssh.txt' "$AK" &&
 	ok "emptied keys are taken out" || bad "emptied keys are taken out" "$(cat "$AK")"
 
-# On a flash stick (it carries the image copy), the password is set but stays in the file,
+# On a flash stick (flash=yes in flash.txt), the password is set but stays in the file,
 # for OpenFrame Flash to copy to each unit it installs.
-mkdir -p /usr/lib/openframe/flash && touch /usr/lib/openframe/flash/image.img.gz
+printf 'flash = "Yes"\r\n' > /boot/settings/flash.txt
 printf 'password=for every unit\nkey=\n' > "$T"
 out=$("$S" 2>&1)
 is_pass "for every unit" && grep -qx 'password=for every unit' "$T" && grep -q 'flash stick' <<< "$out" &&
 	ok "a flash stick keeps the password in ssh.txt" || bad "a flash stick keeps the password in ssh.txt" "$(cat "$T"; echo "$out")"
-rm /usr/lib/openframe/flash/image.img.gz
+rm /boot/settings/flash.txt
+
+# A release stick carries the image copy too, but isn't a flash stick unless flash.txt says
+# so: the password is emptied there, as on any unit.
+mkdir -p /usr/lib/openframe/flash && touch /usr/lib/openframe/flash/image.img.gz
+printf 'flash=no\n' > /boot/settings/flash.txt
+printf 'password=on a release stick\nkey=\n' > "$T"
+"$S" >/dev/null 2>&1
+is_pass "on a release stick" && grep -qx 'password=' "$T" &&
+	ok "a release stick (image copy, flash=no) empties the password" || bad "a release stick empties the password" "$(cat "$T")"
+rm -f /usr/lib/openframe/flash/image.img.gz /boot/settings/flash.txt
+
+# A password under 8 characters isn't set, and stays in the file to be put right.
+printf 'password=1234\n' > "$T"
+before=$(hash)
+out=$("$S" 2>&1)
+[ "$(hash)" = "$before" ] && grep -qx 'password=1234' "$T" && grep -q '8 to 64' <<< "$out" &&
+	ok "a password under 8 characters is refused" || bad "a password under 8 characters is refused" "$(cat "$T"; echo "$out")"
 
 # A password with a control character isn't set, and stays in the file to be put right.
 printf 'password=bad\tpass\n' > "$T"
