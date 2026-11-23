@@ -1,0 +1,131 @@
+name: resampler-build-publish
+run-name: resampler package build and publish
+
+# openframe-resampler: ALSA's "openframe" rate converter, the Speex resampler built for the
+# OpenFrame (resampler/README.md). openframe-scripts depends on it.
+# It goes into the same apt repository as openframe-scripts, so this shares that workflow's
+# concurrency group (the two never update the repo branch at once), and the repository steps
+# below are package.yml's: change them together.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'resampler/**'
+      - '.github/workflows/resampler.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write   # the testing issue (ci/testing-issue.sh)
+
+concurrency:
+  group: build-package
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0    # the version counts this month's commits
+
+      - name: Install tools
+        run: sudo apt-get install -y apt-utils dpkg-dev
+
+      # i386 programs run as they are on the x86-64 runner, so no emulation is needed. Docker's
+      # default seccomp filter on the runner stops i386 programs looking up names (apt couldn't
+      # resolve deb.debian.org; amd64 containers are fine), so the i386 containers run without it.
+      - name: Build the package
+        run: |
+          version=$(bash resampler/version.sh)
+          echo "Building openframe-resampler ${version}"
+          mkdir -p out
+          docker run --rm --security-opt seccomp=unconfined --platform linux/386 -v "$PWD/resampler:/src:ro" -v "$PWD/out:/out" \
+            i386/debian:trixie sh /src/build.sh /src "${version}" /out
+          ls -l out
+
+      # On a clean Trixie, as a unit would get it: apt finds every dependency, and ALSA's plug
+      # takes 4 s at 48 kHz to 44.1 kHz through the converter, 16-bit and 32-bit, into a file
+      # the right length (aplay pads its last period, so up to 5% over).
+      - name: Test the package
+        run: |
+          docker run --rm --security-opt seccomp=unconfined --platform linux/386 -v "$PWD/out:/out:ro" i386/debian:trixie sh -euxc '
+            apt-get -qq --error-on=any update
+            DEBIAN_FRONTEND=noninteractive apt-get -qq install -y /out/openframe-resampler_*.deb alsa-utils > /dev/null
+            for f in S16_LE S32_LE; do
+              case $f in S16_LE) fb=4 ;; S32_LE) fb=8 ;; esac
+              rm -f /tmp/out.raw
+              printf "pcm.t { type plug rate_converter \"openframe\" slave { pcm { type file file \"/tmp/out.raw\" slave.pcm \"null\" format raw } rate 44100 format $f } }\n" > /root/.asoundrc
+              head -c $((48000 * 4 * fb)) /dev/urandom | aplay -v -D t -t raw -f $f -c 2 -r 48000 > v.txt 2>&1 || { cat v.txt; exit 1; }
+              grep -E "Converter|Rate conversion" v.txt
+              grep -q "Converter: openframe (Speex, quality 5)" v.txt
+              grep -q "Rate conversion PCM (44100, sformat=$f)" v.txt
+              bytes=$(stat -c %s /tmp/out.raw); want=$((44100 * 4 * fb))
+              echo "$f: $bytes bytes out, $want for 4 s"
+              [ $bytes -ge $((want * 98 / 100)) ] && [ $bytes -le $((want * 105 / 100)) ]
+            done
+            test -s /usr/share/doc/openframe-resampler/copyright
+          '
+
+      - name: Ensure repo branch exists
+        run: |
+          git fetch origin repo:refs/remotes/origin/repo 2>/dev/null || \
+            git push origin HEAD:repo
+
+      - name: Checkout repo branch
+        uses: actions/checkout@v7
+        with:
+          ref: repo
+          path: apt-repo
+
+      # As package.yml: every key imported signs, and the key the units are given stays the one
+      # openframe-scripts ships.
+      - name: Import GPG signing keys
+        env:
+          KEY: ${{ secrets.APT_SIGNING_KEY }}
+          KEY_NEW: ${{ secrets.APT_SIGNING_KEY_OPENFRAME }}
+        run: |
+          echo "${KEY}" | gpg --batch --import
+          [ -z "${KEY_NEW}" ] || echo "${KEY_NEW}" | gpg --batch --import
+          SIGNERS=$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^sec/ { s = 1; next } s && /^fpr/ { print $10; s = 0 }')
+          echo "Signing with: ${SIGNERS}"
+          for k in overlay-*/usr/share/keyrings/openframe-apt.gpg; do
+            [ -f "$k" ] || continue
+            SHIPPED=$(gpg --batch --with-colons --show-keys "$k" | awk -F: '/^pub/ { s = 1; next } s && /^fpr/ { print $10; s = 0 }')
+            for f in ${SHIPPED}; do
+              echo "${SIGNERS}" | grep -qx "$f" || { echo "$k holds $f, which this run doesn't sign with: not publishing."; exit 1; }
+            done
+            echo "PUBLISH_KEY=${SHIPPED}" >> $GITHUB_ENV
+          done
+          echo "SIGN_ARGS=$(for f in ${SIGNERS}; do printf -- '--local-user %s! ' "$f"; done)" >> $GITHUB_ENV
+
+      # Built for Trixie only. To the testing suite: test units take it now, every other
+      # OpenFrame once it's promoted ("ok" in reply to the testing issue, promote.yml).
+      - name: Update the apt repository
+        run: |
+          bash ci/apt-suite.sh add trixie-testing out/openframe-resampler_*.deb
+          gpg --export ${PUBLISH_KEY:-} > apt-repo/key.gpg
+
+      - name: Generate directory listing
+        run: bash ci/apt-suite.sh listing
+
+      - name: Push apt repository
+        run: |
+          cd apt-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && echo "No changes to commit" || \
+            git commit -m "apt: openframe-resampler $(git -C .. rev-parse --short HEAD)"
+          git push origin repo
+
+      # The testing issue: what test units have that other OpenFrames don't, for "ok".
+      - name: Update the testing issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSIGNEE: ${{ vars.TESTING_ASSIGNEE || 'andydvsn' }}   # who's told (an organisation can't be)
+        run: bash ci/testing-issue.sh "Crystal HD $(dpkg-deb -f out/openframe-resampler_*.deb Version) is in testing."

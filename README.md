@@ -133,6 +133,8 @@ It should be possible to use updated microcode for the Intel Atom Z520, if that'
 
 ## Crystal HD
 
+Sound at another rate than the OpenFrame's mixer (48 kHz into its 44.1 kHz, say) is resampled by `openframe-resampler`, the Speex resampler built for the OpenFrame's Atom, rather than ALSA's linear converter, which leaves false tones in the treble; see [resampler/README.md](resampler/README.md).
+
 An OpenFrame 2 with a Broadcom Crystal HD decoder card in its mini PCIe slot can play H.264 video up to 1080p with `chdplay`, from the optional `openframe-crystalhd` package (`sudo apt install openframe-crystalhd`). The package holds the Crystal HD library with our fixes, the card's firmware and the player. The kernel driver comes with the OpenFrame kernel and loads by itself when the card is fitted; see [crystalhd/README.md](crystalhd/README.md).
 
 ## Scripts
@@ -229,3 +231,6 @@ below come from elsewhere and keep their own terms.
   builds it from Debian's `grub-efi-ia32-bin`, whose source Debian publishes.
 - The `openframe-crystalhd` package's library and firmware, which `crystalhd/build.sh` fetches rather
   than this repository holding: see `crystalhd/copyright`.
+- The `openframe-resampler` package's resampler, speexdsp's `resample.c` (BSD-3-Clause), which
+  `resampler/build.sh` takes from Debian's source package, and `resampler/rate_openframe.c`, from
+  alsa-plugins (BSD-3-Clause): see `resampler/copyright`.

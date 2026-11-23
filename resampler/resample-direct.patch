@@ -1,0 +1,16 @@
+--- a/libspeexdsp/resample.c
++++ b/libspeexdsp/resample.c
+@@ -644,7 +644,12 @@
+       goto fail;
+ #else
+    /* Choose the resampling type that requires the least amount of memory */
+-   use_direct = st->filt_len*st->den_rate <= st->filt_len*st->oversample+8
++   /* OpenFrame: the direct table whenever it's 1M coefficients (4 MB) or fewer, not only when
++      it's no bigger than the interpolated one. Working out each coefficient as it's used costs
++      an Atom twice the time, and the table is small for the ratios of-audio sets up (48 kHz to
++      44.1 kHz is 160/147: 147 rows). */
++   use_direct = (st->filt_len*st->den_rate <= st->filt_len*st->oversample+8
++                 || st->filt_len*st->den_rate <= 1048576)
+                 && INT_MAX/sizeof(spx_word16_t)/st->den_rate >= st->filt_len;
+ #endif
+    if (use_direct)
