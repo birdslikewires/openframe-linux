@@ -42,6 +42,9 @@ case "${1:-}" in
 	*) sed -n 's/^##//p' "$0"; exit 2 ;;
 esac
 [ "$(id -u)" -eq 0 ] || { echo "of-reset: needs root"; exit 1; }
+# Started over SSH, it carries on when that session ends (it ends the person's sessions
+# itself, below).
+[ -z "$DRY" ] && trap '' HUP PIPE
 
 say() { echo "of-reset: $*"; }
 # Runs a command, or with --dry-run says it would.
@@ -118,6 +121,11 @@ if [ -d "$SETTINGS" ] && [ -d "$TEMPLATES" ]; then
 fi
 
 # --- every way in --------------------------------------------------------------------------
+# The person's sessions end first: a shell left open writes its history back into the emptied
+# home as it closes (bash does, at the restart). Killed outright, so it writes nothing.
+say "ending $PERSON's sessions"
+run loginctl terminate-user "$PERSON" 2>/dev/null
+command -v pkill >/dev/null && run pkill -KILL -u "$PERSON" 2>/dev/null
 say "logins: no password for $PERSON, no keys, no other accounts"
 run usermod -p '*' "$PERSON"
 HOMEDIR=$(getent passwd "$PERSON" | cut -d: -f6)

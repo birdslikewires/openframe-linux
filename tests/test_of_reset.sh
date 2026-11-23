@@ -18,6 +18,8 @@ ok() { echo "ok   $1"; }
 bad() { echo "FAIL $1"; [ -n "${2:-}" ] && sed 's/^/       /' <<< "$2" | tail -12; FAILS=$((FAILS + 1)); }
 export DEBIAN_FRONTEND=noninteractive
 O=/src/overlay-debian-trixie
+# pkill, for the session case (before anything here could upset apt)
+{ apt-get -qq update && apt-get -qq install -y procps; } >/dev/null 2>&1 || echo "(no procps: the session case is skipped)"
 
 # Stand-ins: systemctl, hostnamectl, journalctl and systemd-id128 (no systemd here), bootrw.
 mkdir -p /stub /usr/lib/openframe /boot/settings /opt/sprite/share/sprite /var/lib/of-netplan /etc/netplan \
@@ -65,6 +67,9 @@ mkdir -p /home/of/.ssh; echo "ssh-ed25519 AAAA owner" > /home/of/.ssh/authorized
 useradd -m -s /bin/bash guest
 mkdir -p /root/.ssh; echo "ssh-ed25519 AAAA root" > /root/.ssh/authorized_keys
 
+# a session of of's, left open (a shell would write its history back into the emptied home)
+su of -c 'sleep 600' & SESSION=$!
+
 snap() { { dpkg-query -W -f='${Package} ${Version}\n'; getent shadow of; ls -R /home /root /boot/settings /var/lib/sprite /etc/ssh; } 2>/dev/null | md5sum; }
 before=$(snap)
 out=$(of-reset --dry-run 2>&1)
@@ -83,6 +88,9 @@ has new-dep-d && ok "and what an update made them need" || bad "and what an upda
 	ok "of's home is as new, its own" || bad "of's home is as new" "$(ls -la /home/of)"
 ! getent passwd guest >/dev/null && [ ! -e /home/guest ] && ok "other accounts go" || bad "other accounts go"
 [ ! -e /root/.ssh ] && ok "root's keys go" || bad "root's keys go" "$(ls -la /root)"
+if command -v pkill >/dev/null; then
+	sleep 0.5; ! pgrep -u of >/dev/null && ok "of's sessions are ended first" || bad "of's sessions are ended first" "$(pgrep -u of -a)"
+fi
 [ -z "$(ls /etc/ssh/ssh_host_* 2>/dev/null)" ] && ok "the SSH host keys go (new ones at the next start)" || bad "the SSH host keys go"
 cmp -s /boot/settings/wifi.txt /usr/lib/openframe/settings/wifi.txt && ! grep -rq secret-wifi-pass /boot/settings /var/lib/of-netplan /etc/netplan &&
 	ok "the Wi-Fi password is nowhere" || bad "the Wi-Fi password is nowhere" "$(grep -r secret-wifi-pass /boot /var/lib/of-netplan /etc/netplan)"
