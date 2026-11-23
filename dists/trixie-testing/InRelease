@@ -4,52 +4,52 @@ Hash: SHA512
 Architectures: all i386
 Codename: trixie-testing
 Components: main
-Date: Mon, 23 Nov 2026 08:58:43 +0000
+Date: Mon, 23 Nov 2026 11:02:51 +0000
 Description: OpenFrame Linux packages before release, for test units
 Label: OpenFrame Linux testing
 Origin: OpenFrame
 Suite: trixie-testing
 MD5Sum:
- 298bc6c3805a9fbd3d8cd04eb878aab8             1546 Release
- 354cd334b242eec3397f73db10d4003f             2162 main/binary-i386/Packages
- e5e2fe0e298633261d0b3f6849e3bc39             1122 main/binary-i386/Packages.gz
+ f57b35458e8e2eab2b9c81f6f7885c38             1546 Release
+ 65f0465d20e986b647a01c09c02d8041             2162 main/binary-i386/Packages
+ 33dc1a8c923830851e1c30206bb78c82             1123 main/binary-i386/Packages.gz
 SHA1:
- 711e269227d51b6efd6573e0b2ef3a1746be4285             1546 Release
- 7654b8d76671b4898a4f77a8f8e605a71c7667c3             2162 main/binary-i386/Packages
- 8091c96f524b99a078dfa24ccd7cfb66465d9dcf             1122 main/binary-i386/Packages.gz
+ 732c32ca236f774344c437ae2556089bbe607c2f             1546 Release
+ 65aa60e3922a4756d1fe5c0e21840ed3f0e8e690             2162 main/binary-i386/Packages
+ 07886736efae6848989625a50164f11f1e2f8094             1123 main/binary-i386/Packages.gz
 SHA256:
- 8b5a9d39ff9da4ba50630cc7755a750f462f130b3f58e109eb91a4ec8c0d48cd             1546 Release
- 405cb7b47eed4d7e715e5e2e471a3c927f1adfc330f905d19cac47b9386eb3f3             2162 main/binary-i386/Packages
- 1d39fadefe82b2e74c308ae6ce9a2995c674fb9edf90ffe1441f958563475dda             1122 main/binary-i386/Packages.gz
+ c01e1b0b88306df62ed6e47ad275c6bc3d49b80b3b59c1f5a22f09acb50c177e             1546 Release
+ dcec9e7c9195619e9fe496233d8881601e8763942396552fbafc49547af1ca5d             2162 main/binary-i386/Packages
+ 2aa12d5cd44c89a09c566d4ec760da23a713734f4a74f8b35a84884a17ecda21             1123 main/binary-i386/Packages.gz
 SHA512:
- 22acd859b78b15348ab8c269dc599ec107b2c9255b08f3f07eb681f16bc2735ba0d98596f77ae8aca641bc2d0a3c466490d5c08f83c5690b768123ad9d27a225             1546 Release
- 176371bef2d7f00401d7f5991adb33d276f35e3aee2e091c654309f5d97639a282a163c3a94e0f3a571535bfd0bf24a9ea81b968e68fae2d800eed42dba7f5f8             2162 main/binary-i386/Packages
- 7aa93a94293f5ffba0da4748bc613b4980c9cb9d377355fb6774cf73d2d46b7344ce075095c6362e2aa6b6df0bedc1ec8c713e5fb868725aec41cedf914b5e7d             1122 main/binary-i386/Packages.gz
+ 5a1a022458c1853cd70289bfd1d7f05b171d39f5b9a7a94a8ac1b39a679834d44171e124ac0c334d24db74b4bdb2cf06e01ed859557f0e6ebad8d8b1198fb2ef             1546 Release
+ 17418e56694db0576916be7d81d333dd35108cc246285c7dbb1c1381cbac4c5b0c1dcc901e4c98532a519eaecbd37a5cb99a0eefaaed761a6ae5f86fe8eab517             2162 main/binary-i386/Packages
+ e97f39dc63e58a3a9c8fb52b6ccbfe5c70fbafdae8a29fb093334e6d490a2b922235a6f5bbfb6ba1e73cc40a3da7f6ae2abbcb7ec4dbd38d2f3002a4465b2e34             1123 main/binary-i386/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iQIzBAEBCgAdFiEEJ2gOKJnfyrTveuqy06MK4QTmvhcFAmsEAEMACgkQ06MK4QTm
-vhembw/+JsNfRnZWZq3m2s5MfWAqX25IfSgbl44/pfs/MckYSAnS/kBMazHRALbl
-Hip1tv7FICG2LW375f6J2Ua5WdW1UE+JYArhY+D7H6pP3tiGOtz3pntGvsul27lz
-AiOKh+FG8t/wMSiVRk7bXdqTkcKmrP/fmDw6Ao80pO3GN6j+W1Say7m7iGLf6PEh
-1YA9u/AxTNmBdoGq1CwaL9MDm8G5u4zKoHnlaMqUzbqg/LbdWv5jydpdHhVDFSKm
-Zdns/x1M8kK0+CptURbP8xwgb96YHTuK5Yo1af8hnJrXSCD7FWov5N8bhq/ygYyx
-cqn+j+XsfsSbUVezdf784Hj3gR0Qn3pJma1dtHUK3C/WV3i006YoeDcVdqCmg7Xs
-1shQYM8Mkfm/jgb/koOwJlnQK6yQwEv6YnCK/zBMKqpcA6tM0qizzrgq3vddUQI+
-zxmMn2G5B0+5S15ktVXs90JUEe2BRdMPgi9iwJsfhd1SH+LFEVdSQg5zXs7YISIo
-BaSOtJW0OVEALC29Pow7C0UEsMPq4j6EQxqzfsevfMmwn+Y4nVMb/CRwz/rr0xTM
-QWtqSFSxVEC24YeeJvOD6nXSw05cHQTjSYMepw15DYSuvwDqZDOThGPAy+ZSvPYS
-uk5AbU+LG4D4B0pmgl8mPr/M85FjK4TNV3Nx6wnJ5MHK+ND2xCqJAjMEAQEKAB0W
-IQQXnE8C5V9AltaQ87/tgBtoP86FUwUCawQAQwAKCRDtgBtoP86FU4SrD/9dIeLq
-bpGuxcZxWgyBgqKajtba1IvC+o/VI2gryixRe/HGugru5xwA5Frwax1+BXtB7CHC
-sWutxQHV45D5LLqIMNQ9S2m/EOZEIJEi2fo4AWKQ04NwFo38UNTiL9+kodVbQdUg
-Wb2m+EtOc/4fzKGlCp70DvGBnd16RquCZrPeunXKNPnJ7xTlqoxGmX+57smlgzw2
-rOpV247nLh4IL1QbcUg1q7YU2hoF3VBoispny4UQm6/S43fzCsWHN/aax+jJqTnq
-pc4D9uhD3ILheBMsTF4rC0YNs8UOVcrvdGHrNQsoG2RFbjKFgnJsGmzB6nUBiFdY
-+JPEMJN01OWgfp1vwVTS/his7Ja+OJJZGhHqLo5qYg1V6QRzKHKypRy+wNy6PpFj
-p7XyPKRQK4HjRW6qDkZ95YBMFLvB411CtNJFLoVBnom4RDwe5nsS6tGJQUhx5Al+
-c9EIk3SeuoZEMT82KfVNV/dPJfWD2tg0JBnU/a9Cnwk2JanS+9+dmMPA3+vbnXe5
-WOwaH32VyE6gLXCBNm0Fyz38ychbQcTZzbaFzf9lckC1xDWJDGs5tL+awi/KZu+S
-NT3UW4qFPltkJlOTtRI35yPD1aVbUG3vhp4fRxitYeHob/lHZnsoWKMjEChmlaaC
-Wk5iltpb7CANCMfZvkCS9uZvxmzURkMWNIJaJg==
-=OMH1
+iQIzBAEBCgAdFiEEJ2gOKJnfyrTveuqy06MK4QTmvhcFAmsEHVsACgkQ06MK4QTm
+vhcxVA/7BDAjQmxYGIWG3Wqa9jXQVqljx/hGlSeiiSxvLC2FRUkfWL9EH7EVZLrD
+yn/53xiEU9ULRhcDKkmR45izbbO9JKXIjyZxxqnZOCq0Un1C15aP/Slqb6jKRbqe
+pCkcarqHGWRj+5JpnCZq1V9PuUzZWSu0fZde5+9aUola/7Wdbhj6gG3s48gHH07l
+5Yqa2M5D8HhDCN/op0if/sSKUTb0nMhNfiVYGJ24pDWkpVWXPLp0WVsyCI9V+KXP
+e7AvXxFxWAPKPkqQA1/3nlpk4OERtPwtIruJcF+vOgmk8OPl3unB00dTGBnh6O9T
+oyO23YOH5oT9xkrG2oiFwsy5jkXuRHRCKAfPlGFepBC4RfJFCivDmjiLlRqUR90d
+JZ2OIBNVa1espC2khLBjpY+UL2UyaIHmwTOrgdDlTY41dGGWh7SBe6uiLrkBew1j
+OfSAy+zBgoDFEWvbPFQYmWvHI8BeEr8QJ9yD1vUP+MPsnJjkC4OeB1HfdIPH7zlm
+2yyZrSWOPHFW2Amcy1L3yAo+SCc1v2Vm4CKB5sGdTonzXFCB64ILvMKbkfffF0rK
+04OM1tpjADxPcoFxbWA0OVGp/bfN2YILyC8cx3OBhQjGfCb8W2+pAtP4DzLlNnYb
+f39QxxI6lhFaiUo/MNA/GD1wIGIxQMtrrz+/RF8gkmYfm4yOoz6JAjMEAQEKAB0W
+IQQXnE8C5V9AltaQ87/tgBtoP86FUwUCawQdWwAKCRDtgBtoP86FU6zkD/9rZkHj
+JsfUa9iFFMUfGZf+etQEFEv5MybHDKc+txy50kZHecSHocfqSbOSnSepKGtNdXXG
+uKVnxYkNZHtR9UtGouJUHOmv9Nl5HO2OEIQSRUar3/P5O/9polg8+cIIscXr/EnI
+XH+q9mAsKyM9vnqY4uCR1+7Gg0qMYslsnSioFXNebOW1wcaoZXNspYcJftPzwTHE
+K8mtWAT3vwvBXLkQuPKI9rPrJdAETm2xLRkUl/bd4TGCG/iEcNrcHSUsfmwnNP8B
+zMzGHck5jwbHaOfc8GrqVBIWv1CZKlV5i5eqpEd/XZL6X4aJU5dIUUi4vDWKZUTF
+cFIL02D6WqBqegL9JjOGvwLEE7Wr+G3V6Wul/APZkH8FRJRnCppt1XLNwzqHhwbi
+u42TiNCEf/ptn9+VvHIzh6JNsr2S20unLeSK8BymRNTHc/qL4hiC9sY6Wh5J5qNa
+pXer4d+/UOeuX7xm21wqGhVKRIhk3IsZ4/BHo0tohIo5QfCaPvZmbDWAFDuhX1uF
+niM+BvzAwYwdE8eoFHqyNJroDaXoMWrFqVMDl8Vx1e2pOK0x2z1/KKoWYrZyqSJL
+iwxtiIoUuFiCq46MMUZAJI7ha90khXom5jQvsU2+RuGkWW+VCiMWJlDkkMVnArBn
+tYwtP7Y8Pn2yibNpG9TGdhZbAExwnmKk6YQ+eA==
+=lRSe
 -----END PGP SIGNATURE-----
