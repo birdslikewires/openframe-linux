@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## flash v26.11.20 (19th November 2026)
+## flash v26.11.21 (23rd November 2026)
 ##  Installs this system onto an OpenFrame's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
@@ -69,7 +69,7 @@
 ##  has grown can test the boot-time steps; OF_FLASH_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.20"
+VERSION="26.11.21"
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -1135,7 +1135,10 @@ erase_mmc() {
 	return 0
 }
 
-# Reads the MMC back and compares it with the image. A read that doesn't match is
+# Reads the MMC back, as far as the image goes, and compares it with the image. (Not the
+# whole MMC cut short with head: an OpenFrame 2's is twice the image, and dd, stopped by the
+# closed pipe, failed the check under pipefail every time, however good the write.) A read
+# that doesn't match is
 # read again before the write is blamed: an old MMC can return a bit or two
 # differently now and then (seen once on the study unit). True if it matches, and
 # then it's recorded as written ($1: which write, for info.txt).
@@ -1145,13 +1148,13 @@ check_mmc() {
 	MD5=$(kv "$BUNDLEINFO" md5)
 	phase check
 	with_progress "Checking" \
-		"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | head -c $SIZE | md5sum > '$W/mmc.md5'" \
+		"dd if='$MMC' bs=1M iflag=direct,count_bytes count=$SIZE status=progress 2>\"\$P\" | md5sum > '$W/mmc.md5'" \
 		"$SIZE" || return 1
 	if [ "$(cut -d' ' -f1 "$W/mmc.md5")" != "$MD5" ]; then
 		log "the internal memory didn't read back as written: reading it again"
 		phase check "Checking the new system again"
 		with_progress "Checking again" \
-			"dd if='$MMC' bs=1M iflag=direct status=progress 2>\"\$P\" | head -c $SIZE | md5sum > '$W/mmc.md5'" \
+			"dd if='$MMC' bs=1M iflag=direct,count_bytes count=$SIZE status=progress 2>\"\$P\" | md5sum > '$W/mmc.md5'" \
 			"$SIZE" || return 1
 	fi
 	[ "$(cut -d' ' -f1 "$W/mmc.md5")" = "$MD5" ] || return 1

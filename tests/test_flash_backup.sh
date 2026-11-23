@@ -195,6 +195,25 @@ img "the image onto an OpenFrame 1's internal memory" 1028128768 1028128768 writ
 img "an image bigger than the internal memory"         1028128768 2055208960 refused
 echo "name=test-image" > "$T/info"
 
+# The check after a write reads the internal memory as far as the image goes: on an OpenFrame
+# 2's, twice the image, as on an OpenFrame 1's, the same size; a write that didn't take fails.
+head -c 4718592 /dev/urandom > "$T/image.raw"   # 4.5 MB: not a whole number of 1M blocks, as the real one isn't
+chk() {    # chk <name> <internal memory size> <corrupt: yes|no> <want: written|failed>
+	head -c "$2" /dev/zero > "$T/mmc"
+	dd if="$T/image.raw" of="$T/mmc" conv=notrunc status=none
+	[ "$3" = yes ] && printf 'x' | dd of="$T/mmc" bs=1 seek=3000000 conv=notrunc status=none
+	printf 'name=test-image\nsize=%s\nmd5=%s\n' "$(wc -c < "$T/image.raw" | tr -d " ")" "$(md5sum < "$T/image.raw" | cut -d' ' -f1)" > "$T/info"
+	rm -rf "$T/unit" "$T/w"; mkdir -p "$T/unit" "$T/w"; echo "state=checking" > "$T/unit/info.txt"
+	out=$(bash -c ". '$T/env.sh'; MODE=cli; W='$T/w'; UDIR='$T/unit'; MMCSIZE=$2; check_mmc test && echo CHECKED" 2>&1)
+	local got=failed
+	grep -q "^CHECKED" <<< "$out" && grep -qx "state=written" "$T/unit/info.txt" && got=written
+	[ "$got" = "$4" ] && ok "$1: $got" || bad "$1: $got (want $4)" "$out"
+}
+chk "checking a write on an OpenFrame 2's internal memory (twice the image)" 9437184 no written
+chk "checking a write on an internal memory the image's size"              4718592 no written
+chk "a write that didn't take"                                               9437184 yes failed
+echo "name=test-image" > "$T/info"
+
 # Stock firmware named by its carrier, OpenFrame 1 and 2 alike, from a made-up manifest
 # with this test chip's blocks 5 and 9; our firmware by its marker.
 B5=$(dd if="$T/chip.bin" bs=64k skip=5 count=1 status=none | md5sum | cut -d' ' -f1)
