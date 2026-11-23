@@ -308,7 +308,7 @@ daemon() {
 	echo "Starting in $([ "$mode" = auto ] && echo "automatic brightness" || echo "fixed level $mode%")."
 
 	# shown: until when a level asked for by 'show' holds (epoch seconds; 0 for none)
-	local said="" passes=0 since_conf=0 wait shown=0 now v
+	local said="" passes=0 since_conf=0 wait shown=0 now v next="" got
 	while true; do
 
 		# The mode, for 'of-backlight status': written when it changes. A change also has
@@ -359,7 +359,23 @@ daemon() {
 		# back the level saved at shutdown.
 		wait="$INTERVAL"
 		[[ $mode != auto ]] && (( passes > 15 )) && wait=30
-		if read -r -t "$wait" -u "$CTLFD" req; then
+		# One put aside last time (below) first.
+		got=""
+		if [ -n "$next" ]; then
+			req="$next" next="" got=1
+		elif read -r -t "$wait" -u "$CTLFD" req; then
+			got=1
+		fi
+		# Shown levels already overtaken by newer ones go unshown: only the latest of a run
+		# of them, so however far behind it gets, there's never a queue of them to work
+		# through. Anything else ends the run, and is taken next.
+		if [ -n "$got" ] && [[ $req == show\ * ]]; then
+			while read -r -t 0 -u "$CTLFD" && read -r -u "$CTLFD" next; do
+				[[ $next == show\ * ]] || break
+				req="$next" next=""
+			done
+		fi
+		if [ -n "$got" ]; then
 			if [[ $req =~ ^show\ ([0-9]{1,3})$ ]] && (( 10#${BASH_REMATCH[1]} <= 100 )); then
 				# At once, no fade: the hardware level for it, the power on first. Not saved.
 				(( v = 10#${BASH_REMATCH[1]} ))
