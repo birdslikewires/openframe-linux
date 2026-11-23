@@ -1,0 +1,17 @@
+# OF-BOOT/settings/name.txt: the OpenFrame's name, applied at each start before the network
+# comes up, so DHCP and LLMNR use it from the first (see /usr/lib/openframe/name-settings).
+[Unit]
+Description=OpenFrame name from OF-BOOT
+DefaultDependencies=no
+ConditionPathExists=/boot/settings/name.txt
+After=local-fs.target
+Before=sysinit.target network-pre.target systemd-networkd.service systemd-resolved.service shutdown.target
+Wants=network-pre.target
+Conflicts=shutdown.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/openframe/name-settings
+
+[Install]
+WantedBy=sysinit.target

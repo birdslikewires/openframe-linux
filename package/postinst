@@ -46,6 +46,7 @@ REGDBMARKER="/var/lib/openframe-scripts/regdb-upstream-default"
 UPDATESMARKER="/var/lib/openframe-scripts/auto-updates-default"
 TESTSETTINGSMARKER="/var/lib/openframe-scripts/test-settings-default"
 UPDATETIMEMARKER="/var/lib/openframe-scripts/update-time-default"
+NAMEMARKER="/var/lib/openframe-scripts/name-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -369,6 +370,18 @@ case "$1" in
 			fi || true
 			mkdir -p "${UPDATETIMEMARKER%/*}"
 			touch "$UPDATETIMEMARKER"
+		fi
+
+		# Once per system: the unit's name (OF-BOOT/settings/name.txt, applied at each start;
+		# a template, name= for openframe, if there isn't one).
+		if [ ! -e "$NAMEMARKER" ]; then
+			systemctl enable --quiet of-name-settings.service 2>/dev/null || true
+			if [ -d /boot/settings ] && [ ! -e /boot/settings/name.txt ] && [ -f /usr/lib/openframe/settings/name.txt ]; then
+				cp /usr/lib/openframe/settings/name.txt /boot/settings/name.txt.new && sync &&
+					mv -f /boot/settings/name.txt.new /boot/settings/name.txt && sync || true
+			fi
+			mkdir -p "${NAMEMARKER%/*}"
+			touch "$NAMEMARKER"
 		fi
 
 		# The clock's floor: systemd moves the clock forward to /usr/lib/clock-epoch's time

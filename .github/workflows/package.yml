@@ -94,6 +94,9 @@ jobs:
       - name: Test the brightness limits
         run: bash tests/test_backlight_settings.sh
 
+      - name: Test the name settings
+        run: bash tests/test_name_settings.sh
+
       - name: Ensure repo branch exists
         run: |
           git fetch origin repo:refs/remotes/origin/repo 2>/dev/null || \

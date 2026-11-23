@@ -156,6 +156,8 @@ if [ -z "$DRY" ] && systemd-id128 new > /etc/machine-id.new && grep -qx '[0-9a-f
 else
 	rm -f /etc/machine-id.new
 fi
+# (the name kept as written goes too: name.txt is the template's now, name= for openframe)
+[ -f /etc/machine-info ] && run sed -i '/^PRETTY_HOSTNAME=/d' /etc/machine-info
 if [ "$(hostname)" != openframe ]; then
 	run hostnamectl set-hostname openframe
 	# (written in place, not renamed over: /etc/hosts may be a mount)

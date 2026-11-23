@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+## name-settings v26.11.1 (23rd November 2026)
+##  The OpenFrame's name, from OF-BOOT/settings/name.txt (/boot/settings/name.txt): applied
+##  at each start, before the network (of-name-settings.service), and by Sprite's helper as
+##  soon as Sprite changes it.
+##    name=  what it's called, as written ("Andy's Kitchen"), kept as the pretty hostname
+##           (/etc/machine-info, which hostnamectl shows). The hostname is made from it:
+##           letters and digits, accents taken off, in lower case, anything else between
+##           them a hyphen, at most 63 characters (andys-kitchen). DHCP gives the router
+##           that name, and the unit answers to it over LLMNR (Windows). Not mDNS
+##           (andys-kitchen.local): systemd-resolved reading every mDNS packet on a busy
+##           home network took about 15% of an OF1's CPU, all the time.
+##           Empty, or with nothing in it a hostname can use: openframe.
+##  Without name.txt, nothing changes. Read as ssh-settings reads ssh.txt: the key's case
+##  and spaces around it don't matter, one pair of matching quotes is taken off, and the
+##  last name= counts.
+
+SETTINGS="/boot/settings/name.txt"
+DEFAULT="openframe"
+
+log() { echo "name-settings: $*"; }
+
+# The hostname for a name ($1): lower case ASCII letters, digits and hyphens.
+host_for() {
+	local h
+	h=$(printf '%s' "$1" | LC_ALL=C.UTF-8 iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null) || h=""
+	h="${h,,}"
+	h="${h//\'/}"   # andy's: andys, not andy-s
+	h=$(printf '%s' "$h" | LC_ALL=C sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
+	h="${h:0:63}"
+	while [[ $h == *- ]]; do h="${h%-}"; done
+	echo "${h:-$DEFAULT}"
+}
+
+# A value for /etc/machine-info, in double quotes: \, ", $ and ` escaped.
+quoted() {
+	local v="$1"
+	v="${v//\\/\\\\}"; v="${v//\"/\\\"}"; v="${v//\$/\\\$}"; v="${v//\`/\\\`}"
+	printf '"%s"' "$v"
+}
+
+[ -r "$SETTINGS" ] || exit 0
+
+NAME=""
+while IFS= read -r line || [ -n "$line" ]; do
+	line="${line%$'\r'}"
+	line="${line#$'\xef\xbb\xbf'}"
+	[[ "$line" == *=* && "$line" != \#* ]] || continue
+	k="${line%%=*}"
+	v="${line#*=}"
+	k="${k//[[:space:]]/}"
+	k="${k,,}"
+	[ "$k" = name ] || continue
+	v="${v#"${v%%[![:space:]]*}"}"
+	v="${v%"${v##*[![:space:]]}"}"
+	if (( ${#v} >= 2 )) && [[ ${v:0:1} == [\"\'] && ${v: -1} == "${v:0:1}" ]]; then
+		v="${v:1:${#v}-2}"
+	fi
+	NAME="$v"
+done < "$SETTINGS"
+
+if [[ "$NAME" =~ [[:cntrl:]] ]]; then
+	log "the name in name.txt has control characters in it: left as it was"
+	exit 0
+fi
+
+HOST=$(host_for "$NAME")
+PRETTY="$NAME"
+[ "$PRETTY" = "$HOST" ] && PRETTY="" # nothing to it but the hostname
+
+# Each written in place (in a container they may be mounts), and only when it changes.
+CHANGED=""
+if [ "$(cat /etc/hostname 2>/dev/null)" != "$HOST" ]; then
+	echo "$HOST" > /etc/hostname && CHANGED=1
+fi
+if [ "$(hostname)" != "$HOST" ]; then
+	hostname "$HOST" 2>/dev/null && CHANGED=1 || log "the hostname couldn't be changed now: it's $HOST from the next start"
+fi
+if [ -f /etc/hosts ]; then
+	H=$(awk -v h="$HOST" '$1 == "127.0.1.1" { if (!done) print "127.0.1.1\t" h; done = 1; next } { print } END { if (!done) print "127.0.1.1\t" h }' /etc/hosts)
+	[ "$H" != "$(cat /etc/hosts)" ] && printf '%s\n' "$H" > /etc/hosts
+fi
+MI=""
+[ -f /etc/machine-info ] && MI=$(grep -v '^PRETTY_HOSTNAME=' /etc/machine-info)
+[ -n "$PRETTY" ] && MI="${MI:+$MI
+}PRETTY_HOSTNAME=$(quoted "$PRETTY")"
+if [ "$MI" != "$(cat /etc/machine-info 2>/dev/null)" ]; then
+	if [ -n "$MI" ]; then printf '%s\n' "$MI" > /etc/machine-info; else rm -f /etc/machine-info; fi
+	CHANGED=1
+fi
+[ -n "$CHANGED" ] && log "named ${PRETTY:+$PRETTY, }$HOST on the network"
+exit 0
