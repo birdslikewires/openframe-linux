@@ -89,6 +89,11 @@ jobs:
       - name: Test the factory reset
         run: bash tests/test_of_reset.sh
 
+      # of-backlight settings and set, Sprite's automatic brightness limits in backlight.txt:
+      # the template's lines uncommented, every note kept, nothing but a limit accepted.
+      - name: Test the brightness limits
+        run: bash tests/test_backlight_settings.sh
+
       - name: Ensure repo branch exists
         run: |
           git fetch origin repo:refs/remotes/origin/repo 2>/dev/null || \

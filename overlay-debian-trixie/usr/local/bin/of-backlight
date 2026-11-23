@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-backlight v26.11.10 (20th November 2026) by Andrew Davison
+## of-backlight v26.11.11 (23rd November 2026) by Andrew Davison
 ##  Backlight control with fading for OpenFrame, and automatic brightness from the
 ##  light sensor. None of it needs root.
 ##
@@ -8,6 +8,11 @@
 ##    of-backlight 0-100    a fixed level: fades to it, and returns at once.
 ##    of-backlight auto     automatic brightness from the light sensor (999 does the same).
 ##    of-backlight status   says which it is, and the level.
+##    of-backlight settings automatic brightness's limits in use, as Sprite shows them:
+##                          min=, max= (percent) and off_below= (0: never off), a line each.
+##    of-backlight set min=10 max=80 off_below=0
+##                          changes those in backlight.txt, keeping the rest of it (as root:
+##                          it's on OF-BOOT). For Sprite's Settings.
 ##  Whichever was asked for last is kept across reboots. A fresh system stays at the
 ##  level it has until someone asks for one or for auto.
 ##
@@ -370,6 +375,42 @@ request() {
 if [ "$1" = "daemon" ]; then
 	daemon
 	exit 0
+fi
+
+## The limits automatic brightness is using.
+if [ "$1" = "settings" ]; then
+	conf
+	printf 'min=%d\nmax=%d\noff_below=%d\n' "$C_min" "$C_max" "$C_off_below"
+	exit 0
+fi
+
+## Changing them: each key=value replaces the first line setting that key (commented out or
+## not), or goes at the end; the rest of the file, notes and all, stays as it is.
+if [ "$1" = "set" ]; then
+	shift
+	(( $# )) || usage
+	for kv in "$@"; do
+		[[ "$kv" =~ ^(min|max|off_below)=([0-9]{1,4})$ ]] || { echo "of-backlight set: min=, max= or off_below=, with a number ($kv?)"; exit 2; }
+		[ "${BASH_REMATCH[1]}" != off_below ] && (( 10#${BASH_REMATCH[2]} > 100 )) && { echo "of-backlight set: $kv is over 100%"; exit 2; }
+	done
+	[ "$(id -u)" -eq 0 ] || { echo "of-backlight set needs root: backlight.txt is on OF-BOOT."; exit 1; }
+	NEW=$(mktemp) || exit 1
+	if [ -r "$CONF" ]; then cat "$CONF"
+	elif [ -r /usr/lib/openframe/settings/backlight.txt ]; then cat /usr/lib/openframe/settings/backlight.txt
+	fi > "$NEW"
+	for kv in "$@"; do
+		k=${kv%%=*} v=$(( 10#${kv#*=} ))
+		awk -v k="$k" -v v="$v" '
+			!done && $0 ~ "^[[:space:]]*#?[[:space:]]*" k "[[:space:]]*=" { print k "=" v; done = 1; next }
+			{ print }
+			END { if (!done) print k "=" v }' "$NEW" > "$NEW.2" && mv -f "$NEW.2" "$NEW"
+	done
+	/usr/lib/openframe/bootrw open || { rm -f "$NEW"; echo "of-backlight set: OF-BOOT couldn't be written"; exit 1; }
+	cp "$NEW" "$CONF.new" && sync && mv -f "$CONF.new" "$CONF" && sync
+	OK=$?
+	/usr/lib/openframe/bootrw close
+	rm -f "$NEW"
+	exit $OK
 fi
 
 ## 'auto' is 999. Otherwise we're expecting an integer, or status.
