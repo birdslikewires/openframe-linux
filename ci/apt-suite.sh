@@ -16,7 +16,7 @@
 #
 # Two suites: trixie, what every OpenFrame takes, and trixie-testing, what test units take as
 # well (OF-BOOT/settings/test.txt). Pushes publish to testing; a package reaches trixie only
-# when it's promoted, by Andy's "promote" on the repository's testing issue. Each pool holds
+# when it's promoted, by Andy's "ok" in reply to the repository's testing issue. Each pool holds
 # one version of each package. Notes for owners (news/) are shared: of-update shows only those
 # between the version a unit has and the one it's offered.
 set -eu

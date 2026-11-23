@@ -98,7 +98,7 @@ jobs:
           echo "SIGN_ARGS=$(for f in ${SIGNERS}; do printf -- '--local-user %s! ' "$f"; done)" >> $GITHUB_ENV
 
       # Built for Trixie only. To the testing suite: test units take it now, every other
-      # OpenFrame once it's promoted ("promote" on the testing issue, promote.yml).
+      # OpenFrame once it's promoted ("ok" in reply to the testing issue, promote.yml).
       - name: Update the apt repository
         run: |
           bash ci/apt-suite.sh add trixie-testing out/openframe-crystalhd_*.deb
@@ -117,7 +117,7 @@ jobs:
             git commit -m "apt: openframe-crystalhd $(git -C .. rev-parse --short HEAD)"
           git push origin repo
 
-      # The testing issue: what test units have that other OpenFrames don't, for "promote".
+      # The testing issue: what test units have that other OpenFrames don't, for "ok".
       - name: Update the testing issue
         env:
           GH_TOKEN: ${{ github.token }}

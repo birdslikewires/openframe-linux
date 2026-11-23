@@ -39,7 +39,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # In testing: an image with it, kept as an artifact for "promote" (once: not again while
+      # In testing: an image with it, kept as an artifact for "ok" (once: not again while
       # one is building or built). Promoted: its image is published from that artifact
       # (publish.yml, on kernel-promoted); a release build here only if there's no such image.
       - name: Decide what to build

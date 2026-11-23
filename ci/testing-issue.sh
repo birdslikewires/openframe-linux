@@ -4,7 +4,7 @@
 # One open issue, labelled testing and assigned to ASSIGNEE (the workflows give Andy's login: the
 # repositories belong to an organisation, which can't be assigned), lists what test units
 # have that other OpenFrames don't yet; each change is a comment on it, which GitHub sends to the
-# assignee (the GitHub app, and email). With nothing waiting, it's closed. "promote" or "reject"
+# assignee (the GitHub app, and email). With nothing waiting, it's closed. "ok" or "no" as a reply
 # on it starts promote.yml. Run from the repository's root, after apt-suite.sh, with GH_TOKEN
 # (issues: write) and GITHUB_REPOSITORY.
 #   testing-issue.sh "<what just happened, a sentence>"
@@ -28,14 +28,14 @@ body="Test units (OF-BOOT/settings/test.txt says \`testing=yes\`) take these fro
 |---|---|---|
 $(while read -r pkg tver rver; do printf '| %s | %s | %s |\n' "$pkg" "$tver" "$rver"; done <<< "$waiting")
 
-Comment **promote** to release them to every OpenFrame: they install overnight. Comment **reject** to close this and keep them back for now; the next publish opens it again."
+Reply **ok** to release them to every OpenFrame: they install overnight. Reply **no** to close this and keep them back for now; the next publish opens it again. (Just the word: anything longer is an ordinary comment.)"
 
 if [ -n "$num" ]; then
 	# (and assigned, in case it was opened without: GitHub tells only the assignee)
 	gh issue edit "$num" -R "$R" --body "$body" ${ASSIGNEE:+--add-assignee "$ASSIGNEE"} >/dev/null
 	gh issue comment "$num" -R "$R" --body "$1" >/dev/null
 else
-	gh label create testing -R "$R" --color FBCA04 --description "Waiting in testing, for promote or reject" --force >/dev/null
+	gh label create testing -R "$R" --color FBCA04 --description "Waiting in testing, reply ok to release, no to keep back" --force >/dev/null
 	gh issue create -R "$R" --title "Waiting in testing: ${SITE}" --label testing \
 		${ASSIGNEE:+--assignee "$ASSIGNEE"} --body "$body
 

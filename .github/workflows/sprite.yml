@@ -98,7 +98,7 @@ jobs:
         if: env.UP_TO_DATE != 'yes'
         run: |
           # To the testing suite: test units take it now, every other OpenFrame once it's
-          # promoted ("promote" on the testing issue, promote.yml).
+          # promoted ("ok" in reply to the testing issue, promote.yml).
           bash ci/apt-suite.sh add trixie-testing out/openframe-sprite_*.deb
           # What's new, for of-update: news/<package>.news, beside the pool
           if [ -f out/openframe-sprite.news ]; then
@@ -121,7 +121,7 @@ jobs:
             git commit -m "apt: openframe-sprite ${VERSION}, testing"
           git push origin repo
 
-      # The testing issue: what test units have that other OpenFrames don't, for "promote".
+      # The testing issue: what test units have that other OpenFrames don't, for "ok".
       - name: Update the testing issue
         if: env.UP_TO_DATE != 'yes'
         env:

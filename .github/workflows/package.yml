@@ -269,7 +269,7 @@ jobs:
             dpkg-deb --build --root-owner-group "${PKG}"
 
             # To the testing suite: test units take it now, every other OpenFrame once it's
-            # promoted ("promote" on the testing issue, promote.yml).
+            # promoted ("ok" in reply to the testing issue, promote.yml).
             bash ci/apt-suite.sh add "${codename}-testing" "${PKG}.deb"
 
             # What's new, for of-update and Sprite's Updates tab: the owners' notes for every
@@ -296,7 +296,7 @@ jobs:
             git commit -m "apt: openframe-scripts $(git -C .. rev-parse --short HEAD), testing"
           git push origin repo
 
-      # The testing issue: what test units have that other OpenFrames don't, for "promote".
+      # The testing issue: what test units have that other OpenFrames don't, for "ok".
       - name: Update the testing issue
         env:
           GH_TOKEN: ${{ github.token }}

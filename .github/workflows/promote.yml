@@ -1,11 +1,11 @@
 name: promote
-run-name: promote or reject what's waiting in testing
+run-name: release (ok) or keep back (no) what's waiting in testing
 
 # Releases what's waiting in linux.openbeak.net's testing suite (openframe-scripts, Sprite,
-# Crystal HD) to every OpenFrame: "promote" as a comment on the open testing issue
+# Crystal HD) to every OpenFrame: "ok" as the reply to the open testing issue
 # (ci/testing-issue.sh keeps it), by Andy (vars.TESTING_ASSIGNEE, or andydvsn), moves every package in
-# trixie-testing to trixie, where units take it overnight. "reject" closes the issue and keeps
-# them in testing; the next publish opens it again. Comments from anyone else, or on any other
+# trixie-testing to trixie, where units take it overnight. "no" closes the issue and keeps
+# them in testing; the next publish opens it again. Replies from anyone else, anything but ok or no, or on any other
 # issue, do nothing. It can also be run by hand, which promotes.
 
 on:
@@ -37,10 +37,13 @@ jobs:
           if [ "${GITHUB_EVENT_NAME}" = workflow_dispatch ]; then
             echo "ACTION=promote" >> "$GITHUB_ENV"; exit 0
           fi
-          word=$(printf '%s' "$BODY" | tr 'A-Z' 'a-z' | tr -cs 'a-z' ' ' | awk '{ print $1 }')
+          # The whole comment must be "ok" (promote) or "no" (reject), whatever its case or
+          # punctuation: "ok, I'll try it tomorrow" is just a comment.
+          word=$(printf '%s' "$BODY" | tr 'A-Z' 'a-z' | tr -d '[:space:][:punct:]')
           case "$word" in
-            promote|reject) echo "ACTION=$word" >> "$GITHUB_ENV" ;;
-            *) echo "Not promote or reject: nothing to do."; echo "ACTION=none" >> "$GITHUB_ENV" ;;
+            ok) echo "ACTION=promote" >> "$GITHUB_ENV" ;;
+            no) echo "ACTION=reject" >> "$GITHUB_ENV" ;;
+            *) echo "Not ok or no on its own: nothing to do."; echo "ACTION=none" >> "$GITHUB_ENV" ;;
           esac
 
       - name: Checkout
