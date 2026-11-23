@@ -14,16 +14,16 @@ Description: OpenFrame management scripts
  Scripts for managing OpenFrame devices.
 
 Package: openframe-sprite
-Version: 26.11.68
+Version: 26.11.77
 Architecture: i386
 Maintainer: OpenFrame Project <noreply@openbeak.net>
-Installed-Size: 7340
-Depends: libasound2t64 (>= 1.0.16), libbsd0 (>= 0.7.0), libc6 (>= 2.38), libdisplay-info2 (>= 0.2.0), libdrm2 (>= 2.4.119), libinput10 (>= 1.26.0), libliftoff0 (>= 0.4.1), libmd0 (>= 0.0.0), libpixman-1-0 (>= 0.30.0), libseat1 (>= 0.5.0), libudev1 (>= 183), libwayland-client0 (>= 1.20.0), libwayland-server0 (>= 1.22.0), libxau6 (>= 1:1.0.11), libxcb-composite0, libxcb-errors0 (>= 1.0.1), libxcb-ewmh2 (>= 0.4.2), libxcb-icccm4 (>= 0.4.2), libxcb-render0, libxcb-res0 (>= 1.10), libxcb-xfixes0 (>= 1.15), libxcb1, libxcvt0 (>= 0.1.0), libxdmcp6, libxfont2 (>= 1:2.0.1), libxkbcommon0 (>= 0.5.0), libxshmfence1, x11-xkb-utils, xkb-data, libx11-6, libxext6, libxcursor1, libxfixes3, libxi6, libxrandr2, libxss1, libasound2t64, openframe-scripts (>= 1:26.11.137), curl, iproute2
-Filename: pool/trixie-testing/openframe-sprite_26.11.68_i386.deb
-Size: 2397576
-MD5sum: b974f2ef9dbd5a25fa70644e3883cfd7
-SHA1: e972a86682d13a464b294c8f897915565b240464
-SHA256: 92670253d1a0fa9fa3354e6daa55352c3bc7c5fc655afac6b93b91b09a8a777b
+Installed-Size: 7352
+Depends: libasound2t64 (>= 1.0.16), libbsd0 (>= 0.7.0), libc6 (>= 2.38), libdisplay-info2 (>= 0.2.0), libdrm2 (>= 2.4.119), libinput10 (>= 1.26.0), libliftoff0 (>= 0.4.1), libmd0 (>= 0.0.0), libpixman-1-0 (>= 0.30.0), libseat1 (>= 0.5.0), libudev1 (>= 183), libwayland-client0 (>= 1.20.0), libwayland-server0 (>= 1.22.0), libxau6 (>= 1:1.0.11), libxcb-composite0, libxcb-errors0 (>= 1.0.1), libxcb-ewmh2 (>= 0.4.2), libxcb-icccm4 (>= 0.4.2), libxcb-render0, libxcb-res0 (>= 1.10), libxcb-xfixes0 (>= 1.15), libxcb1, libxcvt0 (>= 0.1.0), libxdmcp6, libxfont2 (>= 1:2.0.1), libxkbcommon0 (>= 0.5.0), libxshmfence1, x11-xkb-utils, xkb-data, libx11-6, libxext6, libxcursor1, libxfixes3, libxi6, libxrandr2, libxss1, libasound2t64, openframe-scripts (>= 1:26.11.143), curl, iproute2
+Filename: pool/trixie-testing/openframe-sprite_26.11.77_i386.deb
+Size: 2399552
+MD5sum: 0fa29cc395b969e2d5e941380fbf8cb1
+SHA1: 9c8604362c50dc22c8074479cf41c98c682e2646
+SHA256: 0cd711dc5bdb433da3c9072eeefde38bfd6ab068459cb65f9aaf5bf536dd07aa
 Section: x11
 Priority: optional
 Homepage: https://github.com/birdslikewires/openframe-sprite
