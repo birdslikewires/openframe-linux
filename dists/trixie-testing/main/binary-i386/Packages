@@ -1,0 +1,23 @@
+Package: openframe-crystalhd
+Version: 26.11.12
+Architecture: i386
+Maintainer: OpenFrame <andy@dvsn.net>
+Installed-Size: 2776
+Depends: libasound2t64 (>= 1.0.16), libavcodec61 (>= 7:7.1.5), libavformat61 (>= 7:7.1.5), libavutil59 (>= 7:7.1.5), libc6 (>= 2.38), libdrm2 (>= 2.4.17), libgcc-s1 (>= 7), libstdc++6 (>= 11), libswresample5 (>= 7:7.1.5), libswscale8 (>= 7:7.1.5)
+Conflicts: libcrystalhd3, firmware-crystalhd
+Replaces: libcrystalhd3, firmware-crystalhd
+Filename: pool/trixie-testing/openframe-crystalhd_26.11.12_i386.deb
+Size: 1143968
+MD5sum: ff4d2cea43c751b843aa01081cd143d3
+SHA1: b2be8182487312e3166383258dc291aab0c05f80
+SHA256: 0a34af0fc9a0d2f289d4d3d11adc4752012ab9d390b0b9bf9e4452135c143ff7
+Section: video
+Priority: optional
+Homepage: https://github.com/birdslikewires/openframe-linux
+Description: Broadcom Crystal HD video decoder support for OpenFrames
+ The Crystal HD library (libcrystalhd) with OpenFrame fixes, the firmware for the
+ BCM70012 and BCM70015 decoders, and chdplay, a player that decodes H.264 on the
+ card and shows it on the panel with sound. Files, HTTPS and HLS streams play.
+ .
+ The card's kernel driver, crystalhd, comes with the OpenFrame kernel.
+
