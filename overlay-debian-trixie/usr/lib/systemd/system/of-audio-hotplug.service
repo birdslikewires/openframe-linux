@@ -1,0 +1,10 @@
+# A sound card came or went (70-of-audio.rules): of-audio makes a DAC new to this OpenFrame
+# the output, and points ALSA's default at the card OF-BOOT/settings/audio.txt asks for, or
+# the OpenFrame's own while that isn't there.
+[Unit]
+Description=OpenFrame sound output
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/of-audio hotplug

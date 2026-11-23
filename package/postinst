@@ -47,6 +47,7 @@ UPDATESMARKER="/var/lib/openframe-scripts/auto-updates-default"
 TESTSETTINGSMARKER="/var/lib/openframe-scripts/test-settings-default"
 UPDATETIMEMARKER="/var/lib/openframe-scripts/update-time-default"
 NAMEMARKER="/var/lib/openframe-scripts/name-default"
+AUDIOMARKER="/var/lib/openframe-scripts/audio-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -382,6 +383,23 @@ case "$1" in
 			fi
 			mkdir -p "${NAMEMARKER%/*}"
 			touch "$NAMEMARKER"
+		fi
+
+		# Once per system: where the sound goes (OF-BOOT/settings/audio.txt, a template if
+		# there isn't one), of-audio writing ALSA's default from it as sound cards come and go
+		# (70-of-audio.rules). It takes over the asound.conf images had, and leaves one of
+		# someone's own be; a DAC in now becomes the output, as one plugged in later would.
+		if [ ! -e "$AUDIOMARKER" ]; then
+			if [ -d /boot/settings ] && [ ! -e /boot/settings/audio.txt ] && [ -f /usr/lib/openframe/settings/audio.txt ]; then
+				cp /usr/lib/openframe/settings/audio.txt /boot/settings/audio.txt.new && sync &&
+					mv -f /boot/settings/audio.txt.new /boot/settings/audio.txt && sync || true
+			fi
+			if ! in_chroot; then
+				udevadm control --reload 2>/dev/null
+				OF_AUDIO_SETTLE=0 /usr/local/sbin/of-audio hotplug 2>/dev/null
+			fi || true
+			mkdir -p "${AUDIOMARKER%/*}"
+			touch "$AUDIOMARKER"
 		fi
 
 		# The clock's floor: systemd moves the clock forward to /usr/lib/clock-epoch's time

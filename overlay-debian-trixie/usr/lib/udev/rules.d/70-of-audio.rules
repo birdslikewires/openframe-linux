@@ -1,0 +1,3 @@
+# A sound card coming or going (a USB DAC, or the OpenFrame's own as it starts): of-audio
+# works out where the sound goes now (of-audio-hotplug.service).
+SUBSYSTEM=="sound", KERNEL=="controlC[0-9]*", ACTION=="add|remove", RUN+="/usr/bin/systemctl --no-block start of-audio-hotplug.service"

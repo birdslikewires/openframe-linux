@@ -1,0 +1,290 @@
+#!/usr/bin/env bash
+
+## of-audio v26.11.1 (23rd November 2026)
+##  Where the OpenFrame's sound goes: its own (the speaker and headphone socket) or a USB DAC,
+##  from OF-BOOT/settings/audio.txt, written into /etc/asound.conf as ALSA's default.
+##    of-audio status      the sound cards there are and which is in use, key=value lines:
+##                         card=<id> <builtin|usb> <usb id or -> <name>, a line each; then
+##                         output=<id> (the card in use), kind=, usbid=, direct=yes|no,
+##                         mixer=<the control that sets its volume, empty with direct=yes>,
+##                         managed=yes|no (no: asound.conf is someone's own, left alone)
+##    of-audio set output=builtin|<vid:pid> [direct=yes|no]
+##                         changes audio.txt (as root: it's on OF-BOOT) and applies it.
+##                         Turning a DAC's volume control on again starts it low.
+##    of-audio apply       writes asound.conf for audio.txt and the cards there are now
+##    of-audio hotplug     a card has come or gone (udev, through of-audio-hotplug.service):
+##                         a DAC never seen here before becomes the output, at a low volume;
+##                         then apply. Going back to the speaker sticks, if it's chosen
+##                         while the DAC is in.
+##    of-audio store       keeps the mixers' levels for the next start (alsactl store)
+##
+##  audio.txt has output= (builtin, or a USB DAC's vendor:product id) and direct= (yes or
+##  no). With direct=no the audio is mixed (dmix: several apps at once, at one rate), and the
+##  OpenFrame sets the volume, by the card's own volume control (or a software one if it has
+##  none). With direct=yes, for a DAC only, the audio goes to it as it is: nothing mixed in
+##  or resampled (unless the DAC can't take it), its own volume at full, set on the amplifier
+##  instead; one app at a time. If the DAC chosen isn't plugged in, the OpenFrame's own is
+##  used, until it is. An asound.conf of someone's own (without of-audio's first line) is
+##  left as it is.
+
+set -u
+export LC_ALL=C
+
+SETTINGS="${OF_AUDIO_SETTINGS:-/boot/settings/audio.txt}"
+TEMPLATE="/usr/lib/openframe/settings/audio.txt"
+ASOUND="${OF_AUDIO_ASOUND:-/etc/asound.conf}"
+PROC="${OF_AUDIO_PROC:-/proc/asound}"
+STATE="${OF_AUDIO_STATE:-/var/lib/of-audio}"
+MARK="# Written by of-audio from OF-BOOT/settings/audio.txt: it's replaced when that changes."
+# what images before of-audio had, taken over as of-audio's own
+OLDSUM="8b09e8fd461f78139bce33e80e9f74d4"
+LOW=25 # percent: a DAC's volume as it's first used, or used by the OpenFrame again
+
+log() { echo "of-audio: $*" >&2; }
+
+# Whether USB card $1 (its index) can be a hi-fi's source: it plays stereo at 44.1 kHz or more
+# (stream0's playback formats). Not the OpenFrame 2's own DECT base (VegaOne, 04cc:5556: mono
+# at 16 kHz, a telephone's sound), a headset or a webcam's microphone.
+plays_music() {
+	awk '/^Playback:/ { p = 1; next } /^Capture:/ { p = 0 }
+		p && /Channels:/ { ch = $2 }
+		p && /Rates:/ { for (i = 2; i <= NF; i++) { r = $i; gsub(/[^0-9]/, "", r); if (ch >= 2 && r + 0 >= 44100) ok = 1 } }
+		END { exit !ok }' "$PROC/card$1/stream0" 2>/dev/null
+}
+
+# The cards there are to play through, a line each: index id kind usbid name (usbid "-" for
+# none).
+cards() {
+	local line n id drv name u
+	[ -r "$PROC/cards" ] || return 0
+	while IFS= read -r line; do
+		[[ $line =~ ^\ *([0-9]+)\ \[([^]]*)\]:\ ([^ ]+)\ -\ (.*)$ ]] || continue
+		n=${BASH_REMATCH[1]} id=${BASH_REMATCH[2]} drv=${BASH_REMATCH[3]} name=${BASH_REMATCH[4]}
+		id=${id// /}
+		u=$(cat "$PROC/card$n/usbid" 2>/dev/null)
+		if [ "$drv" = USB-Audio ]; then plays_music "$n" && echo "$n $id usb ${u:--} $name"
+		else echo "$n $id builtin - $name"; fi
+	done < "$PROC/cards"
+}
+
+# A setting from audio.txt ($1), as the other settings files are read (key case and spaces
+# around it don't matter, one pair of quotes comes off, the last one counts).
+setting() {
+	local f="$SETTINGS" line k v out=""
+	[ -r "$f" ] || f="$TEMPLATE"
+	[ -r "$f" ] || return 0
+	while IFS= read -r line || [ -n "$line" ]; do
+		line="${line%$'\r'}"
+		[[ $line == *=* && $line != \#* ]] || continue
+		k="${line%%=*}" v="${line#*=}"
+		k="${k//[[:space:]]/}"
+		[ "${k,,}" = "$1" ] || continue
+		v="${v#"${v%%[![:space:]]*}"}" v="${v%"${v##*[![:space:]]}"}"
+		if (( ${#v} >= 2 )) && [[ ${v:0:1} == [\"\'] && ${v: -1} == "${v:0:1}" ]]; then v="${v:1:${#v}-2}"; fi
+		out="${v,,}"
+	done < "$f"
+	echo "$out"
+}
+
+# The card to use (sets C_N C_ID C_KIND C_USB C_NAME and DIRECT): the DAC chosen if it's in,
+# otherwise the OpenFrame's own, otherwise any card there is.
+choose() {
+	local want dir n id kind u name first="" builtin="" chosen=""
+	want=$(setting output) dir=$(setting direct)
+	while read -r n id kind u name; do
+		[ -z "$first" ] && first="$n $id $kind $u $name"
+		[ "$kind" = builtin ] && [ -z "$builtin" ] && builtin="$n $id $kind $u $name"
+		[ "$kind" = usb ] && [ "$u" = "$want" ] && [ -z "$chosen" ] && chosen="$n $id $kind $u $name"
+	done < <(cards)
+	chosen=${chosen:-${builtin:-$first}}
+	C_N="" C_ID="" C_KIND="" C_USB="" C_NAME="" DIRECT=no
+	[ -n "$chosen" ] || return 1
+	read -r C_N C_ID C_KIND C_USB C_NAME <<< "$chosen"
+	[ "$C_KIND" = usb ] && [ "$C_USB" = "$want" ] && [ "$dir" = yes ] && DIRECT=yes
+	return 0
+}
+
+# The control that sets card $1's volume: Master, PCM, Speaker or Headphone if it has one of
+# them with a playback volume, otherwise the first that has one; nothing if none does.
+mixer_of() {
+	local c names=() name
+	command -v amixer >/dev/null || return 0
+	while IFS= read -r name; do names+=("$name"); done < <(amixer -c "$1" scontrols 2>/dev/null | sed -n "s/^Simple mixer control '\(.*\)',0$/\1/p")
+	for c in Master PCM Speaker Headphone "${names[@]}"; do
+		for name in "${names[@]}"; do
+			[ "$name" = "$c" ] || continue
+			amixer -c "$1" sget "$name" 2>/dev/null | grep -q '^  Capabilities:.*pvolume' && { echo "$name"; return 0; }
+		done
+	done
+	return 0
+}
+
+# Whether asound.conf is of-audio's to write: its own, the images' old one, or none.
+managed() {
+	[ -e "$ASOUND" ] || return 0
+	head -1 "$ASOUND" | grep -qxF "$MARK" && return 0
+	[ "$(md5sum < "$ASOUND" | cut -d' ' -f1)" = "$OLDSUM" ]
+}
+
+apply() {
+	managed || { log "$ASOUND is someone's own: left as it is"; return 0; }
+	choose || { log "no sound cards"; return 0; }
+	local mixer key=$((3141 + C_N)) conf
+	if [ "$DIRECT" = yes ]; then
+		conf="# $C_NAME, direct: nothing mixed in or resampled (unless it can't take it), and no
+# volume control here (its own is at full).
+pcm.!default {
+	type plug
+	slave.pcm \"hw:CARD=$C_ID\"
+}"
+	else
+		mixer=$(mixer_of "$C_ID")
+		conf="# $C_NAME, mixed (several apps at once)$([ -z "$mixer" ] && echo ", with a software volume control: it has none of its own").
+pcm.mixer {
+	type dmix
+	ipc_key $key
+	ipc_key_add_uid false
+	ipc_perm 0666
+	slave {
+		pcm \"hw:CARD=$C_ID\"
+		channels 2
+	}
+	bindings {
+		0 0
+		1 1
+	}
+}"
+		if [ -n "$mixer" ]; then
+			conf="$conf
+pcm.!default {
+	type plug
+	slave.pcm \"mixer\"
+}"
+		else
+			conf="$conf
+pcm.openframe_volume {
+	type softvol
+	slave.pcm \"mixer\"
+	control {
+		name \"OpenFrame\"
+		card \"$C_ID\"
+	}
+}
+pcm.!default {
+	type plug
+	slave.pcm \"openframe_volume\"
+}"
+		fi
+	fi
+	conf="$MARK
+# (An asound.conf of your own: take this line out, and of-audio leaves it alone.)
+$conf
+ctl.!default {
+	type hw
+	card \"$C_ID\"
+}"
+	if [ "$conf" != "$(cat "$ASOUND" 2>/dev/null)" ]; then
+		printf '%s\n' "$conf" > "$ASOUND.new" && chmod 644 "$ASOUND.new" && mv -f "$ASOUND.new" "$ASOUND" ||
+			{ log "couldn't write $ASOUND"; return 1; }
+		log "sound: $C_NAME ($C_ID)$([ "$DIRECT" = yes ] && echo ", direct")"
+	fi
+}
+
+# Card $1's volume ($2: a percentage, or full for 0 dB) and unmuted, by its volume control.
+volume() {
+	local m
+	m=$(mixer_of "$1")
+	[ -n "$m" ] || return 0
+	if [ "$2" = full ]; then amixer -q -c "$1" sset "$m" 100% unmute 2>/dev/null
+	else amixer -q -c "$1" sset "$m" "$2%" unmute 2>/dev/null; fi
+	return 0
+}
+
+# Changes key=value pairs in audio.txt (the first line setting each, or at the end; notes
+# about them are left be), keeping the rest, through bootrw.
+write_settings() {
+	local new kv k v
+	new=$(mktemp) || return 1
+	if [ -r "$SETTINGS" ]; then cat "$SETTINGS"; elif [ -r "$TEMPLATE" ]; then cat "$TEMPLATE"; fi > "$new"
+	for kv in "$@"; do
+		k=${kv%%=*} v=${kv#*=}
+		awk -v k="$k" -v v="$v" '
+			!done && tolower($0) ~ "^[[:space:]]*" k "[[:space:]]*=" { print k "=" v; done = 1; next }
+			{ print }
+			END { if (!done) print k "=" v }' "$new" > "$new.2" && mv -f "$new.2" "$new"
+	done
+	if [ "${OF_AUDIO_NOBOOTRW:-}" ]; then
+		cp "$new" "$SETTINGS"
+	else
+		/usr/lib/openframe/bootrw open || { rm -f "$new"; log "OF-BOOT couldn't be written"; return 1; }
+		cp "$new" "$SETTINGS.new" && sync && mv -f "$SETTINGS.new" "$SETTINGS" && sync
+		/usr/lib/openframe/bootrw close
+	fi
+	rm -f "$new"
+}
+
+case "${1:-}" in
+status)
+	while read -r n id kind u name; do echo "card=$id $kind $u $name"; done < <(cards)
+	if choose; then
+		echo "output=$C_ID"
+		echo "kind=$C_KIND"
+		echo "usbid=$([ "$C_KIND" = usb ] && echo "$C_USB")"
+		echo "direct=$DIRECT"
+		echo "mixer=$([ "$DIRECT" = yes ] || { m=$(mixer_of "$C_ID"); echo "${m:-OpenFrame}"; })"
+	fi
+	echo "managed=$(managed && echo yes || echo no)"
+	;;
+set)
+	shift
+	OUT="" DIR=""
+	for kv in "$@"; do
+		case "$kv" in
+			output=builtin) OUT=builtin ;;
+			output=[0-9a-f][0-9a-f][0-9a-f][0-9a-f]:[0-9a-f][0-9a-f][0-9a-f][0-9a-f]) OUT=${kv#output=} ;;
+			direct=yes|direct=no) DIR=${kv#direct=} ;;
+			*) echo "of-audio set: output=builtin or a vid:pid, direct=yes or no ($kv?)"; exit 2 ;;
+		esac
+	done
+	[ -n "$OUT$DIR" ] || { echo "of-audio set: output= or direct="; exit 2; }
+	[ "$(id -u)" -eq 0 ] || [ "${OF_AUDIO_NOBOOTRW:-}" ] || { echo "of-audio set needs root: audio.txt is on OF-BOOT."; exit 1; }
+	WAS=$(setting direct)
+	ARGS=()
+	[ -n "$OUT" ] && ARGS+=("output=$OUT")
+	[ -n "$DIR" ] && ARGS+=("direct=$DIR")
+	write_settings "${ARGS[@]}" || exit 1
+	apply
+	# the DAC's own volume: at full while it's direct, low once the OpenFrame sets it again
+	if choose && [ "$C_KIND" = usb ]; then
+		if [ "$DIRECT" = yes ]; then volume "$C_ID" full
+		elif [ "$DIR" = no ] && [ "$WAS" = yes ]; then volume "$C_ID" "$LOW"
+		fi
+	fi
+	exit 0
+	;;
+apply)
+	apply
+	;;
+hotplug)
+	managed || exit 0 # someone's own asound.conf: their choice of card, and of its volume
+	sleep "${OF_AUDIO_SETTLE:-1}" # (a USB card's controls follow it in)
+	mkdir -p "$STATE"
+	touch "$STATE/seen"
+	while read -r n id kind u name; do
+		[ "$kind" = usb ] && [ "$u" != - ] || continue
+		grep -qxF "$u" "$STATE/seen" && continue
+		echo "$u" >> "$STATE/seen"
+		log "a new DAC: $name ($u), the output from now on"
+		write_settings "output=$u" "direct=no"
+		volume "$id" "$LOW"
+	done < <(cards)
+	apply
+	;;
+store)
+	alsactl store 2>/dev/null
+	;;
+*)
+	sed -n 's/^##//p' "$0"
+	exit 2
+	;;
+esac
