@@ -22,31 +22,31 @@ Description: Broadcom Crystal HD video decoder support for OpenFrames
  The card's kernel driver, crystalhd, comes with the OpenFrame kernel.
 
 Package: openframe-scripts
-Version: 1:26.11.147
+Version: 1:26.11.149
 Architecture: all
 Maintainer: OpenFrame <andy@dvsn.net>
 Depends: bash, dosfstools, e2fsprogs, yq, unattended-upgrades
-Filename: pool/trixie/openframe-scripts_26.11.147_all.deb
-Size: 305908
-MD5sum: 2ceba42bacfbc78e51fdb24ba220d333
-SHA1: a44b40565b993d91a9c0cb72798b9235d7eeb4d8
-SHA256: 4e015dc718e2116233ece3b2d708b82d473eda214e27a05e78f66c2d44cfc300
+Filename: pool/trixie/openframe-scripts_26.11.149_all.deb
+Size: 308002
+MD5sum: 18c802e2a49c2976a5b2c8d8b319b347
+SHA1: ef92c213bc92c7c9ead087faf9564255c79e2460
+SHA256: 2c2b1fdedf6af36be70b2773b9761a78a86c93ebe8b3a150f63ed13ce6bec095
 Section: admin
 Priority: optional
 Description: OpenFrame management scripts
  Scripts for managing OpenFrame devices.
 
 Package: openframe-sprite
-Version: 26.11.82
+Version: 26.11.84
 Architecture: i386
 Maintainer: OpenFrame Project <noreply@openbeak.net>
 Installed-Size: 7356
 Depends: libasound2t64 (>= 1.0.16), libbsd0 (>= 0.7.0), libc6 (>= 2.38), libdisplay-info2 (>= 0.2.0), libdrm2 (>= 2.4.119), libinput10 (>= 1.26.0), libliftoff0 (>= 0.4.1), libmd0 (>= 0.0.0), libpixman-1-0 (>= 0.30.0), libseat1 (>= 0.5.0), libudev1 (>= 183), libwayland-client0 (>= 1.20.0), libwayland-server0 (>= 1.22.0), libxau6 (>= 1:1.0.11), libxcb-composite0, libxcb-errors0 (>= 1.0.1), libxcb-ewmh2 (>= 0.4.2), libxcb-icccm4 (>= 0.4.2), libxcb-render0, libxcb-res0 (>= 1.10), libxcb-xfixes0 (>= 1.15), libxcb1, libxcvt0 (>= 0.1.0), libxdmcp6, libxfont2 (>= 1:2.0.1), libxkbcommon0 (>= 0.5.0), libxshmfence1, x11-xkb-utils, xkb-data, libx11-6, libxext6, libxcursor1, libxfixes3, libxi6, libxrandr2, libxss1, libasound2t64, openframe-scripts (>= 1:26.11.143), curl, iproute2
-Filename: pool/trixie/openframe-sprite_26.11.82_i386.deb
-Size: 2401224
-MD5sum: a9d8171e13ea2704df90230e112b66ab
-SHA1: 4403f9fef6bdba69c38f1e262f18659ecdc66d83
-SHA256: cb5f73d78e13005de33b4982fd60d2d9a041e9f76521498834c83fe7021f7936
+Filename: pool/trixie/openframe-sprite_26.11.84_i386.deb
+Size: 2402452
+MD5sum: fffa8563c29f99a9c510b5bc2e8f2b43
+SHA1: d6e897d5f0d487babc9adcb4ddea2288a0b21eac
+SHA256: da9ea4ece399ddbdd70561b78f3837690eaf795cb4a49a0e65c1954f9f54e1c0
 Section: x11
 Priority: optional
 Homepage: https://github.com/birdslikewires/openframe-sprite
