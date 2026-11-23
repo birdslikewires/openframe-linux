@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-audio v26.11.1 (23rd November 2026)
+## of-audio v26.11.2 (23rd November 2026)
 ##  Where the OpenFrame's sound goes: its own (the speaker and headphone socket) or a USB DAC,
 ##  from OF-BOOT/settings/audio.txt, written into /etc/asound.conf as ALSA's default.
 ##    of-audio status      the sound cards there are and which is in use, key=value lines:
@@ -10,7 +10,9 @@
 ##                         managed=yes|no (no: asound.conf is someone's own, left alone)
 ##    of-audio set output=builtin|<vid:pid> [direct=yes|no]
 ##                         changes audio.txt (as root: it's on OF-BOOT) and applies it.
-##                         Turning a DAC's volume control on again starts it low.
+##                         direct= is for the DAC being set (output=, or else the one
+##                         chosen already). Turning a DAC's volume control on again starts
+##                         it low.
 ##    of-audio apply       writes asound.conf for audio.txt and the cards there are now
 ##    of-audio hotplug     a card has come or gone (udev, through of-audio-hotplug.service):
 ##                         a DAC never seen here before becomes the output, at a low volume;
@@ -25,10 +27,12 @@
 ##  own apps (sprite-app-<id>.service); a program started by hand, in someone's login, is
 ##  theirs, and left as it is.
 ##
-##  audio.txt has output= (builtin, or a USB DAC's vendor:product id) and direct= (yes or
-##  no). With direct=no the audio is mixed (dmix: several apps at once, at one rate), and the
-##  OpenFrame sets the volume, by the card's own volume control (or a software one if it has
-##  none). With direct=yes, for a DAC only, the audio goes to it as it is: nothing mixed in
+##  audio.txt has output= (builtin, or a USB DAC's vendor:product id) and direct= (the DACs,
+##  by the same ids, that get the audio direct; "yes" from before means the output's DAC).
+##  Each DAC has its own: one that goes direct doesn't make another do so, at full volume, as
+##  it's chosen. Not direct, the audio is mixed (dmix: several apps at once, at one rate), and
+##  the OpenFrame sets the volume, by the card's own volume control (or a software one if it
+##  has none). Direct, for a DAC only, the audio goes to it as it is: nothing mixed in
 ##  or resampled (unless the DAC can't take it), its own volume at full, set on the amplifier
 ##  instead; one app at a time. If the DAC chosen isn't plugged in, the OpenFrame's own is
 ##  used, until it is. An asound.conf of someone's own (without of-audio's first line) is
@@ -95,11 +99,24 @@ setting() {
 	echo "$out"
 }
 
+# The DACs that get the audio direct (direct=, by usb id, spaces or commas between), a line
+# each. "yes", from before it was for each DAC, is the output's DAC.
+direct_dacs() {
+	local d out
+	d=$(setting direct)
+	case "$d" in
+		no|"") return 0 ;;
+		yes) out=$(setting output); [[ $out =~ ^[0-9a-f]{4}:[0-9a-f]{4}$ ]] && echo "$out"; return 0 ;;
+	esac
+	tr ', ' '\n\n' <<< "$d" | grep -xE '[0-9a-f]{4}:[0-9a-f]{4}' | sort -u
+}
+
 # The card to use (sets C_N C_ID C_KIND C_USB C_NAME and DIRECT): the DAC chosen if it's in,
-# otherwise the OpenFrame's own, otherwise any card there is.
+# otherwise the OpenFrame's own, otherwise any card there is. DIRECT if it's a DAC that goes
+# direct.
 choose() {
-	local want dir n id kind u name first="" builtin="" chosen=""
-	want=$(setting output) dir=$(setting direct)
+	local want n id kind u name first="" builtin="" chosen=""
+	want=$(setting output)
 	while read -r n id kind u name; do
 		[ -z "$first" ] && first="$n $id $kind $u $name"
 		[ "$kind" = builtin ] && [ -z "$builtin" ] && builtin="$n $id $kind $u $name"
@@ -109,7 +126,7 @@ choose() {
 	C_N="" C_ID="" C_KIND="" C_USB="" C_NAME="" DIRECT=no
 	[ -n "$chosen" ] || return 1
 	read -r C_N C_ID C_KIND C_USB C_NAME <<< "$chosen"
-	[ "$C_KIND" = usb ] && [ "$C_USB" = "$want" ] && [ "$dir" = yes ] && DIRECT=yes
+	[ "$C_KIND" = usb ] && direct_dacs | grep -qxF "$C_USB" && DIRECT=yes
 	return 0
 }
 
@@ -347,10 +364,21 @@ set)
 	done
 	[ -n "$OUT$DIR" ] || { echo "of-audio set: output= or direct="; exit 2; }
 	[ "$(id -u)" -eq 0 ] || [ "${OF_AUDIO_NOBOOTRW:-}" ] || { echo "of-audio set needs root: audio.txt is on OF-BOOT."; exit 1; }
-	WAS=$(setting direct)
+	# direct= for the DAC being set: output= if it's one, otherwise the one chosen already.
+	DAC=${OUT:-$(setting output)}
+	[ "$DAC" = builtin ] && DAC=""
+	if [ -n "$DIR" ] && [ -z "$DAC" ]; then echo "of-audio set: direct= is for a DAC, and the output is the OpenFrame's own"; exit 2; fi
+	LIST=$(direct_dacs)
+	WAS=no; [ -n "$DAC" ] && grep -qxF "$DAC" <<< "$LIST" && WAS=yes
 	ARGS=()
 	[ -n "$OUT" ] && ARGS+=("output=$OUT")
-	[ -n "$DIR" ] && ARGS+=("direct=$DIR")
+	if [ -n "$DIR" ]; then
+		LIST=$(grep -vxF "$DAC" <<< "$LIST"; [ "$DIR" = yes ] && echo "$DAC")
+		ARGS+=("direct=$(sort -u <<< "$LIST" | grep . | paste -sd ' ' -)")
+	elif [ "$(setting direct)" = yes ]; then
+		# "yes" from before: written as the DAC it meant, before the output changes
+		ARGS+=("direct=$(paste -sd ' ' - <<< "$LIST")")
+	fi
 	write_settings "${ARGS[@]}" || exit 1
 	apply
 	# the DAC's own volume: at full while it's direct, low once the OpenFrame sets it again
@@ -376,7 +404,7 @@ hotplug)
 		grep -qxF "$u" "$STATE/seen" && continue
 		echo "$u" >> "$STATE/seen"
 		log "a new DAC: $name ($u), the output from now on"
-		write_settings "output=$u" "direct=no"
+		write_settings "output=$u" "direct=$(direct_dacs | grep -vxF "$u" | paste -sd ' ' -)"
 		NEW+=("$id")
 	done < <(cards)
 	apply

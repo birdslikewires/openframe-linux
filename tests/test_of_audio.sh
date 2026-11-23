@@ -72,6 +72,9 @@ cards() { : > /tmp/proc/cards; rm -rf /tmp/proc/card*/; for c in "$@"; do case $
 	mid) builtin >> /tmp/proc/cards; mkdir -p /tmp/proc/card0 ;;
 	dac*) n=${c#dac}; dac "$n" >> /tmp/proc/cards; mkdir -p /tmp/proc/card$n; echo 08bb:2704 > /tmp/proc/card$n/usbid
 	      printf 'Burr-Brown from TI USB Audio DAC at usb-0000:00:1d.1-2, full speed : USB Audio\n\nPlayback:\n  Status: Stop\n  Interface 1\n    Altset 1\n    Format: S16_LE\n    Channels: 2\n    Endpoint: 0x02 (2 OUT) (ADAPTIVE)\n    Rates: 32000, 44100, 48000\n' > /tmp/proc/card$n/stream0 ;;
+	other*) n=${c#other}; printf ' %s [Audio          ]: USB-Audio - USB Audio Device\n                      C-Media Electronics Inc. USB Audio Device at usb-0000:00:1d.1-3, full speed\n' "$n" >> /tmp/proc/cards
+	      mkdir -p /tmp/proc/card$n; echo 0d8c:0014 > /tmp/proc/card$n/usbid
+	      printf 'C-Media USB Audio Device : USB Audio\n\nPlayback:\n  Interface 1\n    Altset 1\n    Format: S16_LE\n    Channels: 2\n    Rates: 44100, 48000\n' > /tmp/proc/card$n/stream0 ;;
 	vega*) n=${c#vega}; printf ' %s [USB            ]: USB-Audio - VegaOne USB\n                      Philips VegaOne USB at usb-0000:00:1d.1-1, full speed\n' "$n" >> /tmp/proc/cards
 	      mkdir -p /tmp/proc/card$n; echo 04cc:5556 > /tmp/proc/card$n/usbid
 	      printf 'Philips VegaOne USB : USB Audio\n\nPlayback:\n  Interface 1\n    Altset 1\n    Format: S16_LE\n    Channels: 1\n    Rates: 16000\n\nCapture:\n  Interface 2\n    Channels: 1\n    Rates: 16000\n' > /tmp/proc/card$n/stream0 ;;
@@ -134,7 +137,7 @@ cards mid
 bash $A hotplug 2>/dev/null
 cards mid dac1
 out=$(bash $A hotplug 2>&1)
-[ "$(setting output)" = 08bb:2704 ] && [ "$(setting direct)" = no ] && [ "$(pcm)" = hw:CARD=DAC ] && grep -q 'ipc_key 3142' /tmp/asound.conf &&
+[ "$(setting output)" = 08bb:2704 ] && [ -z "$(setting direct)" ] && [ "$(pcm)" = hw:CARD=DAC ] && grep -q 'ipc_key 3142' /tmp/asound.conf &&
 	[ "$(cat /tmp/mix/DAC/PCM)" = 25 ] && ok "a new DAC: the output, mixed, at 25%" || bad "a new DAC" "$out
 $(cat $T | grep -v '^#')
 $(cat /tmp/asound.conf)"
@@ -171,11 +174,46 @@ bash $A hotplug 2>/dev/null
 	ok "direct after a replug: the DAC's volume at full again" || bad "direct after a replug" "$(cat /tmp/mix/DAC/PCM)"
 bash $A set direct=no 2>/dev/null
 
+# Direct is each DAC's own: one going direct doesn't make another, chosen after it, go
+# direct at full volume; going back to the first, it's direct again.
+mkdir -p /tmp/mix/Audio; echo 40 > /tmp/mix/Audio/PCM
+cards mid dac1 other2
+bash $A set output=08bb:2704 direct=yes 2>/dev/null
+bash $A set output=0d8c:0014 2>/dev/null
+[ "$(setting direct)" = 08bb:2704 ] && [ "$(pcm)" = hw:CARD=Audio ] && grep -q dmix /tmp/asound.conf && [ "$(cat /tmp/mix/Audio/PCM)" = 40 ] &&
+	bash $A status | grep -qx direct=no && ok "direct for one DAC: another chosen after it is mixed, its volume as it was" ||
+	bad "direct for one DAC, another chosen" "$(setting direct); $(cat /tmp/mix/Audio/PCM)
+$(cat /tmp/asound.conf)"
+bash $A set output=08bb:2704 2>/dev/null
+grep -q 'slave.pcm "hw:CARD=DAC"' /tmp/asound.conf && [ "$(cat /tmp/mix/DAC/PCM)" = 100 ] &&
+	ok "and back to the first: direct again, at full" || bad "back to the direct DAC" "$(cat /tmp/asound.conf)"
+bash $A set output=0d8c:0014 direct=yes 2>/dev/null
+[ "$(setting direct)" = "08bb:2704 0d8c:0014" ] && ok "both direct: direct=08bb:2704 0d8c:0014" || bad "both direct" "$(setting direct)"
+bash $A set direct=no 2>/dev/null
+[ "$(setting direct)" = 08bb:2704 ] && grep -q dmix /tmp/asound.conf && ok "direct=no for the output's DAC alone" || bad "direct=no for one" "$(setting direct)"
+# audio.txt from before, direct=yes: the output's DAC's, and written so as another's chosen.
+sed -i 's/^direct=.*/direct=yes/; s/^output=.*/output=08bb:2704/' $T
+bash $A apply 2>/dev/null
+grep -q 'slave.pcm "hw:CARD=DAC"' /tmp/asound.conf && ok "direct=yes from before: the output's DAC goes direct" || bad "direct=yes from before" "$(cat /tmp/asound.conf)"
+bash $A set output=0d8c:0014 2>/dev/null
+[ "$(setting direct)" = 08bb:2704 ] && grep -q dmix /tmp/asound.conf && ok "and is written as that DAC's as another is chosen" || bad "direct=yes from before, another chosen" "$(setting direct)"
+# A new DAC plugged in: not direct, whatever the others are.
+rm -f /tmp/state/seen; echo 08bb:2704 > /tmp/state/seen
+cards mid dac1
+bash $A hotplug 2>/dev/null
+cards mid dac1 other2
+bash $A hotplug 2>/dev/null
+[ "$(setting output)" = 0d8c:0014 ] && [ "$(setting direct)" = 08bb:2704 ] && grep -q dmix /tmp/asound.conf &&
+	ok "a new DAC: the output, mixed; the other DAC still direct" || bad "a new DAC beside a direct one" "$(setting output) $(setting direct)"
+bash $A set output=08bb:2704 2>/dev/null; bash $A set direct=no 2>/dev/null
+cards mid dac1
+bash $A set output=builtin direct=yes >/dev/null 2>&1 && bad "direct for the OpenFrame's own refused" || ok "direct for the OpenFrame's own refused"
+
 # The OpenFrame's own chosen with the DAC in: kept, through a hotplug.
 bash $A set output=builtin 2>/dev/null
 bash $A hotplug 2>/dev/null
 [ "$(pcm)" = hw:CARD=MID ] && [ "$(setting output)" = builtin ] && ok "the OpenFrame's own chosen with the DAC in: it stays" || bad "builtin chosen" "$(setting output)"
-grep -q "^## Audio" $T && grep -q "^# For a DAC" $T && ok "audio.txt keeps its notes" || bad "audio.txt keeps its notes" "$(cat $T)"
+grep -q "^## Audio" $T && grep -q "^# The DACs that get the audio direct" $T && ok "audio.txt keeps its notes" || bad "audio.txt keeps its notes" "$(cat $T)"
 
 # A DAC with no volume control: a software one.
 rm /tmp/mix/DAC/PCM; echo none > /tmp/mix/DAC/Switch

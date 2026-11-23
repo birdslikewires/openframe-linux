@@ -243,5 +243,40 @@ printf 'BirdsLikeWires OpenFrame EFI 26.11.32 (OF2)' | dd of="$T/ours.bin" bs=1 
 got=$(bash -c ". '$T/env.sh'; FWMANIFEST='$T/manifest.txt'; fw_identify '$T/ours.bin'")
 [ "$got" = "26.11.32" ] && ok "firmware named: ours on an OpenFrame 2: $got" || bad "firmware named: ours on an OpenFrame 2: $got"
 
+# Settings, and the finish, on a stick in use as a system (no OF-BACKUP) and on a flash
+# stick: the system stick gives the unit only its Wi-Fi network (no fixed address) and
+# keeps all its own settings; the flash stick gives the unit them all and goes back to
+# the blank ones.
+mkdir -p "$T/templates"
+cp "$HERE/../overlay-debian-trixie/boot/settings/"*.txt "$T/templates/"
+sets() {    # sets <system | flash>: run keep_settings then finish, at boot
+	rm -rf "$T/settings" "$T/state" "$T/sunit"; mkdir -p "$T/settings" "$T/sunit" "$T/sbk"
+	printf 'flash=again\n' > "$T/settings/flash.txt"
+	printf '\xef\xbb\xbf## mine\r\naddress=192.168.1.50\r\ngateway=192.168.1.1\r\nName = My Net\r\npassword=pa=ss word\r\n' > "$T/settings/wifi.txt"
+	printf 'name=kitchen\n' > "$T/settings/name.txt"
+	printf 'project=x\n' > "$T/settings/setup.txt"
+	echo "state=written" > "$T/sunit/info.txt"
+	bash -c ". '$T/env.sh'; TEMPLATES='$T/templates'; MODE=boot; CID=c1; UDIR='$T/sunit'; W='$T/w'; mkdir -p \$W
+		if [ $1 = system ]; then BACKUPDIR='$T/sbk'; else BACKUPDIR=\$BACKUPMNT; mkdir -p \$BACKUPDIR; fi
+		keep_settings; cp -r '$T/state/units/c1/settings' '$T/kept'
+		finish" > "$T/sets.out" 2>&1
+}
+sed -i 's#/usr/lib/openframe/bootrw #: #g' "$T/lib.sh"
+rm -rf "$T/kept"; sets system
+K=$(ls "$T/kept" | tr '\n' ' ')
+if [ "$K" = "wifi.txt " ] && grep -qx 'Name = My Net' "$T/kept/wifi.txt" && grep -qx 'password=pa=ss word' "$T/kept/wifi.txt" &&
+	grep -qx 'address=' "$T/kept/wifi.txt" && grep -q '^## Wireless network settings' "$T/kept/wifi.txt"; then
+	ok "system stick: the unit gets only the Wi-Fi name and password, in the blank wifi.txt"
+else bad "system stick: the unit gets $K" "$(cat "$T/kept/wifi.txt" 2>/dev/null; cat "$T/sets.out")"; fi
+if grep -q 'address=192.168.1.50' "$T/settings/wifi.txt" && grep -qx 'name=kitchen' "$T/settings/name.txt" &&
+	grep -qx 'project=x' "$T/settings/setup.txt" && grep -qx 'flash=yes' "$T/settings/flash.txt"; then
+	ok "system stick: keeps its own settings (flash=again becomes yes)"
+else bad "system stick: its settings changed" "$(head -50 "$T/settings/"*.txt; cat "$T/sets.out")"; fi
+rm -rf "$T/kept"; sets flash
+if [ -f "$T/kept/name.txt" ] && [ -f "$T/kept/setup.txt" ] && grep -q '192.168.1.50' "$T/kept/wifi.txt" &&
+	grep -qx 'name=' "$T/settings/name.txt" && grep -qx 'address=' "$T/settings/wifi.txt" && grep -qx 'flash=yes' "$T/settings/flash.txt"; then
+	ok "flash stick: the unit gets all its settings; the stick goes back to the blank ones"
+else bad "flash stick: settings" "$(ls "$T/kept"; head -50 "$T/settings/"*.txt; cat "$T/sets.out")"; fi
+
 [ $FAILS = 0 ] && echo "All passed." || echo "$FAILS failed."
 exit $FAILS

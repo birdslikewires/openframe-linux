@@ -33,14 +33,17 @@
 ##       and then, with its progress on the panel (its output goes in the unit's
 ##       firmware-update.txt), and carry straight on: the new firmware runs from the
 ##       next start, and nothing below needs it. A write that won't verify is tried
-##       again for as long as it takes, never left: switching off then could leave a
-##       unit that won't start. Firmware it doesn't recognise is never touched: we stop.
+##       again, up to ten times, never left meanwhile; after that the chip may be failing,
+##       and we stop there (state firmware-failed) and say so. Firmware it doesn't
+##       recognise is never touched: we stop.
 ##    4. Write the image to the MMC and read it back (three tries). A restart during
 ##       the read-back checks it again rather than writing it again.
 ##    5. Put the kept settings into the MMC's OF-BOOT/settings (all but flash.txt),
-##       setup.txt included, so provisioning runs on the new system's first start.
+##       setup.txt included, so provisioning runs on the new system's first start. From a
+##       stick in use as a system, only wifi.txt's network name and password.
 ##    6. Mark the unit done, reset this stick's settings to the blank ones (flash.txt
-##       stays; 'again' becomes 'yes'), play a sound, say so, and power off.
+##       stays; 'again' becomes 'yes'; a stick in use as a system keeps its own), play a
+##       sound, say so, and power off.
 ##  A unit already done gets "already installed" and a power-off (on a stick in use as a
 ##  system, the stick's own system starts instead). Anything that stops the install says
 ##  why on the screen and in info.txt, keeps the login prompt off the screen so the
@@ -455,7 +458,7 @@ message() {
 # The message screens. The unit's folder goes on a line of its own, without a full
 # stop after it. Done: $1 the unit's folder.
 screen_done() {
-	message "$B_GRN" "Done" "${C_LGN}√  ${C_WHT}The new system is installed on the internal memory, with this stick's settings." "" \
+	message "$B_GRN" "Done" "${C_LGN}√  ${C_WHT}The new system is installed on the internal memory, with this stick's $(system_stick && echo "Wi-Fi network" || echo settings)." "" \
 		"${C_GRY}Backups:  $(backups_at "$1")" "" \
 		"Remove the stick once the OpenFrame has switched off: it starts the new system next time."
 }
@@ -807,12 +810,46 @@ keep_settings() {
 	local K="$STATEDIR/units/$CID/settings" F
 	rm -rf "$K"
 	mkdir -p "$K"
-	for F in "$SETDIR"/*; do
-		[ -f "$F" ] || continue
-		[ "${F##*/}" = "flash.txt" ] && continue
-		cp "$F" "$K/"
-	done
+	if system_stick; then
+		# A stick in use as a system has its own settings, not ones set out for this
+		# unit: the unit gets only what it needs to get onto a network (the rest is set
+		# from Sprite), and the stick keeps them all (finish).
+		wifi_only "$SETDIR/wifi.txt" "$K/wifi.txt"
+	else
+		for F in "$SETDIR"/*; do
+			[ -f "$F" ] || continue
+			[ "${F##*/}" = "flash.txt" ] && continue
+			cp "$F" "$K/"
+		done
+	fi
 	sync
+}
+
+# True on a stick in use as a system too (no OF-BACKUP: the units' folders go on its own
+# system).
+system_stick() { [ "$BACKUPDIR" != "$BACKUPMNT" ]; }
+
+# Writes $2: the blank wifi.txt with the network name and password from $1 (the lines as
+# they are, the last of each, as of-netplan reads them), and no fixed address, which is
+# the stick's own and would clash with it.
+wifi_only() {
+	local line k NAME="" PASS=""
+	if [ -r "$1" ]; then
+		while IFS= read -r line || [ -n "$line" ]; do
+			line="${line%$'\r'}"
+			line="${line#$'\xef\xbb\xbf'}"
+			[[ "$line" == *=* ]] || continue
+			k="${line%%=*}"; k="${k//[[:space:]]/}"; k="${k,,}"
+			case "$k" in name) NAME="$line" ;; password) PASS="$line" ;; esac
+		done < "$1"
+	fi
+	while IFS= read -r line || [ -n "$line" ]; do
+		case "$line" in
+			name=*) printf '%s\n' "${NAME:-$line}" ;;
+			password=*) printf '%s\n' "${PASS:-$line}" ;;
+			*) printf '%s\n' "$line" ;;
+		esac
+	done < "$TEMPLATES/wifi.txt" > "$2"
 }
 
 # Step 2: the backups. The chip is read twice and the reads compared. The MMC is read
@@ -1097,20 +1134,37 @@ fw_update() {
 				fail "The firmware update couldn't start." \
 					"Nothing was written to the firmware or to the internal memory." ;;
 			*)
-				# 2: a write didn't verify (anything else is treated so too). Never carry on.
+				# 2: a write didn't verify (anything else is treated so too). Never carry on:
+				# try again, up to FW_MAXTRIES times, then the chip may be failing.
 				TORN=1
 				kv_set "$UDIR/info.txt" firmware_retry "$(date '+%F %T'), try $TRY didn't verify"
+				if (( TRY >= FW_MAXTRIES )); then
+					kv_set "$UDIR/info.txt" state firmware-failed
+					fw_failed
+				fi
 				[ -n "$SCREEN" ] || echo
 				message "$B_RED" "Don't switch off" \
 					"${C_LRD}The firmware didn't write correctly, so it's being written again." "" \
 					"${C_YEL}Please don't switch off or unplug this OpenFrame: it may not start if it's switched off now." "" \
-					"${C_GRY}It keeps trying until the firmware writes correctly (try $((TRY + 1)) next)."
+					"${C_GRY}Trying again (try $((TRY + 1)) of $FW_MAXTRIES next)."
 				sound failure
 				if (( TRY < 3 )); then sleep 5; else sleep 60; fi
 				# The working screen again, drawn on a clear panel.
 				P_DRAWN="" ;;
 		esac
 	done
+}
+
+# Tries at writing the firmware before it's given up as failed: three five seconds apart,
+# then a minute apart (about eight minutes in all).
+FW_MAXTRIES=10
+
+# The firmware didn't write correctly on any try: the chip may be failing. Stops here, and
+# a restart with the stick in stops here again (state firmware-failed) rather than trying
+# once more. Every state the update passes through starts, so the unit's own system does.
+fw_failed() {
+	fail "The firmware couldn't be written correctly, after $FW_MAXTRIES tries. This OpenFrame's firmware chip may be failing. On many OpenFrames the chip can be replaced: further steps are available at birdslikewires.net/openframe-failure" \
+		"Nothing was written to the internal memory. Take the stick out, then switch off and on again to start this OpenFrame as usual."
 }
 
 # Step 3: the firmware. Current: on to the write. Not: updated there and then (above).
@@ -1274,11 +1328,14 @@ settings_to_mmc() {
 }
 
 # Step 6: done. At boot this stick's settings go back to the blank ones for the next
-# unit (flash.txt stays, 'again' becoming 'yes').
+# unit (flash.txt stays, 'again' becoming 'yes'), unless it's in use as a system: they're
+# its own, and stay.
 finish() {
 	local F
 	kv_set "$UDIR/info.txt" finished "$(date '+%F %T')"
-	if [ "$MODE" = "boot" ]; then
+	if [ "$MODE" = "boot" ] && system_stick; then
+		[ "$(install_mode)" = "again" ] && set_install_mode yes
+	elif [ "$MODE" = "boot" ]; then
 		/usr/lib/openframe/bootrw open
 		# The settings, and a Mac's companion files for them (._wifi.txt and so on),
 		# all but flash.txt's.
@@ -1329,6 +1386,7 @@ run_unit() {
 		new|backing-up) rm -f "$FWPENDING"; backup; firmware; write_mmc; settings_to_mmc ;;
 		backed-up) firmware; write_mmc; settings_to_mmc ;;
 		firmware-ok|writing) firmware; write_mmc; settings_to_mmc ;;
+		firmware-failed) fw_failed ;;
 		checking) recheck_mmc; settings_to_mmc ;;
 		written) settings_to_mmc ;;
 		*) fail "This unit's install is in a state OpenFrame Flash doesn't know ($STATE)." ;;
@@ -1409,6 +1467,9 @@ choose_backupdir() {
 	else
 		BACKUPDIR="$STATEDIR/backups"
 		mkdir -p "$BACKUPDIR"
+		# Only the Wi-Fi network goes onto the unit (keep_settings).
+		STEPS[4]="Copy this stick's Wi-Fi network"
+		PH_LABEL[settings]="Copying this stick's Wi-Fi network"
 	fi
 }
 
@@ -1489,7 +1550,12 @@ cli_flash() {
 			echo "erasing what's there, and brings its firmware up to date. Both are backed up first,"
 			echo "to $BACKUPDIR$([ "$BACKUPDIR" != "$BACKUPMNT" ] && echo " (on this stick's ext4 system: copy them off it yourself)")."
 		fi
-		echo "This stick's settings are copied onto the new system; the stick's own stay as they are."
+		if system_stick; then
+			echo "This stick's Wi-Fi network is copied onto the new system (its other settings are"
+			echo "set from Sprite); the stick's own settings stay as they are."
+		else
+			echo "This stick's settings are copied onto the new system; the stick's own stay as they are."
+		fi
 		read -r -p "Carry on? Type yes: " ANSWER
 		[ "$ANSWER" = "yes" ] || exit 0
 	fi

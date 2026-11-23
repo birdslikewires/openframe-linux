@@ -6,7 +6,8 @@
 # OpenFrame until it's back.
 output=builtin
 
-# For a DAC: direct=yes sends it the audio as it is, with nothing mixed in or resampled and
-# its own volume at full: set the volume on your amplifier. Only one app can play at a time.
-# direct=no lets the OpenFrame set the volume, and mixes the sound of several apps.
-direct=no
+# The DACs that get the audio direct, by their USB ids (spaces between): each is sent the
+# audio as it is, with nothing mixed in or resampled and its own volume at full, so set the
+# volume on your amplifier; only one app can play at a time. A DAC not listed lets the
+# OpenFrame set the volume, and mixes the sound of several apps.
+direct=

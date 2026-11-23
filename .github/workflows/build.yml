@@ -116,7 +116,9 @@ jobs:
       # The image installs openframe-scripts from the apt repository, over the overlay's
       # copies of its files. A push that changes the package starts the package workflow
       # alongside this one, so wait until the repository has this commit's version (or
-      # a later one), or the image gets the previous version's scripts.
+      # a later one), or the image gets the previous version's scripts. In either suite:
+      # a new version goes to testing first, and an image that installs only what's
+      # released (for a kernel, in testing or promoted) mustn't wait for its promotion.
       - name: Wait for openframe-scripts in apt repository
         run: |
           # The checkout belongs to another user than the container's root, and the
@@ -126,10 +128,8 @@ jobs:
           url="https://linux.openbeak.net/dists/trixie/main/binary-i386/Packages"
           for attempt in $(seq 1 60); do
             published=$(curl -fsSL "$url" | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-scripts" { print $2; exit }')
-            if [ "${OF_TESTING}" = all ]; then   # a push build installs from testing too
-              t=$(curl -fsSL "${url%/dists/*}/dists/trixie-testing/main/binary-i386/Packages" 2>/dev/null | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-scripts" { print $2; exit }')
-              if [ -n "$t" ] && { [ -z "$published" ] || dpkg --compare-versions "$t" gt "$published"; }; then published="$t"; fi
-            fi
+            t=$(curl -fsSL "${url%/dists/*}/dists/trixie-testing/main/binary-i386/Packages" 2>/dev/null | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-scripts" { print $2; exit }')
+            if [ -n "$t" ] && { [ -z "$published" ] || dpkg --compare-versions "$t" gt "$published"; }; then published="$t"; fi
             if [ -n "$published" ] && dpkg --compare-versions "$published" ge "$version"; then
               echo "openframe-scripts ${published} is available from the apt repository."
               exit 0
@@ -143,7 +143,8 @@ jobs:
       # openframe-sprite is built in its own repository and brought into the apt repository by
       # sprite.yml (every three hours, or by hand), which the image installs it from: wait for
       # its latest release to be there. If it isn't, sprite.yml is started rather than waited
-      # for. (It's in the build-package concurrency group, not this one, so it can run.)
+      # for. (It's in the build-package concurrency group, not this one, so it can run.) In
+      # either suite, as openframe-scripts above.
       - name: Wait for openframe-sprite in apt repository
         run: |
           version=$(gh release view --repo birdslikewires/openframe-sprite --json tagName --jq '.tagName | ltrimstr("v")')
@@ -154,10 +155,8 @@ jobs:
           url="https://linux.openbeak.net/dists/trixie/main/binary-i386/Packages"
           for attempt in $(seq 1 60); do
             published=$(curl -fsSL "$url" | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-sprite" { print $2; exit }')
-            if [ "${OF_TESTING}" = all ]; then   # a push build installs from testing too
-              t=$(curl -fsSL "${url%/dists/*}/dists/trixie-testing/main/binary-i386/Packages" 2>/dev/null | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-sprite" { print $2; exit }')
-              if [ -n "$t" ] && { [ -z "$published" ] || dpkg --compare-versions "$t" gt "$published"; }; then published="$t"; fi
-            fi
+            t=$(curl -fsSL "${url%/dists/*}/dists/trixie-testing/main/binary-i386/Packages" 2>/dev/null | awk '$1 == "Package:" { p = $2 } $1 == "Version:" && p == "openframe-sprite" { print $2; exit }')
+            if [ -n "$t" ] && { [ -z "$published" ] || dpkg --compare-versions "$t" gt "$published"; }; then published="$t"; fi
             if [ -n "$published" ] && dpkg --compare-versions "$published" ge "$version"; then
               echo "openframe-sprite ${published} is available from the apt repository."
               exit 0

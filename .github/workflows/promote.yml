@@ -17,17 +17,21 @@ permissions:
   contents: write
   issues: write
 
-concurrency:
-  group: build-package
-  cancel-in-progress: false
-
 jobs:
   promote:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (!github.event.issue.pull_request && github.event.comment.user.login == (vars.TESTING_ASSIGNEE || 'andydvsn') &&
-       contains(github.event.issue.labels.*.name, 'testing'))
+       contains(github.event.issue.labels.*.name, 'testing') &&
+       contains(fromJSON('["ok","ok.","ok!","no","no.","no!"]'), github.event.comment.body))
     runs-on: ubuntu-latest
+    # In turn with the package build (both write the apt repository), and here on the job, not
+    # the workflow: a run waits for its turn in the group, and a newer run waiting there
+    # cancels it. Only an ok or no (the if above; GitHub compares without case) joins, so
+    # another comment on the issue can't cancel an ok that's waiting for a build to finish.
+    concurrency:
+      group: build-package
+      cancel-in-progress: false
 
     steps:
       - name: Read the comment

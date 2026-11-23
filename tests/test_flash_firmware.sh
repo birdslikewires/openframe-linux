@@ -99,15 +99,27 @@ case_ "didn't verify, then 'nothing written' (1)"   2,1,0     carry-on
 case_ "didn't verify, then not recognised (3)"      2,3,0     carry-on
 case_ "didn't verify, then locked (4)"              2,4,0     carry-on
 case_ "didn't verify, then 1, 3 and 4, then updated" 2,1,3,4,0 carry-on
+case_ "never verifies: stops after ten tries"        2         stop
+
+# Ten tries that didn't verify: the unit's state says so, the panel says the chip may be
+# failing and where to look, and the next start with the stick in stops there again.
+if grep -q "^state=firmware-failed" "$T/unit/info.txt" && grep -q "openframe-failure" "$T/tty" &&
+   grep -q "may be failing" "$T/tty" && [ "$(cat "$T/runs")" = 10 ]; then
+	echo "ok   ten tries: state firmware-failed, the failure screen"
+else
+	echo "FAIL ten tries: $(cat "$T/runs") tries, $(grep '^state=' "$T/unit/info.txt")"; FAILS=$((FAILS + 1))
+fi
+grep -q '^		firmware-failed) fw_failed ;;$' "$SRC" && echo "ok   a restart in firmware-failed stops again, no tries" ||
+	{ echo "FAIL firmware-failed isn't a state the flash stops at"; FAILS=$((FAILS + 1)); }
 
 # Many tries that don't verify: only the newest dump folders stay (the one kept before the
 # last try, and the last try's own).
 rm -rf "$T/dumps" "$T/runs" "$T/unit"; mkdir -p "$T/dumps" "$T/unit"; echo "state=backed-up" > "$T/unit/info.txt"
-printf '2\n%.0s' $(seq 12) > "$T/seq"; echo 0 >> "$T/seq"
+printf '2\n%.0s' $(seq 9) > "$T/seq"; echo 0 >> "$T/seq"
 timeout 120 bash "$T/run.sh" "$T" > /dev/null 2>&1
 N=$(ls -1d "$T/dumps/of-firmware-update."* 2>/dev/null | wc -l)
-if [ "$N" -le 2 ]; then echo "ok   12 tries that didn't verify, then updated: $N dump folders left"
-else echo "FAIL 12 tries that didn't verify, then updated: $N dump folders left (want 2 at most)"; FAILS=$((FAILS + 1)); fi
+if [ "$N" -le 2 ]; then echo "ok   9 tries that didn't verify, then updated: $N dump folders left"
+else echo "FAIL 9 tries that didn't verify, then updated: $N dump folders left (want 2 at most)"; FAILS=$((FAILS + 1)); fi
 
 # A shutdown (or Ctrl-C, or a dropped session) part way through the update: the flash
 # carries on until the firmware is written and checked, then stops, rather than going on
