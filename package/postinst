@@ -400,6 +400,11 @@ case "$1" in
 			fi || true
 			mkdir -p "${AUDIOMARKER%/*}"
 			touch "$AUDIOMARKER"
+		elif ! in_chroot; then
+			# Every later install: ALSA's default written again, so what's new in how of-audio
+			# writes it (openframe-resampler's converter, say) takes effect now, not at the
+			# next start. Nothing changes if it's the same.
+			/usr/local/sbin/of-audio apply 2>/dev/null || true
 		fi
 
 		# The clock's floor: systemd moves the clock forward to /usr/lib/clock-epoch's time

@@ -151,6 +151,21 @@ cards mid dac1
 bash $A hotplug 2>/dev/null
 [ "$(pcm)" = hw:CARD=DAC ] && [ "$(cat /tmp/mix/DAC/PCM)" = 60 ] && ok "back in: the DAC, its volume as it was" || bad "back in" "$(cat /tmp/mix/DAC/PCM)"
 
+# openframe-resampler's converter: plug uses it where it's installed (not the linear one),
+# and the mixer's periods are 5880 frames at 44.1 kHz (147 x 40: 48 kHz meets it at 160/147).
+grep -q 'period_size 5880' /tmp/asound.conf && grep -q 'buffer_size 17640' /tmp/asound.conf && ! grep -q rate_converter /tmp/asound.conf &&
+	ok "the mixer's periods 5880 frames; no converter named without openframe-resampler" || bad "periods, no converter" "$(cat /tmp/asound.conf)"
+touch /tmp/rate_openframe.so
+OF_AUDIO_RATEMOD=/tmp/rate_openframe.so bash $A apply 2>/dev/null
+[ "$(grep -c 'rate_converter "openframe"' /tmp/asound.conf)" = 1 ] && ok "with openframe-resampler: plug uses its converter" || bad "the converter" "$(cat /tmp/asound.conf)"
+OF_AUDIO_RATEMOD=/tmp/rate_openframe.so bash $A set direct=yes 2>/dev/null
+grep -q 'rate_converter "openframe"' /tmp/asound.conf && grep -q 'slave.pcm "hw:CARD=DAC"' /tmp/asound.conf && ! grep -q period_size /tmp/asound.conf &&
+	ok "direct: the converter too (for a rate the DAC can't take), no mixer periods" || bad "direct, the converter" "$(cat /tmp/asound.conf)"
+OF_AUDIO_RATEMOD=/tmp/rate_openframe.so bash $A set direct=no 2>/dev/null
+rm /tmp/rate_openframe.so
+bash $A apply 2>/dev/null
+echo 60 > /tmp/mix/DAC/PCM
+
 # Mixed, the DAC runs in its fullest format at 44.1 kHz when it takes it (so 44.1 kHz music
 # isn't resampled, and a change of mode is less often a change of what it's sent).
 grep -q 'rate 44100' /tmp/asound.conf && grep -q 'format S16_LE' /tmp/asound.conf &&

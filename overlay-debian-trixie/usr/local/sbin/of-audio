@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-audio v26.11.2 (23rd November 2026)
+## of-audio v26.11.3 (23rd November 2026)
 ##  Where the OpenFrame's sound goes: its own (the speaker and headphone socket) or a USB DAC,
 ##  from OF-BOOT/settings/audio.txt, written into /etc/asound.conf as ALSA's default.
 ##    of-audio status      the sound cards there are and which is in use, key=value lines:
@@ -35,7 +35,13 @@
 ##  has none). Direct, for a DAC only, the audio goes to it as it is: nothing mixed in
 ##  or resampled (unless the DAC can't take it), its own volume at full, set on the amplifier
 ##  instead; one app at a time. If the DAC chosen isn't plugged in, the OpenFrame's own is
-##  used, until it is. An asound.conf of someone's own (without of-audio's first line) is
+##  used, until it is.
+##
+##  Audio at another rate than the card's (48 kHz into the 44.1 kHz mixer, say) is resampled
+##  by openframe-resampler's "openframe" converter (the Speex resampler, quality 5) where it's
+##  installed, not ALSA's own linear one, which leaves false tones in the treble. The mixer's
+##  periods are 5880 frames at 44.1 kHz (6400 at 48 kHz): 147 x 40, so 48, 96 and 22.05 kHz
+##  meet it at a simple ratio (160/147) that the converter does with a small table. An asound.conf of someone's own (without of-audio's first line) is
 ##  left as it is.
 
 set -u
@@ -50,6 +56,8 @@ STATE="${OF_AUDIO_STATE:-/var/lib/of-audio}"
 MARK="# Written by of-audio from OF-BOOT/settings/audio.txt: it's replaced when that changes."
 # what images before of-audio had, taken over as of-audio's own
 OLDSUM="8b09e8fd461f78139bce33e80e9f74d4"
+# openframe-resampler's converter: used where it's installed, else ALSA's own (linear)
+RATEMOD="${OF_AUDIO_RATEMOD:-/usr/lib/i386-linux-gnu/alsa-lib/libasound_module_rate_openframe.so}"
 LOW=25 # percent, as it sounds (amixer -M, as Sprite's slider): a DAC's volume as it's first
        # used, or used by the OpenFrame again (about -36 dB)
 
@@ -206,14 +214,23 @@ dac_way() {
 apply() {
 	managed || { log "$ASOUND is someone's own: left as it is"; return 0; }
 	choose || { log "no sound cards"; return 0; }
-	local mixer key=$((3141 + C_N)) conf
+	local mixer key=$((3141 + C_N)) conf conv="" periods="" rate
 	DAC_FMT="" DAC_RATE=""
 	[ "$C_KIND" = usb ] && dac_way "$C_N"
+	# plug's converter, for audio at a rate the card (or mixer) isn't at
+	[ -e "$RATEMOD" ] && conv=$'\n\trate_converter "openframe"'
+	# the mixer's periods: 147 x 40 frames at 44.1 kHz (133 ms), so the common rates meet it at
+	# a simple ratio; 6400 at 48 kHz, the same time
+	rate=${DAC_RATE:-44100}
+	case $rate in
+		44100) periods=$'\n\t\tperiod_size 5880\n\t\tbuffer_size 17640' ;;
+		48000) periods=$'\n\t\tperiod_size 6400\n\t\tbuffer_size 19200' ;;
+	esac
 	if [ "$DIRECT" = yes ]; then
 		conf="# $C_NAME, direct: the stream as it is, nothing mixed in, resampled or converted (unless
 # it can't take it), and no volume control here (its own is at full).
 pcm.!default {
-	type plug
+	type plug$conv
 	slave.pcm \"hw:CARD=$C_ID\"
 }"
 	else
@@ -227,7 +244,7 @@ pcm.mixer {
 	slave {
 		pcm \"hw:CARD=$C_ID\"
 		channels 2
-		rate ${DAC_RATE:-44100}$([ -n "$DAC_FMT" ] && printf '\n\t\tformat %s' "$DAC_FMT")
+		rate $rate$([ -n "$DAC_FMT" ] && printf '\n\t\tformat %s' "$DAC_FMT")$periods
 	}
 	bindings {
 		0 0
@@ -237,7 +254,7 @@ pcm.mixer {
 		if [ -n "$mixer" ]; then
 			conf="$conf
 pcm.!default {
-	type plug
+	type plug$conv
 	slave.pcm \"mixer\"
 }"
 		else
@@ -251,7 +268,7 @@ pcm.openframe_volume {
 	}
 }
 pcm.!default {
-	type plug
+	type plug$conv
 	slave.pcm \"openframe_volume\"
 }"
 		fi
