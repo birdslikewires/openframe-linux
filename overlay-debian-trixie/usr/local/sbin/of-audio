@@ -163,13 +163,37 @@ managed() {
 	[ "$(md5sum < "$ASOUND" | cut -d' ' -f1)" = "$OLDSUM" ]
 }
 
+# How mixing plays to a USB DAC (its card's index $1, from its stream0's playback formats): in
+# its fullest format (the most bits: S32_LE for 24 bits in 32, say), DAC_FMT, at 44.1 kHz, as
+# most music is, if it takes it (48 kHz if not, or its first), DAC_RATE. Mixed, 44.1 kHz
+# music isn't resampled then either, and a change of mode is less often a change of what the
+# DAC is sent: one changing format or rate may click a relay over as the next sound starts
+# (an Audient iD4 does, losing the first of it). Direct mode takes none of this: the stream
+# goes to the DAC as it is, its own format and rate, and a DAC switching over for it is the
+# DAC doing its job.
+dac_way() {
+	DAC_FMT="" DAC_RATE=""
+	local f="$PROC/card$1/stream0"
+	[ -r "$f" ] || return 0
+	read -r DAC_FMT DAC_RATE < <(awk '
+		/^Playback:/ { p = 1; next } /^Capture:/ { p = 0 }
+		!p { next }
+		/Format: / { fmt = $2; bits = fmt; gsub(/[^0-9]/, "", bits); bits = substr(bits, 1, 2) + 0 }
+		/Bits: / { bits = $2 + 0 }
+		/Rates: / { for (i = 2; i <= NF; i++) { r = $i; gsub(/[^0-9]/, "", r); rates[r + 0] = 1; if (!first) first = r + 0 } }
+		/Bits: |Rates: / { if (fmt != "" && bits > best) { best = bits; bestfmt = fmt } }
+		END { rate = (44100 in rates) ? 44100 : (48000 in rates) ? 48000 : first; print bestfmt, rate }' "$f")
+}
+
 apply() {
 	managed || { log "$ASOUND is someone's own: left as it is"; return 0; }
 	choose || { log "no sound cards"; return 0; }
 	local mixer key=$((3141 + C_N)) conf
+	DAC_FMT="" DAC_RATE=""
+	[ "$C_KIND" = usb ] && dac_way "$C_N"
 	if [ "$DIRECT" = yes ]; then
-		conf="# $C_NAME, direct: nothing mixed in or resampled (unless it can't take it), and no
-# volume control here (its own is at full).
+		conf="# $C_NAME, direct: the stream as it is, nothing mixed in, resampled or converted (unless
+# it can't take it), and no volume control here (its own is at full).
 pcm.!default {
 	type plug
 	slave.pcm \"hw:CARD=$C_ID\"
@@ -185,6 +209,7 @@ pcm.mixer {
 	slave {
 		pcm \"hw:CARD=$C_ID\"
 		channels 2
+		rate ${DAC_RATE:-44100}$([ -n "$DAC_FMT" ] && printf '\n\t\tformat %s' "$DAC_FMT")
 	}
 	bindings {
 		0 0
@@ -224,6 +249,14 @@ ctl.!default {
 		printf '%s\n' "$conf" > "$ASOUND.new" && chmod 644 "$ASOUND.new" && mv -f "$ASOUND.new" "$ASOUND" ||
 			{ log "couldn't write $ASOUND"; return 1; }
 		log "sound: $C_NAME ($C_ID)$([ "$DIRECT" = yes ] && echo ", direct")"
+		# A DAC switched over now, if it must be (a relay clicking over, say): a tenth of a
+		# second of silence the new way, as CD audio is (16-bit, 44.1 kHz, the commonest), so
+		# it's done as the setting changes rather than at the start of what's played next (see
+		# dac_way); played before anything, it touches nothing that follows. A software volume
+		# control made first, low: played through, ALSA would make it at full.
+		[ "$DIRECT" = no ] && [ -z "$mixer" ] && softvol_ready "$C_ID"
+		[ "$C_KIND" = usb ] && head -c $(( ${DAC_RATE:-44100} * 4 / 10 )) /dev/zero |
+			aplay -q -D default -t raw -f S16_LE -c 2 -r "${DAC_RATE:-44100}" >/dev/null 2>&1
 		restart_playing
 	fi
 	[ "$DIRECT" = no ] && [ -z "$mixer" ] && softvol_ready "$C_ID"

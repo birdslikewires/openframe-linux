@@ -143,9 +143,15 @@ cards mid dac1
 bash $A hotplug 2>/dev/null
 [ "$(pcm)" = hw:CARD=DAC ] && [ "$(cat /tmp/mix/DAC/PCM)" = 60 ] && ok "back in: the DAC, its volume as it was" || bad "back in" "$(cat /tmp/mix/DAC/PCM)"
 
+# Mixed, the DAC runs in its fullest format at 44.1 kHz when it takes it (so 44.1 kHz music
+# isn't resampled, and a change of mode is less often a change of what it's sent).
+grep -q 'rate 44100' /tmp/asound.conf && grep -q 'format S16_LE' /tmp/asound.conf &&
+	ok "mixed: the DAC at 44.1 kHz in its fullest format" || bad "mixed: the DAC's rate and format" "$(cat /tmp/asound.conf)"
+
 # Direct: straight to it, its volume at full; and back, low.
 out=$(bash $A set direct=yes 2>&1)
-grep -q 'slave.pcm "hw:CARD=DAC"' /tmp/asound.conf && ! grep -q dmix /tmp/asound.conf && [ "$(cat /tmp/mix/DAC/PCM)" = 100 ] &&
+grep -q 'slave.pcm "hw:CARD=DAC"' /tmp/asound.conf && ! grep -q 'format ' /tmp/asound.conf && ! grep -q 'rate ' /tmp/asound.conf &&
+	! grep -q dmix /tmp/asound.conf && [ "$(cat /tmp/mix/DAC/PCM)" = 100 ] &&
 	bash $A status | grep -qx mixer= && bash $A status | grep -qx direct=yes && ok "direct: plug straight to the DAC, its volume at full" || bad "direct" "$out
 $(cat /tmp/asound.conf)"
 bash $A set direct=no 2>/dev/null
