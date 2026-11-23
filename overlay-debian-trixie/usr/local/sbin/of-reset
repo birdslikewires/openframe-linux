@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+
+## of-reset v26.11.1 (23rd November 2026)
+##  Erases an OpenFrame for its next owner, back to how its image left it, then restarts it.
+##    of-reset --yes        do it (Sprite's About tab: "Erase everything", asked twice)
+##    of-reset --dry-run    say what it would do, and do nothing
+##
+##  What goes:
+##    - the packages the image didn't have (apps, and anything installed since), by marking
+##      the image's own (/usr/lib/openframe/image-packages, written as the image was built)
+##      as wanted and everything else as removable, then letting apt remove what nothing
+##      wanted needs. So a package an update has made one of them need since stays; one the
+##      owner removed comes back, if the network's there to fetch it. Images from before 23
+##      November 2026 have no list, and their packages are left as they are.
+##    - the settings on OF-BOOT (the settings folder: Wi-Fi, Ethernet, SSH, Sprite, setup,
+##      test unit...), back to the templates, and anything else in that folder. The touch
+##      calibration (sprite.txt's calibration=) stays: it belongs to the panel.
+##    - every way in: the password of "of" (none, as on a new image), its files and keys,
+##      root's keys and files, any other person's account, and the SSH host keys (new ones
+##      are made at the next start).
+##    - the network settings of-netplan keeps from those files (the Wi-Fi password among
+##      them), Sprite's home screen and every app's data, the automatic updates' record,
+##      and the hostname, back to openframe.
+##  What stays: the firmware, the kernel and every update, the unit's MAC address (its own,
+##  kept in the firmware), the touch calibration, and the system's own records of what it
+##  has set up once (/var/lib/openframe-scripts).
+##  A new machine-id is made, as a new image's first start makes one, so nothing keyed to the
+##  last owner's carries over. It waits for an update being installed to finish first.
+
+set -u
+export LC_ALL=C DEBIAN_FRONTEND=noninteractive
+
+IMAGELIST="/usr/lib/openframe/image-packages"
+TEMPLATES="/usr/lib/openframe/settings"
+SETTINGS="/boot/settings"
+SPRITETEMPLATE="/opt/sprite/share/sprite/sprite.txt"
+PERSON="of"
+
+case "${1:-}" in
+	--yes) DRY="" ;;
+	--dry-run) DRY=1 ;;
+	*) sed -n 's/^##//p' "$0"; exit 2 ;;
+esac
+[ "$(id -u)" -eq 0 ] || { echo "of-reset: needs root"; exit 1; }
+
+say() { echo "of-reset: $*"; }
+# Runs a command, or with --dry-run says it would.
+run() { if [ -n "$DRY" ]; then echo "  would: $*"; else "$@"; fi; }
+
+# Not halfway through an update.
+if [ -z "$DRY" ]; then
+	exec 9>/run/of-update.lock
+	flock 9
+fi
+
+# Sprite's apps, which could be holding their files open.
+say "stopping apps"
+run systemctl stop 'sprite-app-*.service' 2>/dev/null
+
+# Not a test unit any more, before apt looks at anything: only released packages from here.
+run rm -f /etc/apt/sources.list.d/openframe-testing.list
+
+# --- packages: back to the image's own ----------------------------------------------------
+if [ -s "$IMAGELIST" ]; then
+	INSTALLED=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' | awk '$1 == "ii" { print $2 }' | sort -u)
+	WANTED=$(sort -u "$IMAGELIST")
+	EXTRA=$(comm -23 <(echo "$INSTALLED") <(echo "$WANTED"))
+	MISSING=$(comm -13 <(echo "$INSTALLED") <(echo "$WANTED"))
+	say "packages: $(echo "$WANTED" | wc -l) from the image; $(echo "$EXTRA" | grep -c .) others marked removable"
+	if [ -n "$DRY" ]; then
+		echo "  would remove what nothing from the image needs, of these: $(echo $EXTRA)"
+	else
+		echo "$WANTED" | xargs -r apt-mark manual >/dev/null 2>&1
+		echo "$EXTRA" | xargs -r apt-mark auto >/dev/null 2>&1
+		apt-get -y -q -o Dpkg::Options::=--force-confold autoremove --purge ||
+			say "apt couldn't remove the other packages: they're still there (the rest carries on)"
+	fi
+	if [ -n "$MISSING" ]; then
+		say "putting back what the image had: $(echo $MISSING)"
+		run timeout 600 apt-get -y -q -o Dpkg::Options::=--force-confold install $MISSING ||
+			say "couldn't put them back (no network?): left out"
+	fi
+	# what removed packages left behind (their settings)
+	LEFT=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' | awk '$1 == "rc" { print $2 }')
+	[ -n "$LEFT" ] && run dpkg --purge $LEFT >/dev/null
+	run apt-get clean
+else
+	say "no list of the image's packages (an image from before 23 November 2026): packages left as they are"
+fi
+
+# --- the settings on OF-BOOT ----------------------------------------------------------------
+if [ -d "$SETTINGS" ] && [ -d "$TEMPLATES" ]; then
+	say "settings on OF-BOOT back to the templates"
+	CAL=$(sed -n 's/^[[:space:]]*calibration[[:space:]]*=[[:space:]]*//Ip' "$SETTINGS/sprite.txt" 2>/dev/null | tr -d '\r' | head -1)
+	NEW=$(mktemp -d)
+	cp "$TEMPLATES"/*.txt "$NEW/"
+	if [ -r "$SPRITETEMPLATE" ]; then
+		cp "$SPRITETEMPLATE" "$NEW/sprite.txt"
+		if [ -n "$CAL" ]; then
+			sed -i "s/^calibration=.*/calibration=$CAL/" "$NEW/sprite.txt"
+			grep -q '^calibration=' "$NEW/sprite.txt" || echo "calibration=$CAL" >> "$NEW/sprite.txt"
+		fi
+	fi
+	if [ -n "$DRY" ]; then
+		echo "  would put in place: $(ls "$NEW" | tr '\n' ' ')"
+		echo "  would take away: $(ls "$SETTINGS" | grep -vxF -f <(ls "$NEW") | tr '\n' ' ')"
+		[ -n "$CAL" ] && echo "  keeping the touch calibration: $CAL"
+	else
+		/usr/lib/openframe/bootrw open
+		for f in "$NEW"/*; do cp "$f" "$SETTINGS/${f##*/}.new"; done
+		sync
+		for f in "$NEW"/*; do mv -f "$SETTINGS/${f##*/}.new" "$SETTINGS/${f##*/}"; done
+		for f in "$SETTINGS"/*; do [ -e "$NEW/${f##*/}" ] || rm -rf "$f"; done
+		sync
+		/usr/lib/openframe/bootrw close
+	fi
+	rm -rf "$NEW"
+fi
+
+# --- every way in --------------------------------------------------------------------------
+say "logins: no password for $PERSON, no keys, no other accounts"
+run usermod -p '*' "$PERSON"
+HOMEDIR=$(getent passwd "$PERSON" | cut -d: -f6)
+if [ -n "$HOMEDIR" ] && [ -d "$HOMEDIR" ]; then
+	run find "$HOMEDIR" -mindepth 1 -delete
+	run cp -rT /etc/skel "$HOMEDIR"
+	run chown -R "$PERSON:$(id -gn "$PERSON")" "$HOMEDIR"
+fi
+run find /root -mindepth 1 -delete
+run cp -rT /etc/skel /root
+getent passwd | awk -F: -v p="$PERSON" '$3 >= 1000 && $3 < 60000 && $1 != p { print $1 }' | while read -r u; do
+	run userdel -r "$u" 2>/dev/null
+done
+run rm -f /etc/ssh/ssh_host_*
+
+# --- what was kept from those settings, and the rest of the owner's ------------------------
+say "network settings kept from the old files, Sprite's home screen and apps' data, update record"
+run rm -f /var/lib/of-netplan/wifi.txt /var/lib/of-netplan/ethernet.txt /var/lib/of-netplan/user.yaml \
+	/var/lib/of-netplan/live.yaml /var/lib/of-netplan/issue.note
+run rm -f /etc/netplan/*.yaml
+run rm -rf /var/lib/sprite/layout /var/lib/private/sprite-apps /var/lib/sprite-apps /var/lib/of-update
+
+# --- identity ------------------------------------------------------------------------------
+say "a new machine-id, and the hostname back to openframe"
+if [ -z "$DRY" ] && systemd-id128 new > /etc/machine-id.new && grep -qx '[0-9a-f]\{32\}' /etc/machine-id.new; then
+	chmod 444 /etc/machine-id.new && sync && mv -f /etc/machine-id.new /etc/machine-id
+	ln -sf /etc/machine-id /var/lib/dbus/machine-id 2>/dev/null
+else
+	rm -f /etc/machine-id.new
+fi
+if [ "$(hostname)" != openframe ]; then
+	run hostnamectl set-hostname openframe
+	# (written in place, not renamed over: /etc/hosts may be a mount)
+	if [ -z "$DRY" ]; then
+		H=$(sed -E "s/^(127\.0\.1\.1[[:space:]]+).*/\1openframe/" /etc/hosts) && printf '%s\n' "$H" > /etc/hosts
+	fi
+fi
+run journalctl --rotate --vacuum-time=1s -q
+
+if [ -n "$DRY" ]; then
+	say "(a dry run: nothing was changed)"
+	exit 0
+fi
+say "erased: restarting"
+sync
+systemctl reboot

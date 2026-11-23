@@ -97,6 +97,10 @@ OpenFrames keep themselves up to date: Debian's updates, and OpenBeak's (Sprite,
 - **What's new:** each of OpenBeak's repositories publishes notes for owners beside its packages (`news/<package>.news`), which `of-update` fetches when it looks for updates and Sprite shows before anything's installed. They come from `News:` trailers in commit messages, a plain sentence each about what owners will notice (`News: The OpenFrame now updates itself overnight.`), turned into notes by version with `package/version.sh <overlay> --news`. Most commits need none.
 - To stop it: `sudo systemctl disable --now of-update-night.timer of-update-catchup.timer of-update-reboot.timer` (enabled once per system, so that sticks).
 
+### Erasing an OpenFrame
+
+Sprite's About tab has **Erase everything** (asked twice), for passing a unit on; over SSH it's `sudo of-reset --yes`, and `sudo of-reset --dry-run` says what it would do. It puts the unit back as its image left it: the packages the image didn't have go (the image records its own, `/usr/lib/openframe/image-packages`, and anything one of those needs now stays), the settings on OF-BOOT go back to the templates, every way in goes (of's password, keys and files, root's keys, other accounts, the SSH host keys), with of-netplan's copies of the old settings, Sprite's home screen, apps' data and the hostname, and a new machine-id is made. The firmware, the kernel and every update, the unit's MAC and the touch calibration stay. Then it restarts. Images from before 23 November 2026 have no package list, so their packages are left as they are.
+
 ### Test Units and Releases
 
 Everything OpenBeak publishes goes to a **testing** suite first (`trixie-testing`, in each of linux., kernel. and firmware.openbeak.net). Only test units take it: an OpenFrame becomes one when `OF-BOOT/settings/test.txt` says `testing=yes`, from its next start (`test-settings`). Put that file on a flash stick and every unit it installs is a test unit. `testing=no` takes it out again, keeping what it has until the releases catch up. Sprite's About tab says when a unit is one.

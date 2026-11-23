@@ -84,6 +84,11 @@ jobs:
       - name: Test the testing and released suites
         run: bash tests/test_apt_suite.sh
 
+      # of-reset, erasing an OpenFrame for its next owner, on a lived-in stand-in: back to the
+      # image's packages (and what they need now), every way in gone, the calibration and MAC kept.
+      - name: Test the factory reset
+        run: bash tests/test_of_reset.sh
+
       - name: Ensure repo branch exists
         run: |
           git fetch origin repo:refs/remotes/origin/repo 2>/dev/null || \

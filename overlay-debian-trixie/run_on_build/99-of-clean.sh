@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 99-of-clean.sh v26.11.2 (16th November 2026)
+# 99-of-clean.sh v26.11.3 (23rd November 2026)
 #  Used to clean an OpenFrame.
 
 set -e
@@ -66,6 +66,13 @@ echo
 echo "Tidying the package manager..."
 apt-get -y autoremove
 apt-get -y clean
+
+# The image's own packages, as it's finished with them: what of-reset puts a unit back to
+# (everything else is removed, unless one of these needs it).
+echo
+echo "Recording the image's packages..."
+dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' | awk '$1 == "ii" { print $2 }' | sort -u > /usr/lib/openframe/image-packages
+wc -l < /usr/lib/openframe/image-packages
 
 echo
 echo "Deleting caches..."
