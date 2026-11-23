@@ -1,16 +1,16 @@
 Package: openframe-crystalhd
-Version: 26.11.9
+Version: 26.11.11
 Architecture: i386
 Maintainer: OpenFrame <andy@dvsn.net>
 Installed-Size: 2776
 Depends: libasound2t64 (>= 1.0.16), libavcodec61 (>= 7:7.1.5), libavformat61 (>= 7:7.1.5), libavutil59 (>= 7:7.1.5), libc6 (>= 2.38), libdrm2 (>= 2.4.17), libgcc-s1 (>= 7), libstdc++6 (>= 11), libswresample5 (>= 7:7.1.5), libswscale8 (>= 7:7.1.5)
 Conflicts: libcrystalhd3, firmware-crystalhd
 Replaces: libcrystalhd3, firmware-crystalhd
-Filename: pool/trixie/openframe-crystalhd_26.11.9_i386.deb
-Size: 1144000
-MD5sum: be1c5608b9b663e16eaeb89cf4048fee
-SHA1: 3e270fc3c7c3584bba164f19defc8a00d1ff80b8
-SHA256: 302da21a91e6d4e760bfd44a161858a071fbe7ae72d05acd7cd3298cd3f86960
+Filename: pool/trixie/openframe-crystalhd_26.11.11_i386.deb
+Size: 1144020
+MD5sum: d5bd6a21df9582dbcffc7d472abf8851
+SHA1: cf3c4d18588b97af18372235b68174fcf700cdee
+SHA256: 49eb01582b8890d309e35b89f0dd5fa74e0cc4159336ff21072e2374cc6a9fd7
 Section: video
 Priority: optional
 Homepage: https://github.com/birdslikewires/openframe-linux
@@ -22,35 +22,35 @@ Description: Broadcom Crystal HD video decoder support for OpenFrames
  The card's kernel driver, crystalhd, comes with the OpenFrame kernel.
 
 Package: openframe-scripts
-Version: 1:26.11.116
+Version: 1:26.11.125
 Architecture: all
 Maintainer: OpenFrame <andy@dvsn.net>
-Depends: bash, dosfstools, e2fsprogs, yq
-Filename: pool/trixie/openframe-scripts_26.11.116_all.deb
-Size: 285910
-MD5sum: 0c13477faa752fef053a4e38c55ee954
-SHA1: 1381b7a38128b8e735568f77153dd53bc994b830
-SHA256: 4662a637732e5611dd791039b075a766910a2813caeb0fbd6854f376f9fb950d
+Depends: bash, dosfstools, e2fsprogs, yq, unattended-upgrades
+Filename: pool/trixie/openframe-scripts_26.11.125_all.deb
+Size: 292382
+MD5sum: f6cbdea9707f10024089b040f5493df2
+SHA1: 293a2d1522bed6f340df5b2100e3b4b3a28a8e9a
+SHA256: 0a576acaec334cbfecf735604bb6f2807d1d86132bd9ec926e9f49c7c2620abd
 Section: admin
 Priority: optional
 Description: OpenFrame management scripts
  Scripts for managing OpenFrame devices.
 
 Package: openframe-sprite
-Version: 26.11.31
+Version: 26.11.43
 Architecture: i386
 Maintainer: OpenFrame Project <noreply@openbeak.net>
-Installed-Size: 7260
-Depends: libbsd0 (>= 0.7.0), libc6 (>= 2.38), libdisplay-info2 (>= 0.2.0), libdrm2 (>= 2.4.119), libinput10 (>= 1.26.0), libliftoff0 (>= 0.4.1), libmd0 (>= 0.0.0), libpixman-1-0 (>= 0.30.0), libseat1 (>= 0.5.0), libudev1 (>= 183), libwayland-client0 (>= 1.20.0), libwayland-server0 (>= 1.22.0), libxau6 (>= 1:1.0.11), libxcb-composite0, libxcb-errors0 (>= 1.0.1), libxcb-ewmh2 (>= 0.4.2), libxcb-icccm4 (>= 0.4.2), libxcb-render0, libxcb-res0 (>= 1.10), libxcb-xfixes0 (>= 1.15), libxcb1, libxcvt0 (>= 0.1.0), libxdmcp6, libxfont2 (>= 1:2.0.1), libxkbcommon0 (>= 0.5.0), libxshmfence1, x11-xkb-utils, xkb-data, libx11-6, libxext6, libxcursor1, libxfixes3, libxi6, libxrandr2, libxss1, libasound2t64, openframe-scripts
-Filename: pool/trixie/openframe-sprite_26.11.31_i386.deb
-Size: 2368924
-MD5sum: ff20f646a235b422a6c06b9f518bb293
-SHA1: 5a655bc49bba98b2039a5aca747ef5a23e7a5817
-SHA256: aa942c2b7939236ba6c842acea2a4adc2037f23d98eeb218ca42396c39a2a857
+Installed-Size: 7304
+Depends: libbsd0 (>= 0.7.0), libc6 (>= 2.38), libdisplay-info2 (>= 0.2.0), libdrm2 (>= 2.4.119), libinput10 (>= 1.26.0), libliftoff0 (>= 0.4.1), libmd0 (>= 0.0.0), libpixman-1-0 (>= 0.30.0), libseat1 (>= 0.5.0), libudev1 (>= 183), libwayland-client0 (>= 1.20.0), libwayland-server0 (>= 1.22.0), libxau6 (>= 1:1.0.11), libxcb-composite0, libxcb-errors0 (>= 1.0.1), libxcb-ewmh2 (>= 0.4.2), libxcb-icccm4 (>= 0.4.2), libxcb-render0, libxcb-res0 (>= 1.10), libxcb-xfixes0 (>= 1.15), libxcb1, libxcvt0 (>= 0.1.0), libxdmcp6, libxfont2 (>= 1:2.0.1), libxkbcommon0 (>= 0.5.0), libxshmfence1, x11-xkb-utils, xkb-data, libx11-6, libxext6, libxcursor1, libxfixes3, libxi6, libxrandr2, libxss1, libasound2t64, openframe-scripts (>= 1:26.11.122), curl, iproute2
+Filename: pool/trixie/openframe-sprite_26.11.43_i386.deb
+Size: 2383828
+MD5sum: 928ef64f99c28afbaee6a323ac8f2be2
+SHA1: 27af6e26f5f67179f2955a0a1204c1f011cd6cfd
+SHA256: 96a9ef84eabd02e01ebb6ddc63e842fdd471d92ed97384623963c03601040e3b
 Section: x11
 Priority: optional
 Homepage: https://github.com/birdslikewires/openframe-sprite
-Description: sprite, the OpenFrame touch shell
+Description: Sprite, the OpenFrame touch shell
  A touch shell for the OpenFrame's 800x480 screen: a home screen of apps, settings, and one
  app at a time full screen, drawn in software. It's a Wayland compositor (wlroots) and the
  shell (LVGL) in one program, with Xwayland for X11 and SDL apps, built without Mesa.
