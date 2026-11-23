@@ -55,6 +55,15 @@ out=$(bash $S promote); grep -qx "promoted pkg-a 2" <<< "$out" && ok "promote mo
 out=$(unit trixie); [ "$(tail -1 <<< "$out")" = 2 ] && ok "every unit sees version 2" || bad "every unit sees version 2" "$out"
 out=$(unit trixie trixie-testing); [ "$(tail -1 <<< "$out")" = 2 ] && ok "and a test unit still does" || bad "and a test unit still does" "$out"
 [ -z "$(bash $S waiting)" ] && ok "nothing waiting" || bad "nothing waiting" "$(bash $S waiting)"
+# "ok" releases what the issue listed then: pkg-a 3 was listed, pkg-b 2 arrived after
+deb pkg-a 3; deb pkg-b 2
+bash $S add trixie-testing /tmp/pkg-a_3_all.deb /tmp/pkg-b_2_all.deb >/dev/null
+out=$(bash $S promote pkg-a=3)
+grep -qx "promoted pkg-a 3" <<< "$out" && grep -qx "left in testing: pkg-b 2" <<< "$out" &&
+	ok "promote with a list releases only what's listed" || bad "promote with a list releases only what's listed" "$out"
+[ "$(bash $S waiting)" = "pkg-b 2 1" ] && ok "and the rest waits in testing" || bad "and the rest waits in testing" "$(bash $S waiting)"
+out=$(bash $S promote pkg-b=3); grep -qx "left in testing: pkg-b 2" <<< "$out" && [ "$(bash $S waiting)" = "pkg-b 2 1" ] &&
+	ok "a version that isn't the one listed stays" || bad "a version that isn't the one listed stays" "$out"
 grep -q "^Label: OpenFrame Linux testing" apt-repo/dists/trixie-testing/Release && grep -q "^Codename: trixie-testing" apt-repo/dists/trixie-testing/Release &&
 	ok "testing's Release is labelled as such (of-update's tiers, unattended-upgrades' -testing codename)" || bad "testing's Release labels" "$(cat apt-repo/dists/trixie-testing/Release)"
 echo

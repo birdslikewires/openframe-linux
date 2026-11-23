@@ -7,8 +7,11 @@
 #
 #   apt-suite.sh add <suite> <deb>...   put each .deb in pool/<suite>, replacing the package's
 #                                       older versions there, and index the suite again
-#   apt-suite.sh promote                move every package in trixie-testing to trixie (the
-#                                       released suite), and index both again
+#   apt-suite.sh promote [<pkg>=<ver>...]
+#                                       move packages in trixie-testing to trixie (the released
+#                                       suite), and index both again: just those versions, if
+#                                       given (what the testing issue listed when Andy said ok),
+#                                       else all of them
 #   apt-suite.sh waiting                list what's in testing and not released yet, a line
 #                                       each: package, testing version, released version
 #   apt-suite.sh index <suite>          index a suite again (Packages, Release, signatures)
@@ -65,10 +68,15 @@ add)
 	index "$suite"
 	;;
 promote)
+	shift
 	shopt -s nullglob
 	moved=0
 	for deb in "$REPO/pool/$TESTING"/*.deb; do
 		pkg=$(field "$deb" Package)
+		if [ $# -gt 0 ] && ! printf '%s\n' "$@" | grep -qxF "$pkg=$(field "$deb" Version)"; then
+			echo "left in testing: $pkg $(field "$deb" Version)"   # not what was said ok to
+			continue
+		fi
 		rm -f "$REPO/pool/$RELEASED/${pkg}"_*.deb
 		mv "$deb" "$REPO/pool/$RELEASED/"
 		echo "promoted $pkg $(field "$REPO/pool/$RELEASED/${deb##*/}" Version)"

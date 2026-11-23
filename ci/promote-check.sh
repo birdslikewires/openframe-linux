@@ -7,7 +7,8 @@
 # testing (Sprite needing a newer openframe-scripts, say), whatever order things are promoted
 # in. Run from the repository's root with the repo branch in apt-repo/; needs only docker.
 # Prints apt's complaint and exits non-zero if something can't be installed.
-#   APT_SITE=linux.openbeak.net ci/promote-check.sh
+#   APT_SITE=linux.openbeak.net ci/promote-check.sh [<pkg>=<ver>...]
+# With packages given, only those move from testing (as apt-suite.sh promote moves them).
 set -eu
 SITE=${APT_SITE:-linux.openbeak.net}
 KEY=$(ls overlay-*/usr/share/keyrings/openframe-apt.gpg 2>/dev/null | head -1)
@@ -26,7 +27,7 @@ done
 # programs' newer system calls on GitHub's runners.
 docker run --rm --security-opt seccomp=unconfined --platform linux/386 \
 	-v "$PWD/apt-repo/pool:/pool:ro" -v "$PWD/$KEY:/key.gpg:ro" \
-	-e SITE="$SITE" -e OTHERS="$OTHERS" i386/debian:trixie bash -euc '
+	-e SITE="$SITE" -e OTHERS="$OTHERS" -e ONLY="$*" i386/debian:trixie bash -euc '
 	export DEBIAN_FRONTEND=noninteractive
 	apt-get -qq update >/dev/null 2>&1
 	apt-get -qq install -y dpkg-dev >/dev/null 2>&1 || { echo "Couldn'\''t install dpkg-dev: no network?"; exit 1; }
@@ -35,7 +36,9 @@ docker run --rm --security-opt seccomp=unconfined --platform linux/386 \
 	shopt -s nullglob
 	for d in /pool/trixie/*.deb; do cp "$d" /promoted/; done
 	for d in /pool/trixie-testing/*.deb; do
-		rm -f /promoted/"$(dpkg-deb -f "$d" Package)"_*.deb; cp "$d" /promoted/
+		p=$(dpkg-deb -f "$d" Package)
+		if [ -n "$ONLY" ] && ! printf "%s\n" $ONLY | grep -qxF "$p=$(dpkg-deb -f "$d" Version)"; then continue; fi
+		rm -f /promoted/"$p"_*.deb; cp "$d" /promoted/
 	done
 	debs=(/promoted/*.deb)
 	[ ${#debs[@]} -gt 0 ] || { echo "Nothing to check."; exit 0; }
