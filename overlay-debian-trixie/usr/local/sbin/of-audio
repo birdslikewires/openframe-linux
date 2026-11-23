@@ -130,17 +130,16 @@ mixer_of() {
 
 # What's playing: each process with a sound card's playback open, as "pid unit" (its systemd
 # unit, from its cgroup; "-" for one in someone's login, or none).
+# (One find for them all: a readlink for each of every process's files took five seconds
+# on the Atom.)
 holders() {
-	local p f t unit
-	for p in "$PROCFS"/[0-9]*; do
-		for f in "$p"/fd/*; do
-			t=$(readlink "$f" 2>/dev/null) || continue
-			[[ $t =~ ^/dev/snd/pcmC[0-9]+D[0-9]+p$ ]] || continue
+	local f p unit
+	find "$PROCFS"/ -mindepth 3 -maxdepth 3 -path "$PROCFS/[0-9]*/fd/*" -lname '/dev/snd/pcmC*D*p' 2>/dev/null |
+		while read -r f; do
+			p=${f%/fd/*}
 			unit=$(sed -n 's#^0::/system\.slice/\([^/]*\.service\)$#\1#p' "$p/cgroup" 2>/dev/null)
 			echo "${p##*/} ${unit:--}"
-			break
-		done
-	done
+		done | sort -u
 }
 
 # After a change of where the sound goes: the system services playing start again, so they
