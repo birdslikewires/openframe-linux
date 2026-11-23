@@ -38,7 +38,8 @@ STATE="${OF_AUDIO_STATE:-/var/lib/of-audio}"
 MARK="# Written by of-audio from OF-BOOT/settings/audio.txt: it's replaced when that changes."
 # what images before of-audio had, taken over as of-audio's own
 OLDSUM="8b09e8fd461f78139bce33e80e9f74d4"
-LOW=25 # percent: a DAC's volume as it's first used, or used by the OpenFrame again
+LOW=25 # percent, as it sounds (amixer -M, as Sprite's slider): a DAC's volume as it's first
+       # used, or used by the OpenFrame again (about -36 dB)
 
 log() { echo "of-audio: $*" >&2; }
 
@@ -188,6 +189,20 @@ ctl.!default {
 			{ log "couldn't write $ASOUND"; return 1; }
 		log "sound: $C_NAME ($C_ID)$([ "$DIRECT" = yes ] && echo ", direct")"
 	fi
+	[ "$DIRECT" = no ] && [ -z "$mixer" ] && softvol_ready "$C_ID"
+	return 0
+}
+
+# The software volume control of-audio gives a card with none of its own (OpenFrame, on card
+# $1): ALSA makes it only as something first plays through it, at full volume, so until then
+# Sprite has nothing to read or set, and the first sound would be at full. Made here at once,
+# by playing one silent frame through the default, and set low.
+softvol_ready() {
+	amixer -c "$1" sget OpenFrame >/dev/null 2>&1 && return 0
+	head -c 8 /dev/zero | aplay -q -D default -t raw -f S16_LE -c 2 -r 48000 >/dev/null 2>&1
+	amixer -c "$1" sget OpenFrame >/dev/null 2>&1 || { log "the software volume control didn't appear on $1"; return 0; }
+	amixer -q -M -c "$1" sset OpenFrame "$LOW%" 2>/dev/null
+	return 0
 }
 
 # Card $1's volume ($2: a percentage, or full for 0 dB) and unmuted, by its volume control.
@@ -196,7 +211,7 @@ volume() {
 	m=$(mixer_of "$1")
 	[ -n "$m" ] || return 0
 	if [ "$2" = full ]; then amixer -q -c "$1" sset "$m" 100% unmute 2>/dev/null
-	else amixer -q -c "$1" sset "$m" "$2%" unmute 2>/dev/null; fi
+	else amixer -q -M -c "$1" sset "$m" "$2%" unmute 2>/dev/null; fi
 	return 0
 }
 
@@ -270,15 +285,18 @@ hotplug)
 	sleep "${OF_AUDIO_SETTLE:-1}" # (a USB card's controls follow it in)
 	mkdir -p "$STATE"
 	touch "$STATE/seen"
+	NEW=()
 	while read -r n id kind u name; do
 		[ "$kind" = usb ] && [ "$u" != - ] || continue
 		grep -qxF "$u" "$STATE/seen" && continue
 		echo "$u" >> "$STATE/seen"
 		log "a new DAC: $name ($u), the output from now on"
 		write_settings "output=$u" "direct=no"
-		volume "$id" "$LOW"
+		NEW+=("$id")
 	done < <(cards)
 	apply
+	# low, once it's the output (a software volume control is only there by then)
+	for id in "${NEW[@]}"; do volume "$id" "$LOW"; done
 	;;
 store)
 	alsactl store 2>/dev/null

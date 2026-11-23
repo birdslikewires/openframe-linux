@@ -31,6 +31,7 @@ T=/boot/settings/audio.txt
 cat > /stub/amixer <<'EOF'
 #!/bin/bash
 [ "$1" = -q ] && shift
+[ "$1" = -M ] && shift
 card=$2 cmd=$3 name=${4:-}
 d=/tmp/mix/$card
 case "$cmd" in
@@ -41,6 +42,15 @@ case "$cmd" in
 esac
 EOF
 chmod 755 /stub/amixer
+# aplay: playing through a softvol default makes its control (at full, as ALSA does)
+cat > /stub/aplay <<'EOF'
+#!/bin/bash
+cat > /dev/null
+card=$(sed -n '/type softvol/,/}/{s/.*card "\(.*\)".*/\1/p}' /tmp/asound.conf | head -1)
+[ -n "$card" ] && [ ! -e "/tmp/mix/$card/OpenFrame" ] && echo 100 > "/tmp/mix/$card/OpenFrame"
+exit 0
+EOF
+chmod 755 /stub/aplay
 export PATH="/stub:$PATH"
 
 builtin() { printf ' 0 [MID            ]: HDA-Intel - HDA Intel MID\n                      HDA Intel MID at 0xd01c0000 irq 16\n'; }
@@ -144,6 +154,9 @@ rm /tmp/mix/DAC/PCM; echo none > /tmp/mix/DAC/Switch
 bash $A set output=08bb:2704 2>/dev/null
 grep -q 'type softvol' /tmp/asound.conf && grep -q 'name "OpenFrame"' /tmp/asound.conf && bash $A status | grep -qx mixer=OpenFrame &&
 	ok "a DAC with no volume control: a software one" || bad "no volume control" "$(cat /tmp/asound.conf)"
+[ "$(cat /tmp/mix/DAC/OpenFrame 2>/dev/null)" = 25 ] && ok "made straight away (not at full when something first plays), at 25%" ||
+	bad "the software control made at once, low" "$(ls /tmp/mix/DAC; cat /tmp/mix/DAC/OpenFrame 2>&1)"
+rm -f /tmp/mix/DAC/OpenFrame /tmp/mix/DAC/Switch
 echo 40 > /tmp/mix/DAC/PCM
 
 # A unit whose only card is a DAC (the OpenFrame's own turned off): that, whatever's asked.
