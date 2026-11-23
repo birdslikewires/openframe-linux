@@ -195,6 +195,16 @@ img "the image onto an OpenFrame 1's internal memory" 1028128768 1028128768 writ
 img "an image bigger than the internal memory"         1028128768 2055208960 refused
 echo "name=test-image" > "$T/info"
 
+# flash.log in the unit's folder: what was said before the folder was there, then after,
+# each line with the time; a second run's lines after the first's.
+rm -rf "$T/unit"
+out=$(bash -c ". '$T/env.sh'; log 'before the folder'; UDIR='$T/unit'; mkdir -p \$UDIR; log 'in the folder'; log 'and again'" 2>&1)
+bash -c ". '$T/env.sh'; UDIR='$T/unit'; log 'a second run'" >/dev/null 2>&1
+if [ "$(sed 's/^[0-9-]* [0-9:]* //' "$T/unit/flash.log" 2>/dev/null | tr '\n' '|')" = "before the folder|in the folder|and again|a second run|" ] &&
+   grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8} before the folder$' "$T/unit/flash.log"; then
+	ok "flash.log: the whole run, with the times, and the next run after it"
+else bad "flash.log" "$(cat "$T/unit/flash.log" 2>&1)"; fi
+
 # The check after a write reads the internal memory as far as the image goes: on an OpenFrame
 # 2's, twice the image, as on an OpenFrame 1's, the same size; a write that didn't take fails.
 head -c 4718592 /dev/urandom > "$T/image.raw"   # 4.5 MB: not a whole number of 1M blocks, as the real one isn't

@@ -45,7 +45,8 @@
 ##  system, the stick's own system starts instead). Anything that stops the install says
 ##  why on the screen and in info.txt, keeps the login prompt off the screen so the
 ##  message stays (SSH still works), and changes nothing more. A stick without the image
-##  copy any more says so and starts its own system.
+##  copy any more says so and starts its own system. Everything it says along the way goes
+##  into the unit's folder as flash.log (and the journal, which a stick loses at each start).
 ##
 ##  The image is an OpenFrame 1's internal memory's size (1 GB). An OpenFrame 2's is twice
 ##  that: the image goes at its start, and the new system grows into the rest at its first
@@ -121,8 +122,21 @@ usage() {
 	exit 1
 }
 
+# What it says goes to the journal (of-flash.service), and into the unit's folder as
+# flash.log too, each line with the time: a stick's journal is gone at its next start, and
+# the folder is where anyone would look. Lines from before there's a folder (the checks) wait
+# in LOGWAIT and go in with the first after it.
+LOGWAIT=""
 log() {
 	echo "flash: $*"
+	local L
+	L="$(date '+%F %T') $*"
+	if [ -n "${UDIR:-}" ] && [ -d "$UDIR" ]; then
+		{ printf '%s' "$LOGWAIT"; echo "$L"; } >> "$UDIR/flash.log" 2>/dev/null
+		LOGWAIT=""
+	else
+		LOGWAIT+="$L"$'\n'
+	fi
 }
 
 # Says lines $@ on the terminal, by hand (at boot the panel has its own screens).
@@ -771,6 +785,7 @@ new_unit() {
 		else
 			echo "# firmware.bin and mmc.img.gz are what it had before."
 		fi
+		echo "# flash.log is what OpenFrame Flash said as it went, every time it ran for it."
 		echo "cid=$CID"
 		echo "mac=$MAC"
 		echo "model=${MODEL:-OpenFrame $([ "$MMCSIZE" = "$OF2MMC" ] && echo 2 || echo 1)}"
