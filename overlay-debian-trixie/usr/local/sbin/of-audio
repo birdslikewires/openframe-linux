@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 
-## of-audio v26.11.3 (23rd November 2026)
+## of-audio v26.11.4 (24th November 2026)
 ##  Where the OpenFrame's sound goes: its own (the speaker and headphone socket) or a USB DAC,
 ##  from OF-BOOT/settings/audio.txt, written into /etc/asound.conf as ALSA's default.
 ##    of-audio status      the sound cards there are and which is in use, key=value lines:
 ##                         card=<id> <builtin|usb> <usb id or -> <name>, a line each; then
 ##                         output=<id> (the card in use), kind=, usbid=, direct=yes|no,
 ##                         mixer=<the control that sets its volume, empty with direct=yes>,
+##                         mixer_rate=44100|48000 (the mixer's rate, from audio.txt),
 ##                         managed=yes|no (no: asound.conf is someone's own, left alone)
-##    of-audio set output=builtin|<vid:pid> [direct=yes|no]
+##    of-audio set [output=builtin|<vid:pid>] [direct=yes|no] [mixer_rate=44100|48000]
 ##                         changes audio.txt (as root: it's on OF-BOOT) and applies it.
 ##                         direct= is for the DAC being set (output=, or else the one
 ##                         chosen already). Turning a DAC's volume control on again starts
@@ -36,6 +37,9 @@
 ##  or resampled (unless the DAC can't take it), its own volume at full, set on the amplifier
 ##  instead; one app at a time. If the DAC chosen isn't plugged in, the OpenFrame's own is
 ##  used, until it is.
+##
+##  The mixer runs at 44.1 kHz, as most music is, or at 48 kHz with mixer_rate=48000 in
+##  audio.txt, as most video is (for a DAC that takes it: one that doesn't, at the other).
 ##
 ##  Audio at another rate than the card's (48 kHz into the 44.1 kHz mixer, say) is resampled
 ##  by openframe-resampler's "openframe" converter (the Speex resampler, quality 5) where it's
@@ -189,9 +193,13 @@ managed() {
 	[ "$(md5sum < "$ASOUND" | cut -d' ' -f1)" = "$OLDSUM" ]
 }
 
+# The mixer's rate, mixer_rate= in audio.txt: 48000, or 44100 for anything else.
+mixer_rate() { [ "$(setting mixer_rate)" = 48000 ] && echo 48000 || echo 44100; }
+
 # How mixing plays to a USB DAC (its card's index $1, from its stream0's playback formats): in
-# its fullest format (the most bits: S32_LE for 24 bits in 32, say), DAC_FMT, at 44.1 kHz, as
-# most music is, if it takes it (48 kHz if not, or its first), DAC_RATE. Mixed, 44.1 kHz
+# its fullest format (the most bits: S32_LE for 24 bits in 32, say), DAC_FMT, at the mixer's
+# rate (mixer_rate: 44.1 kHz unless it's set to 48) if it takes it (the other if not, or its
+# first), DAC_RATE. Mixed, 44.1 kHz
 # music isn't resampled then either, and a change of mode is less often a change of what the
 # DAC is sent: one changing format or rate may click a relay over as the next sound starts
 # (an Audient iD4 does, losing the first of it). Direct mode takes none of this: the stream
@@ -201,14 +209,14 @@ dac_way() {
 	DAC_FMT="" DAC_RATE=""
 	local f="$PROC/card$1/stream0"
 	[ -r "$f" ] || return 0
-	read -r DAC_FMT DAC_RATE < <(awk '
+	read -r DAC_FMT DAC_RATE < <(awk -v want="$(mixer_rate)" '
 		/^Playback:/ { p = 1; next } /^Capture:/ { p = 0 }
 		!p { next }
 		/Format: / { fmt = $2; bits = fmt; gsub(/[^0-9]/, "", bits); bits = substr(bits, 1, 2) + 0 }
 		/Bits: / { bits = $2 + 0 }
 		/Rates: / { for (i = 2; i <= NF; i++) { r = $i; gsub(/[^0-9]/, "", r); rates[r + 0] = 1; if (!first) first = r + 0 } }
 		/Bits: |Rates: / { if (fmt != "" && bits > best) { best = bits; bestfmt = fmt } }
-		END { rate = (44100 in rates) ? 44100 : (48000 in rates) ? 48000 : first; print bestfmt, rate }' "$f")
+		END { rate = (want in rates) ? want : (44100 in rates) ? 44100 : (48000 in rates) ? 48000 : first; print bestfmt, rate }' "$f")
 }
 
 apply() {
@@ -221,7 +229,7 @@ apply() {
 	[ -e "$RATEMOD" ] && conv=$'\n\trate_converter "openframe"'
 	# the mixer's periods: 147 x 40 frames at 44.1 kHz (133 ms), so the common rates meet it at
 	# a simple ratio; 6400 at 48 kHz, the same time
-	rate=${DAC_RATE:-44100}
+	rate=${DAC_RATE:-$(mixer_rate)}
 	case $rate in
 		44100) periods=$'\n\t\tperiod_size 5880\n\t\tbuffer_size 17640' ;;
 		48000) periods=$'\n\t\tperiod_size 6400\n\t\tbuffer_size 19200' ;;
@@ -365,21 +373,23 @@ status)
 		echo "direct=$DIRECT"
 		echo "mixer=$([ "$DIRECT" = yes ] || { m=$(mixer_of "$C_ID"); echo "${m:-OpenFrame}"; })"
 	fi
+	echo "mixer_rate=$(mixer_rate)"
 	echo "managed=$(managed && echo yes || echo no)"
 	holders | while read -r pid unit; do echo "holder=$unit"; done | sort -u
 	;;
 set)
 	shift
-	OUT="" DIR=""
+	OUT="" DIR="" MRATE=""
 	for kv in "$@"; do
 		case "$kv" in
 			output=builtin) OUT=builtin ;;
 			output=[0-9a-f][0-9a-f][0-9a-f][0-9a-f]:[0-9a-f][0-9a-f][0-9a-f][0-9a-f]) OUT=${kv#output=} ;;
 			direct=yes|direct=no) DIR=${kv#direct=} ;;
-			*) echo "of-audio set: output=builtin or a vid:pid, direct=yes or no ($kv?)"; exit 2 ;;
+			mixer_rate=44100|mixer_rate=48000) MRATE=${kv#mixer_rate=} ;;
+			*) echo "of-audio set: output=builtin or a vid:pid, direct=yes or no, mixer_rate=44100 or 48000 ($kv?)"; exit 2 ;;
 		esac
 	done
-	[ -n "$OUT$DIR" ] || { echo "of-audio set: output= or direct="; exit 2; }
+	[ -n "$OUT$DIR$MRATE" ] || { echo "of-audio set: output=, direct= or mixer_rate="; exit 2; }
 	[ "$(id -u)" -eq 0 ] || [ "${OF_AUDIO_NOBOOTRW:-}" ] || { echo "of-audio set needs root: audio.txt is on OF-BOOT."; exit 1; }
 	# direct= for the DAC being set: output= if it's one, otherwise the one chosen already.
 	DAC=${OUT:-$(setting output)}
@@ -389,6 +399,7 @@ set)
 	WAS=no; [ -n "$DAC" ] && grep -qxF "$DAC" <<< "$LIST" && WAS=yes
 	ARGS=()
 	[ -n "$OUT" ] && ARGS+=("output=$OUT")
+	[ -n "$MRATE" ] && ARGS+=("mixer_rate=$MRATE")
 	if [ -n "$DIR" ]; then
 		LIST=$(grep -vxF "$DAC" <<< "$LIST"; [ "$DIR" = yes ] && echo "$DAC")
 		ARGS+=("direct=$(sort -u <<< "$LIST" | grep . | paste -sd ' ' -)")

@@ -11,3 +11,8 @@ output=builtin
 # volume on your amplifier; only one app can play at a time. A DAC not listed lets the
 # OpenFrame set the volume, and mixes the sound of several apps.
 direct=
+
+# The rate the OpenFrame mixes at when the audio isn't sent direct. 44100 (44.1 kHz) suits
+# music, most of which is made at that rate, and 48000 (48 kHz) suits video. Audio at the
+# other rate is converted cleanly.
+mixer_rate=44100

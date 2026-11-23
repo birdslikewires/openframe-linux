@@ -189,6 +189,20 @@ bash $A hotplug 2>/dev/null
 	ok "direct after a replug: the DAC's volume at full again" || bad "direct after a replug" "$(cat /tmp/mix/DAC/PCM)"
 bash $A set direct=no 2>/dev/null
 
+# The mixer at 48 kHz (mixer_rate=48000), the DAC taking it: 6400-frame periods, the same time.
+# Back to 44.1 kHz. And on the OpenFrame's own card too.
+bash $A set mixer_rate=48000 2>/dev/null
+[ "$(setting mixer_rate)" = 48000 ] && grep -q 'rate 48000' /tmp/asound.conf && grep -q 'period_size 6400' /tmp/asound.conf &&
+	bash $A status | grep -qx mixer_rate=48000 && ok "mixer_rate=48000: the DAC mixed at 48 kHz, 6400-frame periods" ||
+	bad "mixer_rate=48000" "$(setting mixer_rate); $(cat /tmp/asound.conf)"
+bash $A set output=builtin 2>/dev/null
+grep -q 'hw:CARD=MID' /tmp/asound.conf && grep -q 'rate 48000' /tmp/asound.conf && ok "and the OpenFrame's own at 48 kHz" || bad "the OpenFrame's own at 48 kHz" "$(cat /tmp/asound.conf)"
+bash $A set output=08bb:2704 mixer_rate=44100 2>/dev/null
+grep -q 'rate 44100' /tmp/asound.conf && grep -q 'period_size 5880' /tmp/asound.conf && bash $A status | grep -qx mixer_rate=44100 &&
+	ok "mixer_rate=44100: back to 44.1 kHz" || bad "back to 44.1 kHz" "$(cat /tmp/asound.conf)"
+bash $A set mixer_rate=96000 >/dev/null 2>&1 && bad "mixer_rate other than 44100 or 48000 refused" || ok "mixer_rate other than 44100 or 48000 refused"
+echo 60 > /tmp/mix/DAC/PCM
+
 # Direct is each DAC's own: one going direct doesn't make another, chosen after it, go
 # direct at full volume; going back to the first, it's direct again.
 mkdir -p /tmp/mix/Audio; echo 40 > /tmp/mix/Audio/PCM
