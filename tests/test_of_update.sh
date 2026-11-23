@@ -111,7 +111,8 @@ reset
 # A catch-up just after: nothing at all.
 reset
 "$U" run catchup >/dev/null 2>&1
-[ ! -s /tmp/calls ] && ok "a catch-up after a recent update does nothing" || bad "a catch-up after a recent update does nothing" "$(cat /tmp/calls)"
+# (but ask apt whether anything's half installed, which changes nothing)
+[ -z "$(grep -v '^apt-get check ' /tmp/calls)" ] && ok "a catch-up after a recent update does nothing" || bad "a catch-up after a recent update does nothing" "$(cat /tmp/calls)"
 
 # A day later: it runs, downloads before installing, and the count goes to 0.
 reset
@@ -260,8 +261,8 @@ rm -rf /tmp/apt
 reset
 touch /tmp/BROKEN
 "$U" check >/dev/null 2>&1
-[ "$("$U" status | sed -n 's/^result=//p')" = failed ] && "$U" status | grep -q '^message=.*half done: Update now finishes it' &&
-	ok "a check finds a package half installed: it says so, and that Update now finishes it" || bad "a check finds a package half installed" "$("$U" status)"
+[ "$("$U" status | sed -n 's/^result=//p')" = failed ] && "$U" status | grep -q '^message=.*half done: trying again puts it right' &&
+	ok "a check finds a package half installed: it says so, and that trying again puts it right" || bad "a check finds a package half installed" "$("$U" status)"
 : > /tmp/calls
 "$U" run now >/dev/null 2>&1
 grep -q "^apt-get -y -q .* -f install" /tmp/calls && [ ! -e /tmp/BROKEN ] && [ "$("$U" status | sed -n 's/^result=//p')" = ok ] &&
@@ -274,6 +275,15 @@ touch /tmp/BROKEN /tmp/BROKEN_REMOVES
 	"$U" status | grep -q "^message=.*can't be put right by itself" &&
 	ok "but not when that would remove a package: left, and said" || bad "a fix that would remove a package" "$(cat /tmp/calls; "$U" status)"
 rm -f /tmp/BROKEN /tmp/BROKEN_REMOVES
+# Left alone: the catch-up after a start puts it right, however recent the last update.
+reset
+"$U" run now >/dev/null 2>&1   # a good update just now: a catch-up would do nothing
+touch /tmp/BROKEN
+: > /tmp/calls
+"$U" run catchup >/dev/null 2>&1
+grep -q "^apt-get -y -q .* -f install" /tmp/calls && [ ! -e /tmp/BROKEN ] &&
+	ok "left alone: the catch-up after a start puts it right, though the last update was recent" || bad "the catch-up puts it right" "$(cat /tmp/calls)"
+rm -f /tmp/BROKEN
 
 # The night's run restarts when an update needs it, even one from earlier, and even if it fails.
 reset

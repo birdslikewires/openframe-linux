@@ -14,7 +14,8 @@
 ##        which then restarts the unit if an update needs it, now or earlier in the day;
 ##        "catchup" from of-update-catchup.timer, ten minutes after each start, which does
 ##        nothing unless the last good run was over 20 hours ago, so a unit that's only on now
-##        and then still catches up; "now" when someone asks (Sprite's Settings), which goes
+##        and then still catches up, or a package is half installed (a power cut part way
+##        through an update), so it's put right as the unit comes back (see mend); "now" when someone asks (Sprite's Settings), which goes
 ##        straight to working out what to install (state preparing) if the lists were looked
 ##        at in the last 15 minutes, since this start.
 ##    of-update schedule
@@ -196,6 +197,12 @@ lists() {
 	return 1
 }
 
+# Whether an earlier update was left half done: dpkg's work unfinished, or a package in without
+# what it needs (see mend).
+half_done() {
+	[ -n "$(dpkg --audit 2>/dev/null)" ] || ! apt-get check -qq -o Debug::NoLocking=1 >/dev/null 2>&1
+}
+
 # Puts right what an interrupted update left, before anything else is done: a power cut or a
 # full disk part way through can leave dpkg's work unfinished, or a package in without what it
 # needs (Sprite unpacked, the openframe-scripts it needs not yet), and then unattended-upgrades
@@ -260,10 +267,13 @@ run)
 	case "$REASON" in night|catchup|now) ;; *) echo "usage: of-update run night|catchup|now" >&2; exit 2 ;; esac
 	if [ "$REASON" = catchup ]; then
 		LAST=$(get last)
-		if [ -n "$LAST" ] && (( $(date +%s) - LAST < CATCHUP_AFTER )); then
+		if half_done; then
+			log "an earlier update was left half done: putting it right"
+		elif [ -n "$LAST" ] && (( $(date +%s) - LAST < CATCHUP_AFTER )); then
 			exit 0
+		else
+			log "the last update was $( [ -n "$LAST" ] && echo "$(( ($(date +%s) - LAST) / 3600 )) hours ago" || echo never): catching up"
 		fi
-		log "the last update was $( [ -n "$LAST" ] && echo "$(( ($(date +%s) - LAST) / 3600 )) hours ago" || echo never): catching up"
 	fi
 	exec 9>"$LOCK"
 	flock -n 9 || { log "an update is already running"; exit 0; }
@@ -341,9 +351,9 @@ check)
 	lists || fail "the update servers couldn't be reached"
 	# half installed (see mend): nothing can be worked out until it's put right, which is
 	# Update now's to do (a check changes nothing); never "up to date"
-	if ! apt-get check -qq -o Debug::NoLocking=1 >/dev/null 2>&1 || [ -n "$(dpkg --audit 2>/dev/null)" ]; then
+	if half_done; then
 		put "checked=$(date +%s)" "pending=0"
-		fail "an earlier update was left half done: Update now finishes it"
+		fail "an earlier update was left half done: trying again puts it right, and the next update does by itself"
 	fi
 	write_list
 	fetch_news
