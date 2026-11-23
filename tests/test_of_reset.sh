@@ -57,6 +57,7 @@ echo "password=secret-wifi-pass" > /var/lib/of-netplan/wifi.txt
 echo "02:0e:8e:24:cd:0a" > /var/lib/of-netplan/lan.mac
 echo "wifis: secret-wifi-pass" > /etc/netplan/network.yaml
 echo "0 0 2 1 4 5 7 8" > /var/lib/sprite/layout
+touch /var/lib/sprite/welcomed
 echo data > /var/lib/private/sprite-apps/clock/state
 echo "deb x trixie-testing main" > /etc/apt/sources.list.d/openframe-testing.list
 touch /etc/ssh/ssh_host_ed25519_key /etc/ssh/ssh_host_ed25519_key.pub
@@ -98,7 +99,7 @@ cmp -s /boot/settings/wifi.txt /usr/lib/openframe/settings/wifi.txt && ! grep -r
 grep -qx 'calibration=1.01,0,-3,0,0.99,2' /boot/settings/sprite.txt && grep -qx 'startup=' /boot/settings/sprite.txt &&
 	ok "the touch calibration stays, the startup app goes" || bad "the touch calibration stays" "$(cat /boot/settings/sprite.txt)"
 [ -e /var/lib/of-netplan/lan.mac ] && ok "the unit's MAC stays" || bad "the unit's MAC stays"
-[ ! -e /var/lib/sprite/layout ] && [ ! -e /var/lib/private/sprite-apps ] && ok "the home screen and apps' data go" || bad "the home screen and apps' data go"
+[ ! -e /var/lib/sprite/layout ] && [ ! -e /var/lib/sprite/welcomed ] && [ ! -e /var/lib/private/sprite-apps ] && ok "the home screen, its welcome and apps' data go" || bad "the home screen and apps' data go"
 [ ! -e /etc/apt/sources.list.d/openframe-testing.list ] && grep -qx 'testing=no' /boot/settings/test.txt &&
 	ok "not a test unit any more" || bad "not a test unit any more"
 grep -qx '[0-9a-f]\{32\}' /etc/machine-id && ok "a new machine-id" || bad "a new machine-id" "$(cat /etc/machine-id)"

@@ -1,0 +1,12 @@
+# The time of the OpenFrame's updates, from OF-BOOT/settings/updates.txt, at each start.
+[Unit]
+Description=OpenFrame update time from OF-BOOT
+After=local-fs.target
+Before=timers.target of-update-night.timer
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/of-update schedule
+
+[Install]
+WantedBy=multi-user.target

@@ -3,7 +3,9 @@
 # updates, against stand-ins for apt-get, unattended-upgrade and systemctl: a catch-up does
 # nothing after a recent update and runs after an old one; everything is downloaded before
 # anything is installed; nothing waiting means no downloads; failures are recorded;
-# status says what Sprite needs; and a restart waits while an update is being installed.
+# status says what Sprite needs; a restart waits while an update is being installed; "now"
+# doesn't look again just after a look; the night's run restarts when one's needed; and the
+# owner's time (updates.txt) sets the night timer.
 # It needs root, /run and /var/lib, so it runs itself in a Debian Trixie container (Docker)
 # unless it's root already:
 #   bash tests/test_of_update.sh
@@ -87,7 +89,9 @@ EOF
 chmod 755 /stub/*
 export PATH="/stub:$PATH"
 STATUS=/var/lib/of-update/status
-reset() { rm -f /tmp/calls /tmp/PENDING /tmp/UU_FAIL /tmp/UPDATE_FAIL /tmp/UU_HOLD /tmp/WITH_BASH /tmp/INSTALLED /tmp/STATUS /tmp/TIERS /run/reboot-required /run/reboot-required.pkgs; touch /tmp/calls; }
+reset() { rm -f /tmp/calls /tmp/PENDING /tmp/UU_FAIL /tmp/UPDATE_FAIL /tmp/UU_HOLD /tmp/WITH_BASH /tmp/INSTALLED /tmp/STATUS /tmp/TIERS /run/reboot-required /run/reboot-required.pkgs; touch /tmp/calls
+	# (the last look long ago: "now" looks again)
+	[ -f "$STATUS" ] && sed -i "s/^checked=.*/checked=1/" "$STATUS"; }
 field() { "$U" status | sed -n "s/^$1=//p"; }
 
 # Nothing waiting: the lists, no downloads, a good run recorded.
@@ -221,6 +225,64 @@ sleep 1.5
 wait $RUN
 tail -1 /tmp/calls | grep -q "^systemctl poweroff" && grep -q "unattended-upgrade  state" /tmp/calls &&
 	ok "'after poweroff' waits for the update, then switches off" || bad "'after poweroff' waits for the update, then switches off" "$(cat /tmp/calls)"
+
+# "now" just after a look: no second look, straight to getting ready.
+reset
+"$U" check >/dev/null 2>&1
+: > /tmp/calls
+echo 1 > /tmp/PENDING
+"$U" run now >/dev/null 2>&1
+! grep -q "^apt-get -qq update" /tmp/calls && grep -q "unattended-upgrade  state" /tmp/calls &&
+	ok "Update now just after Check now doesn't look again" || bad "Update now just after Check now doesn't look again" "$(cat /tmp/calls)"
+grep -q "state=checking" /tmp/calls && bad "and never says it's checking" "$(cat /tmp/calls)" || ok "and never says it's checking"
+
+# The night's run restarts when an update needs it, even one from earlier, and even if it fails.
+reset
+"$U" run night >/dev/null 2>&1
+! grep -q "^systemctl reboot" /tmp/calls && ok "the night's run: no restart unless one's needed" || bad "the night's run: no restart unless one's needed" "$(cat /tmp/calls)"
+reset
+echo linux-image-x > /run/reboot-required.pkgs; touch /run/reboot-required
+"$U" run night >/dev/null 2>&1
+tail -1 /tmp/calls | grep -q "^systemctl reboot" && ok "the night's run restarts for an earlier update" || bad "the night's run restarts for an earlier update" "$(cat /tmp/calls)"
+reset
+touch /run/reboot-required /tmp/UPDATE_FAIL
+"$U" run night >/dev/null 2>&1
+tail -1 /tmp/calls | grep -q "^systemctl reboot" && ok "and when the servers can't be reached" || bad "and when the servers can't be reached" "$(cat /tmp/calls)"
+reset
+touch /run/reboot-required
+"$U" run now >/dev/null 2>&1
+! grep -q "^systemctl reboot" /tmp/calls && ok "Update now doesn't restart by itself" || bad "Update now doesn't restart by itself" "$(cat /tmp/calls)"
+
+# The owner's time: updates.txt sets the night timer (a drop-in, none for the default).
+reset
+mkdir -p /boot/settings /usr/lib/openframe/settings
+cp /src/overlay-debian-trixie/boot/settings/updates.txt /usr/lib/openframe/settings/
+printf '#!/bin/sh\nexit 0\n' > /usr/lib/openframe/bootrw; chmod 755 /usr/lib/openframe/bootrw
+DROP=/etc/systemd/system/of-update-night.timer.d/time.conf
+"$U" schedule >/dev/null 2>&1
+[ ! -e "$DROP" ] && [ "$(field time)" = 03:00 ] && ok "no updates.txt: 03:00, no drop-in" || bad "no updates.txt: 03:00, no drop-in" "$(cat "$DROP" 2>&1)"
+for v in "time=11" "time = 11:00" "TIME=11:00\r"; do
+	printf "$v\n" > /boot/settings/updates.txt
+	[ "$(field time)" = 11:00 ] || bad "'$v' reads as 11:00" "$(field time)"
+done
+ok "the time reads however it's written"
+printf 'time=25:00\n' > /boot/settings/updates.txt
+[ "$(field time)" = 03:00 ] && ok "a time that isn't one: 03:00" || bad "a time that isn't one: 03:00" "$(field time)"
+: > /tmp/calls
+"$U" set-time 11:00 >/dev/null 2>&1
+grep -qx "time=11:00" /boot/settings/updates.txt && grep -qx "OnCalendar=\*-\*-\* 11:00:00" "$DROP" &&
+	grep -q "try-restart of-update-night.timer" /tmp/calls && ok "set-time writes updates.txt and moves the timer" ||
+	bad "set-time writes updates.txt and moves the timer" "$(cat /boot/settings/updates.txt "$DROP" /tmp/calls)"
+: > /tmp/calls
+"$U" schedule >/dev/null 2>&1
+[ ! -s /tmp/calls ] && ok "unchanged: the timer's left alone" || bad "unchanged: the timer's left alone" "$(cat /tmp/calls)"
+rm /boot/settings/updates.txt
+"$U" set-time 15:00 >/dev/null 2>&1
+grep -qx "time=15:00" /boot/settings/updates.txt && grep -q "^## Updates" /boot/settings/updates.txt &&
+	ok "with no updates.txt, set-time writes the template's" || bad "with no updates.txt, set-time writes the template's" "$(cat /boot/settings/updates.txt)"
+"$U" set-time 03:00 >/dev/null 2>&1
+[ ! -e "$DROP" ] && ok "back to 03:00: the drop-in goes" || bad "back to 03:00: the drop-in goes"
+"$U" set-time 3pm >/dev/null 2>&1 && bad "set-time refuses what isn't a time" || ok "set-time refuses what isn't a time"
 
 # A state left by a run that was killed doesn't stick.
 printf 'state=installing\nsince=1\n' > /run/of-update/state

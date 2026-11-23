@@ -19,8 +19,8 @@ Unattended-Upgrade::Origins-Pattern {
 };
 
 // Each package a small step, so a power cut leaves little half-done (of-dpkg-recover
-// finishes it at the next start). No restarts from here: of-update-reboot.timer restarts at
-// night when one's needed. What upgrades leave behind is removed.
+// finishes it at the next start). No restarts from here: of-update's run at the owner's
+// quiet time restarts when one's needed. What upgrades leave behind is removed.
 Unattended-Upgrade::MinimalSteps "true";
 Unattended-Upgrade::Automatic-Reboot "false";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";

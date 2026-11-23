@@ -90,12 +90,12 @@ Running `dpkg-reconfigure locales` will present a menu to generate and select a 
 
 OpenFrames keep themselves up to date: Debian's updates, and OpenBeak's (Sprite, these scripts, the kernel and the firmware), installed by `unattended-upgrades` through `of-update`, so owners never need to log in for them.
 
-- **When:** every night at a time of the unit's own between 01:00 and 03:00 (`of-update-night.timer`), and ten minutes after a start if the last good update was over 20 hours ago (`of-update-catchup.timer`), for units that are off at night or only on now and then.
+- **When:** once a day at the owner's quiet time, within half an hour of it (`of-update-night.timer`): 03:00 unless they pick another hour in Sprite's Settings or in `OF-BOOT/settings/updates.txt` (`time=11:00`), applied at each start by `of-update schedule`. Also ten minutes after a start if the last good update was over 20 hours ago (`of-update-catchup.timer`), for units that are off at that time or only on now and then.
 - **How:** the package lists, then every download, then the installing, a package at a time (`MinimalSteps`), so a power cut leaves little half-done, and `of-dpkg-recover` finishes it at the next start. Settings files changed on the unit are kept. The settings are in `/etc/apt/apt.conf.d/52openframe-updates`; apt's own daily timers are off.
-- **Restarts:** a new kernel, or firmware to flash, takes effect at the next restart (`/run/reboot-required`, the Debian way). The unit restarts by itself between 04:00 and 04:30 when one's needed (`of-update-reboot.timer`), never while an update is being installed.
+- **Restarts:** a new kernel, or firmware to flash, takes effect at the next restart (`/run/reboot-required`, the Debian way). The quiet-time run restarts the unit straight afterwards when one's needed, whether for its own updates or one installed by hand earlier in the day, so a unit never restarts outside the owner's chosen hour by itself.
 - **Sprite** shows it all in Settings, under Updates: what's happening, with progress, what's waiting, and buttons to check, update or restart now. `sudo of-update status` says the same over SSH, and `sudo of-update run now` updates straight away.
 - **What's new:** each of OpenBeak's repositories publishes notes for owners beside its packages (`news/<package>.news`), which `of-update` fetches when it looks for updates and Sprite shows before anything's installed. They come from `News:` trailers in commit messages, a plain sentence each about what owners will notice (`News: The OpenFrame now updates itself overnight.`), turned into notes by version with `package/version.sh <overlay> --news`. Most commits need none.
-- To stop it: `sudo systemctl disable --now of-update-night.timer of-update-catchup.timer of-update-reboot.timer` (enabled once per system, so that sticks).
+- To stop it: `sudo systemctl disable --now of-update-night.timer of-update-catchup.timer` (enabled once per system, so that sticks).
 
 ### Erasing an OpenFrame
 

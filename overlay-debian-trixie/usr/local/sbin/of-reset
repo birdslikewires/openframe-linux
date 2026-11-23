@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-reset v26.11.1 (23rd November 2026)
+## of-reset v26.11.2 (23rd November 2026)
 ##  Erases an OpenFrame for its next owner, back to how its image left it, then restarts it.
 ##    of-reset --yes        do it (Sprite's About tab: "Erase everything", asked twice)
 ##    of-reset --dry-run    say what it would do, and do nothing
@@ -19,8 +19,8 @@
 ##      root's keys and files, any other person's account, and the SSH host keys (new ones
 ##      are made at the next start).
 ##    - the network settings of-netplan keeps from those files (the Wi-Fi password among
-##      them), Sprite's home screen and every app's data, the automatic updates' record,
-##      and the hostname, back to openframe.
+##      them), Sprite's home screen (and its welcome, shown again), every app's data, the
+##      automatic updates' record, and the hostname, back to openframe.
 ##  What stays: the firmware, the kernel and every update, the unit's MAC address (its own,
 ##  kept in the firmware), the touch calibration, and the system's own records of what it
 ##  has set up once (/var/lib/openframe-scripts).
@@ -146,7 +146,7 @@ say "network settings kept from the old files, Sprite's home screen and apps' da
 run rm -f /var/lib/of-netplan/wifi.txt /var/lib/of-netplan/ethernet.txt /var/lib/of-netplan/user.yaml \
 	/var/lib/of-netplan/live.yaml /var/lib/of-netplan/issue.note
 run rm -f /etc/netplan/*.yaml
-run rm -rf /var/lib/sprite/layout /var/lib/private/sprite-apps /var/lib/sprite-apps /var/lib/of-update
+run rm -rf /var/lib/sprite/layout /var/lib/sprite/welcomed /var/lib/sprite/resume /var/lib/private/sprite-apps /var/lib/sprite-apps /var/lib/of-update
 
 # --- identity ------------------------------------------------------------------------------
 say "a new machine-id, and the hostname back to openframe"

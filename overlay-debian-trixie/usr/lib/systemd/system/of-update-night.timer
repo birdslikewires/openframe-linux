@@ -1,12 +1,14 @@
-# of-update every night, at a time of the unit's own between 01:00 and 03:00. Nothing's
+# of-update once a day, at the owner's quiet time, restarting then if an update needs it. Nothing's
 # written to disk: a unit that's off at night catches up after its next start instead
 # (of-update-catchup.timer).
 [Unit]
-Description=Update the OpenFrame at night
+Description=Update the OpenFrame at its quiet time
 
 [Timer]
-OnCalendar=*-*-* 01:00
-RandomizedDelaySec=2h
+# 03:00, or the owner's time from OF-BOOT/settings/updates.txt (of-update schedule writes a
+# drop-in), within half an hour of it: a minute of the unit's own.
+OnCalendar=*-*-* 03:00
+RandomizedDelaySec=30min
 FixedRandomDelay=yes
 Unit=of-update@night.service
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-update v26.11.1 (22nd November 2026)
+## of-update v26.11.2 (23rd November 2026)
 ##  Keeps the OpenFrame up to date by itself: Debian's updates, and OpenBeak's (Sprite,
 ##  these scripts, the kernel and the firmware), installed by unattended-upgrades as set up
 ##  in /etc/apt/apt.conf.d/52openframe-updates. Owners never have to log in for them.
@@ -10,14 +10,23 @@
 ##        (MinimalSteps), so a power cut leaves little half-done and of-dpkg-recover
 ##        finishes it at the next start. Everything is downloaded before anything is
 ##        installed: a download that's cut off costs nothing. Run by of-update@.service:
-##        "night" from of-update-night.timer (between 01:00 and 03:00); "catchup" from
-##        of-update-catchup.timer, ten minutes after each start, which does nothing unless
-##        the last good run was over 20 hours ago, so a unit that's only on now and then
-##        still catches up; "now" when someone asks (Sprite's Settings).
+##        "night" from of-update-night.timer, at the owner's quiet time (updates.txt, below),
+##        which then restarts the unit if an update needs it, now or earlier in the day;
+##        "catchup" from of-update-catchup.timer, ten minutes after each start, which does
+##        nothing unless the last good run was over 20 hours ago, so a unit that's only on now
+##        and then still catches up; "now" when someone asks (Sprite's Settings), which goes
+##        straight to working out what to install (state preparing) if the lists were looked
+##        at in the last 15 minutes, since this start.
+##    of-update schedule
+##        Sets of-update-night.timer to the time in OF-BOOT/settings/updates.txt (time=, by
+##        the hour, 03:00 if it's not there), within half an hour of it, a minute of the
+##        unit's own (of-update-schedule.service, at each start).
+##    of-update set-time HH:MM
+##        Writes that time to updates.txt and sets the timer to it (Sprite's Settings).
 ##    of-update check
 ##        Fetch the package lists and count what's waiting, without installing.
 ##    of-update status
-##        key=value lines, for Sprite's helper: state (idle, checking, downloading,
+##        key=value lines, for Sprite's helper: state (idle, checking, preparing, downloading,
 ##        installing), since, last (the last good run), result (ok or failed), message,
 ##        pending (updates waiting at the last look), checked (when that was), and
 ##        restart=yes when an installed update takes effect only after a restart. Then the
@@ -37,8 +46,8 @@
 ##        fetched when updates are looked for; the kernel's repository has none.
 ##    of-update reboot
 ##        Restart if an update needs it (/run/reboot-required: a new kernel, or firmware to
-##        flash at the next start) and none is being installed. of-update-reboot.timer runs
-##        it nightly, between 04:00 and 04:30.
+##        flash at the next start) and none is being installed. (The night's run restarts by
+##        itself when one's needed.)
 ##    of-update after reboot|poweroff
 ##        Wait for an update that's being installed to finish, then restart or switch off
 ##        (Sprite's Power buttons while one is).
@@ -57,6 +66,21 @@ LIST="$VARDIR/pending.list" # what's waiting: package, version, tier, bytes to f
 ARCHIVES="/var/cache/apt/archives"
 NEWSDIR="$VARDIR/news"
 CATCHUP_AFTER=$(( 20 * 3600 ))
+FRESH=$(( 15 * 60 ))       # lists this new (since this start) aren't looked at again for "now"
+TIMEFILE="/boot/settings/updates.txt"
+DEFAULT_TIME="03:00"
+DROPIN="/etc/systemd/system/of-update-night.timer.d/time.conf"
+
+# The owner's quiet time, from updates.txt (time=3, 03:00, 15:00...), as HH:MM, or the default.
+update_time() {
+	local v
+	v=$(sed -n 's/^[[:space:]]*time[[:space:]]*=[[:space:]]*//Ip' "$TIMEFILE" 2>/dev/null | tr -d '\r"'"'"' ' | head -1)
+	if [[ "$v" =~ ^([01]?[0-9]|2[0-3])(:([0-5][0-9]))?$ ]]; then
+		printf '%02d:%s\n' "$((10#${BASH_REMATCH[1]}))" "${BASH_REMATCH[3]:-00}"
+	else
+		echo "$DEFAULT_TIME"
+	fi
+}
 
 log() { echo "of-update: $*"; }
 
@@ -171,6 +195,15 @@ lists() {
 	return 1
 }
 
+# At the owner's quiet time, after the night's run (however it went), the restart an update
+# needs: this night's, or one installed by hand during the day.
+night_restart() {
+	[ -e /run/reboot-required ] || return 0
+	log "restarting to finish updating ($(tr '\n' ' ' < /run/reboot-required.pkgs 2>/dev/null))"
+	exec 9>&-
+	systemctl reboot
+}
+
 # True if an update is being installed (another of-update holds the lock).
 running() {
 	! ( flock -n 8 ) 8>"$LOCK"
@@ -195,13 +228,21 @@ run)
 	fi
 	exec 9>"$LOCK"
 	flock -n 9 || { log "an update is already running"; exit 0; }
-	trap 'set_state idle' EXIT
-	set_state checking
-	lists || fail "the update servers couldn't be reached"
+	trap 'set_state idle; [ "$REASON" = night ] && night_restart' EXIT
+	CHECKED=$(get checked)
+	UP=$(cut -d. -f1 /proc/uptime)
+	if [ "$REASON" = now ] && [ -n "$CHECKED" ] && (( $(date +%s) - CHECKED < FRESH && $(date +%s) - CHECKED < UP )); then
+		# looked at just now (Check now): not again, straight to what's to install
+		set_state preparing
+	else
+		set_state checking
+		lists || fail "the update servers couldn't be reached"
+	fi
 	write_list
 	fetch_news
 	N=$(wc -l < "$LIST")
 	put "checked=$(date +%s)" "pending=$N"
+	(( N > 0 )) && set_state preparing
 	if (( N > 0 )); then
 		log "$N update(s) waiting: downloading"
 		set_state downloading
@@ -218,6 +259,38 @@ run)
 	fi
 	put "last=$(date +%s)" "result=ok" "message="
 	log "up to date$( [ -e /run/reboot-required ] && echo ", once it restarts")"
+	;;
+schedule)
+	T=$(update_time)
+	NEW=""
+	[ "$T" != "$DEFAULT_TIME" ] &&
+		NEW=$(printf '# From OF-BOOT/settings/updates.txt (of-update schedule): the owner'"'"'s quiet time.\n[Timer]\nOnCalendar=\nOnCalendar=*-*-* %s:00' "$T")
+	if [ "$(cat "$DROPIN" 2>/dev/null)" != "$NEW" ]; then
+		if [ -n "$NEW" ]; then
+			mkdir -p "${DROPIN%/*}"
+			printf '%s\n' "$NEW" > "$DROPIN"
+		else
+			rm -f "$DROPIN"
+		fi
+		systemctl daemon-reload
+		systemctl try-restart of-update-night.timer
+		log "updates at about $T"
+	fi
+	;;
+set-time)
+	[[ "${2:-}" =~ ^([01][0-9]|2[0-3]):([0-5][0-9])$ ]] || { echo "usage: of-update set-time HH:MM" >&2; exit 2; }
+	NEWF=$(mktemp)
+	if [ -r "$TIMEFILE" ] && grep -qi '^[[:space:]]*time[[:space:]]*=' "$TIMEFILE"; then
+		sed -E "s/^[[:space:]]*[Tt][Ii][Mm][Ee][[:space:]]*=.*/time=$2/" "$TIMEFILE" > "$NEWF"
+	elif [ -r /usr/lib/openframe/settings/updates.txt ]; then
+		sed -E "s/^time=.*/time=$2/" /usr/lib/openframe/settings/updates.txt > "$NEWF"
+	else
+		echo "time=$2" > "$NEWF"
+	fi
+	/usr/lib/openframe/bootrw open && cp "$NEWF" "$TIMEFILE.new" && sync && mv -f "$TIMEFILE.new" "$TIMEFILE" && sync
+	/usr/lib/openframe/bootrw close
+	rm -f "$NEWF"
+	"$0" schedule
 	;;
 check)
 	exec 9>"$LOCK"
@@ -242,6 +315,7 @@ status)
 	for k in last result message pending checked; do echo "$k=$(get $k)"; done
 	echo "restart=$( [ -e /run/reboot-required ] && echo yes || echo no)"
 	echo "firmware=$(grep -qx openframe-firmware /run/reboot-required.pkgs 2>/dev/null && echo pending || echo no)"
+	echo "time=$(update_time)"
 	if [ -s "$LIST" ]; then
 		# Each update, and whether it's in yet (its version now installed), or half in (unpacked,
 		# not configured yet: partial=, so even one package shows progress).
