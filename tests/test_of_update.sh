@@ -65,7 +65,8 @@ both=no
 for n in "$@"; do case "$n" in *'${Package}'*) both=yes ;; esac; done
 for n in "$@"; do
 	case "$n" in -*) continue ;; esac
-	if [ $both = yes ]; then grep "^$n	" /tmp/INSTALLED; else grep "^$n	" /tmp/INSTALLED | cut -f2 | tr -d '\n'; fi
+	if [ $both = yes ]; then grep "^$n	" /tmp/INSTALLED | sed "s/\$/	$(cat /tmp/STATUS 2>/dev/null || echo 'ii ')/"
+	else grep "^$n	" /tmp/INSTALLED | cut -f2 | tr -d '\n'; fi
 done
 EOF
 cat > /stub/systemctl <<'EOF'
@@ -86,7 +87,7 @@ EOF
 chmod 755 /stub/*
 export PATH="/stub:$PATH"
 STATUS=/var/lib/of-update/status
-reset() { rm -f /tmp/calls /tmp/PENDING /tmp/UU_FAIL /tmp/UPDATE_FAIL /tmp/UU_HOLD /tmp/WITH_BASH /tmp/INSTALLED /tmp/TIERS /run/reboot-required /run/reboot-required.pkgs; touch /tmp/calls; }
+reset() { rm -f /tmp/calls /tmp/PENDING /tmp/UU_FAIL /tmp/UPDATE_FAIL /tmp/UU_HOLD /tmp/WITH_BASH /tmp/INSTALLED /tmp/STATUS /tmp/TIERS /run/reboot-required /run/reboot-required.pkgs; touch /tmp/calls; }
 field() { "$U" status | sed -n "s/^$1=//p"; }
 
 # Nothing waiting: the lists, no downloads, a good run recorded.
@@ -131,6 +132,19 @@ touch /tmp/UU_FAIL
 reset
 "$U" run now >/dev/null 2>&1
 [ "$(field result)" = ok ] && [ -z "$(field message)" ] && ok "a good run clears the failure" || bad "a good run clears the failure" "$("$U" status)"
+
+# An update unpacked but not configured yet is half in: partial=, not done.
+reset
+echo 1 > /tmp/PENDING
+"$U" check >/dev/null 2>&1
+cut -f1,2 /var/lib/of-update/pending.list > /tmp/INSTALLED
+echo "iU " > /tmp/STATUS
+[ "$("$U" status | sed -n 's/^partial=//p')" = 1 ] && "$U" status | grep -q '^item=pkg1 2 openframe 0 ' && "$U" status | grep -qx 'now=pkg1' &&
+	ok "an unpacked update is half in" || bad "an unpacked update is half in" "$("$U" status)"
+echo "ii " > /tmp/STATUS
+[ "$("$U" status | sed -n 's/^partial=//p')" = 0 ] && "$U" status | grep -q '^item=pkg1 2 openframe 1 ' &&
+	ok "and configured, it's in" || bad "and configured, it's in" "$("$U" status)"
+rm -f /tmp/STATUS
 
 # A testing suite that isn't there yet (a test unit before its repository's first testing
 # publish) doesn't stop the rest.

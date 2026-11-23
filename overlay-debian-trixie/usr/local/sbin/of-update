@@ -26,8 +26,9 @@
 ##        as Sprite shows them: "firmware" (openframe-firmware), "apps" (the app shop's
 ##        repository, or an ofapp- package), "openframe" (the rest of OpenBeak's: Sprite,
 ##        these scripts, the kernel) and "debian" (everything else). firmware=pending says
-##        installed firmware will be flashed at the next start. And while they
-##        download, got= and size= (bytes so far, and in all).
+##        installed firmware will be flashed at the next start. partial= is how many are
+##        unpacked but not configured yet (half in), and now= the one going in. And while
+##        they download, got= and size= (bytes so far, and in all).
 ##    of-update news
 ##        What's new in OpenBeak's waiting updates, for Sprite: for each, a part= line
 ##        (package, new version, tier), then its notes newer than the version installed, a
@@ -143,7 +144,7 @@ prune_list() {
 	[ -s "$LIST" ] || return 0
 	local -A NOW
 	local tmp P V REST
-	while IFS=$'\t' read -r P V; do NOW[$P]="$V"; done < <(cut -f1 "$LIST" | xargs dpkg-query -W -f='${Package}\t${Version}\n' 2>/dev/null)
+	while IFS=$'\t' read -r P V _; do NOW[$P]="$V"; done < <(cut -f1 "$LIST" | xargs dpkg-query -W -f='${Package}\t${Version}\n' 2>/dev/null)
 	tmp=$(mktemp "$VARDIR/.list.XXXXXX") || return
 	while IFS=$'\t' read -r P V REST; do
 		[ "${NOW[$P]:-}" = "$V" ] || printf '%s\t%s\t%s\n' "$P" "$V" "$REST"
@@ -242,12 +243,17 @@ status)
 	echo "restart=$( [ -e /run/reboot-required ] && echo yes || echo no)"
 	echo "firmware=$(grep -qx openframe-firmware /run/reboot-required.pkgs 2>/dev/null && echo pending || echo no)"
 	if [ -s "$LIST" ]; then
-		# Each update, and whether it's in yet (its version now installed).
-		declare -A NOW
-		while IFS=$'\t' read -r P V; do NOW[$P]="$V"; done < <(cut -f1 "$LIST" | xargs dpkg-query -W -f='${Package}\t${Version}\n' 2>/dev/null)
-		GOT=0 SIZE=0
+		# Each update, and whether it's in yet (its version now installed), or half in (unpacked,
+		# not configured yet: partial=, so even one package shows progress).
+		declare -A NOW ST
+		while IFS=$'\t' read -r P V A; do NOW[$P]="$V"; ST[$P]="$A"; done < <(cut -f1 "$LIST" | xargs dpkg-query -W -f='${Package}\t${Version}\t${db:Status-Abbrev}\n' 2>/dev/null)
+		GOT=0 SIZE=0 PART=0 CURRENT=""
 		while IFS=$'\t' read -r P V G B F OLD; do
-			echo "item=$P $V $G $( [ "${NOW[$P]:-}" = "$V" ] && echo 1 || echo 0) ${OLD:-none}"
+			IN=0
+			if [ "${NOW[$P]:-}" = "$V" ]; then
+				case "${ST[$P]:-}" in ii*) IN=1 ;; *) PART=$((PART + 1)); CURRENT=${CURRENT:-$P} ;; esac
+			fi
+			echo "item=$P $V $G $IN ${OLD:-none}"
 			if [ "$STATE" = downloading ] && (( B > 0 )); then
 				SIZE=$(( SIZE + B ))
 				if [ -e "$ARCHIVES/$F" ]; then GOT=$(( GOT + B ))
@@ -256,6 +262,8 @@ status)
 			fi
 		done < "$LIST"
 		[ "$STATE" = downloading ] && echo "got=$GOT" && echo "size=$SIZE"
+		echo "partial=$PART"
+		[ -n "$CURRENT" ] && echo "now=$CURRENT"   # the one going in now
 	fi
 	;;
 news)
