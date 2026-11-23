@@ -360,7 +360,13 @@ case "$1" in
 					mv -f /boot/settings/updates.txt.new /boot/settings/updates.txt && sync || true
 			fi
 			rm -f /etc/systemd/system/timers.target.wants/of-update-reboot.timer
-			in_chroot || { systemctl daemon-reload 2>/dev/null; systemctl stop of-update-reboot.timer 2>/dev/null; /usr/local/sbin/of-update schedule 2>/dev/null; } || true
+			# (stopped before the reload forgets it, or it's left behind as a failed unit)
+			if ! in_chroot; then
+				systemctl stop of-update-reboot.timer 2>/dev/null
+				systemctl daemon-reload 2>/dev/null
+				systemctl reset-failed of-update-reboot.timer of-update-reboot.service 2>/dev/null
+				/usr/local/sbin/of-update schedule 2>/dev/null
+			fi || true
 			mkdir -p "${UPDATETIMEMARKER%/*}"
 			touch "$UPDATETIMEMARKER"
 		fi
