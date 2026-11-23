@@ -18,6 +18,21 @@ Description: OpenFrame's sample rate converter for ALSA
  has the OpenFrame's mixer use it for audio at another rate (48 kHz into the 44.1 kHz
  mixer, say), in place of ALSA's own linear converter.
 
+Package: openframe-scripts
+Version: 1:26.11.150
+Architecture: all
+Maintainer: OpenFrame <andy@dvsn.net>
+Depends: bash, dosfstools, e2fsprogs, yq, unattended-upgrades, openframe-resampler
+Filename: pool/trixie-testing/openframe-scripts_26.11.150_all.deb
+Size: 308540
+MD5sum: c209d84c50304e0cd7b5f7592c4da1a1
+SHA1: 7f8401ded9f454ed3d4875650ac4eeab49938a98
+SHA256: 12570707ae8b6dd490587be7d705c5cf847445061e85602aa099dd64e601ad58
+Section: admin
+Priority: optional
+Description: OpenFrame management scripts
+ Scripts for managing OpenFrame devices.
+
 Package: openframe-sprite
 Version: 26.11.85
 Architecture: i386
