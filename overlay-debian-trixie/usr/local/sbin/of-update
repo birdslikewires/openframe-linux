@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-update v26.11.3 (23rd November 2026)
+## of-update v26.11.4 (23rd November 2026)
 ##  Keeps the OpenFrame up to date by itself: Debian's updates, and OpenBeak's (Sprite,
 ##  these scripts, the kernel and the firmware), installed by unattended-upgrades as set up
 ##  in /etc/apt/apt.conf.d/52openframe-updates. Owners never have to log in for them.
@@ -196,6 +196,31 @@ lists() {
 	return 1
 }
 
+# Puts right what an interrupted update left, before anything else is done: a power cut or a
+# full disk part way through can leave dpkg's work unfinished, or a package in without what it
+# needs (Sprite unpacked, the openframe-scripts it needs not yet), and then unattended-upgrades
+# refuses to do anything at all ("Cache has broken packages"), and nothing's ever updated
+# again. dpkg's work is finished, then what's missing installed, if apt says that takes only
+# installing; if it would remove anything, that's left to a person (or an erase). True if all
+# is well now.
+mend() {
+	if [ -n "$(dpkg --audit 2>/dev/null)" ]; then
+		log "an earlier update didn't finish: finishing it"
+		dpkg --configure -a >/dev/null 2>&1
+	fi
+	apt-get check -qq -o Debug::NoLocking=1 >/dev/null 2>&1 && return 0
+	local SIM
+	SIM=$(apt-get -s -o Debug::NoLocking=1 -f install 2>/dev/null) || { log "a package is half installed, and apt can't say how to put it right"; return 1; }
+	if grep -q '^Remv ' <<< "$SIM"; then
+		log "a package is half installed, and putting it right would remove $(grep '^Remv ' <<< "$SIM" | cut -d' ' -f2 | tr '\n' ' '): left as it is"
+		return 1
+	fi
+	log "a package is half installed: installing what it needs, $(grep '^Inst ' <<< "$SIM" | cut -d' ' -f2 | tr '\n' ' ')"
+	set_state installing
+	DEBIAN_FRONTEND=noninteractive apt-get -y -q -o Dpkg::Options::=--force-confold -f install >/dev/null 2>&1 &&
+		apt-get check -qq >/dev/null 2>&1
+}
+
 # Whether apt's sources have changed since time $1 (a unit made a test unit just now, say): what
 # was looked at then isn't all there is to have, so "now" looks again. The folder's own time
 # changes as a list comes or goes.
@@ -253,6 +278,7 @@ run)
 		set_state checking
 		lists || fail "the update servers couldn't be reached"
 	fi
+	mend || fail "an earlier update was left half done, and can't be put right by itself"
 	write_list
 	fetch_news
 	N=$(wc -l < "$LIST")
@@ -313,6 +339,12 @@ check)
 	trap 'set_state idle' EXIT
 	set_state checking
 	lists || fail "the update servers couldn't be reached"
+	# half installed (see mend): nothing can be worked out until it's put right, which is
+	# Update now's to do (a check changes nothing); never "up to date"
+	if ! apt-get check -qq -o Debug::NoLocking=1 >/dev/null 2>&1 || [ -n "$(dpkg --audit 2>/dev/null)" ]; then
+		put "checked=$(date +%s)" "pending=0"
+		fail "an earlier update was left half done: Update now finishes it"
+	fi
 	write_list
 	fetch_news
 	put "checked=$(date +%s)" "pending=$(wc -l < "$LIST")"

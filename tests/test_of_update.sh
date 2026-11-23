@@ -29,7 +29,14 @@ CALLS=/tmp/calls
 cat > /stub/apt-get <<'EOF'
 #!/bin/bash
 echo "apt-get $*" >> /tmp/calls
+# BROKEN: a package half installed (apt-get check fails) until "-f install" puts it right;
+# BROKEN_REMOVES: putting it right would remove a package
 case " $* " in
+	*" check "*) [ -e /tmp/BROKEN ] && { echo "E: Unmet dependencies."; exit 100; }; exit 0 ;;
+	*" -s "*" -f install "*)
+		[ -e /tmp/BROKEN_REMOVES ] && echo "Remv some-app [1]"
+		echo "Inst openframe-scripts [1] (2 OpenFrame:trixie [all])"; exit 0 ;;
+	*" -f install "*) rm -f /tmp/BROKEN; exit 0 ;;
 	*" update "*)
 		[ -e /tmp/UPDATE_FAIL ] && { echo "E: Failed to fetch http://deb.debian.org/dists/trixie/InRelease"; exit 100; }
 		[ -e /tmp/NO_TESTING ] && { echo "E: The repository 'https://kernel.openbeak.net trixie-testing Release' does not have a Release file."; exit 100; }
@@ -246,6 +253,27 @@ OF_UPDATE_APTSOURCES=/tmp/apt "$U" run now >/dev/null 2>&1
 grep -q "^apt-get -qq update" /tmp/calls && ok "Update now looks again if the sources changed since Check now" ||
 	bad "Update now looks again if the sources changed since Check now" "$(cat /tmp/calls)"
 rm -rf /tmp/apt
+
+# Half installed (a power cut part way, a full disk): a check says so (never "up to date"),
+# Update now puts it right when that only takes installing, and leaves it when it would
+# remove a package, saying so.
+reset
+touch /tmp/BROKEN
+"$U" check >/dev/null 2>&1
+[ "$("$U" status | sed -n 's/^result=//p')" = failed ] && "$U" status | grep -q '^message=.*half done: Update now finishes it' &&
+	ok "a check finds a package half installed: it says so, and that Update now finishes it" || bad "a check finds a package half installed" "$("$U" status)"
+: > /tmp/calls
+"$U" run now >/dev/null 2>&1
+grep -q "^apt-get -y -q .* -f install" /tmp/calls && [ ! -e /tmp/BROKEN ] && [ "$("$U" status | sed -n 's/^result=//p')" = ok ] &&
+	ok "Update now puts it right (installing what it needs), and carries on" || bad "Update now puts it right" "$(cat /tmp/calls; "$U" status)"
+reset
+touch /tmp/BROKEN /tmp/BROKEN_REMOVES
+: > /tmp/calls
+"$U" run now >/dev/null 2>&1
+! grep -q "^apt-get -y -q .* -f install" /tmp/calls && [ "$("$U" status | sed -n 's/^result=//p')" = failed ] &&
+	"$U" status | grep -q "^message=.*can't be put right by itself" &&
+	ok "but not when that would remove a package: left, and said" || bad "a fix that would remove a package" "$(cat /tmp/calls; "$U" status)"
+rm -f /tmp/BROKEN /tmp/BROKEN_REMOVES
 
 # The night's run restarts when an update needs it, even one from earlier, and even if it fails.
 reset
