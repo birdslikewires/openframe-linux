@@ -236,6 +236,17 @@ echo 1 > /tmp/PENDING
 	ok "Update now just after Check now doesn't look again" || bad "Update now just after Check now doesn't look again" "$(cat /tmp/calls)"
 grep -q "state=checking" /tmp/calls && bad "and never says it's checking" "$(cat /tmp/calls)" || ok "and never says it's checking"
 
+# ... unless the sources have changed since the look (made a test unit just now): it looks again.
+reset
+"$U" check >/dev/null 2>&1
+sleep 1
+mkdir -p /tmp/apt/sources.list.d; touch /tmp/apt/sources.list.d/openframe-testing.list
+: > /tmp/calls
+OF_UPDATE_APTSOURCES=/tmp/apt "$U" run now >/dev/null 2>&1
+grep -q "^apt-get -qq update" /tmp/calls && ok "Update now looks again if the sources changed since Check now" ||
+	bad "Update now looks again if the sources changed since Check now" "$(cat /tmp/calls)"
+rm -rf /tmp/apt
+
 # The night's run restarts when an update needs it, even one from earlier, and even if it fails.
 reset
 "$U" run night >/dev/null 2>&1

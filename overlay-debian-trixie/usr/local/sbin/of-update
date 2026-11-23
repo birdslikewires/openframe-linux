@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-update v26.11.2 (23rd November 2026)
+## of-update v26.11.3 (23rd November 2026)
 ##  Keeps the OpenFrame up to date by itself: Debian's updates, and OpenBeak's (Sprite,
 ##  these scripts, the kernel and the firmware), installed by unattended-upgrades as set up
 ##  in /etc/apt/apt.conf.d/52openframe-updates. Owners never have to log in for them.
@@ -67,6 +67,7 @@ ARCHIVES="/var/cache/apt/archives"
 NEWSDIR="$VARDIR/news"
 CATCHUP_AFTER=$(( 20 * 3600 ))
 FRESH=$(( 15 * 60 ))       # lists this new (since this start) aren't looked at again for "now"
+APTSOURCES="${OF_UPDATE_APTSOURCES:-/etc/apt}" # (unless the sources there changed since)
 TIMEFILE="/boot/settings/updates.txt"
 DEFAULT_TIME="03:00"
 DROPIN="/etc/systemd/system/of-update-night.timer.d/time.conf"
@@ -195,6 +196,19 @@ lists() {
 	return 1
 }
 
+# Whether apt's sources have changed since time $1 (a unit made a test unit just now, say): what
+# was looked at then isn't all there is to have, so "now" looks again. The folder's own time
+# changes as a list comes or goes.
+sources_changed() {
+	local f t
+	for f in "$APTSOURCES/sources.list" "$APTSOURCES/sources.list.d" "$APTSOURCES"/sources.list.d/*; do
+		[ -e "$f" ] || continue
+		t=$(stat -c %Y "$f" 2>/dev/null) || continue
+		(( t >= $1 )) && return 0
+	done
+	return 1
+}
+
 # At the owner's quiet time, after the night's run (however it went), the restart an update
 # needs: this night's, or one installed by hand during the day.
 night_restart() {
@@ -231,7 +245,8 @@ run)
 	trap 'set_state idle; [ "$REASON" = night ] && night_restart' EXIT
 	CHECKED=$(get checked)
 	UP=$(cut -d. -f1 /proc/uptime)
-	if [ "$REASON" = now ] && [ -n "$CHECKED" ] && (( $(date +%s) - CHECKED < FRESH && $(date +%s) - CHECKED < UP )); then
+	if [ "$REASON" = now ] && [ -n "$CHECKED" ] && (( $(date +%s) - CHECKED < FRESH && $(date +%s) - CHECKED < UP )) &&
+	   ! sources_changed "$CHECKED"; then
 		# looked at just now (Check now): not again, straight to what's to install
 		set_state preparing
 	else
