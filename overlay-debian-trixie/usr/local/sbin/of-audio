@@ -18,6 +18,13 @@
 ##                         while the DAC is in.
 ##    of-audio store       keeps the mixers' levels for the next start (alsactl store)
 ##
+##  A program chooses its sound device as it opens it, and keeps it: one already playing
+##  goes on through the old output, or the old way, until it's started again. So when the
+##  output or direct= changes, the system services playing (shairport-sync, say) are
+##  restarted, and status lists what's playing (holder=<its unit>) for Sprite to restart its
+##  own apps (sprite-app-<id>.service); a program started by hand, in someone's login, is
+##  theirs, and left as it is.
+##
 ##  audio.txt has output= (builtin, or a USB DAC's vendor:product id) and direct= (yes or
 ##  no). With direct=no the audio is mixed (dmix: several apps at once, at one rate), and the
 ##  OpenFrame sets the volume, by the card's own volume control (or a software one if it has
@@ -34,6 +41,7 @@ SETTINGS="${OF_AUDIO_SETTINGS:-/boot/settings/audio.txt}"
 TEMPLATE="/usr/lib/openframe/settings/audio.txt"
 ASOUND="${OF_AUDIO_ASOUND:-/etc/asound.conf}"
 PROC="${OF_AUDIO_PROC:-/proc/asound}"
+PROCFS="${OF_AUDIO_PROCFS:-/proc}"
 STATE="${OF_AUDIO_STATE:-/var/lib/of-audio}"
 MARK="# Written by of-audio from OF-BOOT/settings/audio.txt: it's replaced when that changes."
 # what images before of-audio had, taken over as of-audio's own
@@ -120,6 +128,35 @@ mixer_of() {
 	return 0
 }
 
+# What's playing: each process with a sound card's playback open, as "pid unit" (its systemd
+# unit, from its cgroup; "-" for one in someone's login, or none).
+holders() {
+	local p f t unit
+	for p in "$PROCFS"/[0-9]*; do
+		for f in "$p"/fd/*; do
+			t=$(readlink "$f" 2>/dev/null) || continue
+			[[ $t =~ ^/dev/snd/pcmC[0-9]+D[0-9]+p$ ]] || continue
+			unit=$(sed -n 's#^0::/system\.slice/\([^/]*\.service\)$#\1#p' "$p/cgroup" 2>/dev/null)
+			echo "${p##*/} ${unit:--}"
+			break
+		done
+	done
+}
+
+# After a change of where the sound goes: the system services playing start again, so they
+# play the new way. Not Sprite (its own test sound), nor its apps (Sprite restarts them,
+# reopening them where they were), nor anything in a login.
+restart_playing() {
+	local pid unit
+	while read -r pid unit; do
+		case "$unit" in
+			-|sprite.service|sprite-app-*.service|sprite-helper*) continue ;;
+		esac
+		log "restarting $unit, playing the old way"
+		systemctl --no-block restart "$unit" 2>/dev/null
+	done < <(holders | sort -u -k2,2)
+}
+
 # Whether asound.conf is of-audio's to write: its own, the images' old one, or none.
 managed() {
 	[ -e "$ASOUND" ] || return 0
@@ -188,6 +225,7 @@ ctl.!default {
 		printf '%s\n' "$conf" > "$ASOUND.new" && chmod 644 "$ASOUND.new" && mv -f "$ASOUND.new" "$ASOUND" ||
 			{ log "couldn't write $ASOUND"; return 1; }
 		log "sound: $C_NAME ($C_ID)$([ "$DIRECT" = yes ] && echo ", direct")"
+		restart_playing
 	fi
 	[ "$DIRECT" = no ] && [ -z "$mixer" ] && softvol_ready "$C_ID"
 	return 0
@@ -249,6 +287,7 @@ status)
 		echo "mixer=$([ "$DIRECT" = yes ] || { m=$(mixer_of "$C_ID"); echo "${m:-OpenFrame}"; })"
 	fi
 	echo "managed=$(managed && echo yes || echo no)"
+	holders | while read -r pid unit; do echo "holder=$unit"; done | sort -u
 	;;
 set)
 	shift

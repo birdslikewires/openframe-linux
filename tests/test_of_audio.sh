@@ -51,6 +51,14 @@ card=$(sed -n '/type softvol/,/}/{s/.*card "\(.*\)".*/\1/p}' /tmp/asound.conf | 
 exit 0
 EOF
 chmod 755 /stub/aplay
+# systemctl: what's restarted
+printf '#!/bin/sh\necho "systemctl $*" >> /tmp/restarts\n' > /stub/systemctl; chmod 755 /stub/systemctl
+# processes playing: a service, a Sprite app, Sprite, and one in a login
+export OF_AUDIO_PROCFS=/tmp/procfs
+player() {    # player <pid> <cgroup>
+	mkdir -p /tmp/procfs/$1/fd; ln -sf /dev/snd/pcmC0D0p /tmp/procfs/$1/fd/5; ln -sf /dev/null /tmp/procfs/$1/fd/0
+	echo "0::$2" > /tmp/procfs/$1/cgroup
+}
 export PATH="/stub:$PATH"
 
 builtin() { printf ' 0 [MID            ]: HDA-Intel - HDA Intel MID\n                      HDA Intel MID at 0xd01c0000 irq 16\n'; }
@@ -176,6 +184,26 @@ $(bash $A status)"
 cards mid vega1 dac2
 bash $A hotplug 2>/dev/null
 [ "$(setting output)" = 08bb:2704 ] && ok "and a real DAC beside it still is" || bad "a DAC beside the DECT base" "$(setting output)"
+
+# Something playing when the output changes: services start again (playing the new way);
+# Sprite's apps are listed for Sprite; Sprite itself and a program run in a login are left.
+rm -rf /tmp/procfs /tmp/restarts
+player 101 /system.slice/shairport-sync.service
+player 102 /system.slice/sprite-app-radio.service
+player 103 /system.slice/sprite.service
+player 104 /user.slice/user-1000.slice/session-3.scope
+mkdir -p /tmp/procfs/105/fd; ln -sf /dev/snd/controlC0 /tmp/procfs/105/fd/4; echo "0::/system.slice/other.service" > /tmp/procfs/105/cgroup
+cards mid dac1
+bash $A set output=08bb:2704 2>/dev/null
+[ "$(cat /tmp/restarts 2>/dev/null)" = "systemctl --no-block restart shairport-sync.service" ] &&
+	ok "the output changed: a service playing is restarted, and only that" || bad "what's restarted" "$(cat /tmp/restarts 2>&1)"
+st=$(bash $A status)
+grep -qx holder=sprite-app-radio.service <<< "$st" && grep -qx holder=- <<< "$st" && ! grep -q holder=other <<< "$st" &&
+	ok "status lists what's playing (for Sprite's apps)" || bad "status lists what's playing" "$st"
+rm -f /tmp/restarts
+bash $A apply 2>/dev/null
+[ ! -e /tmp/restarts ] && ok "nothing changed: nothing restarted" || bad "nothing changed: nothing restarted" "$(cat /tmp/restarts)"
+rm -rf /tmp/procfs
 
 # What set doesn't know.
 cp $T /tmp/before
