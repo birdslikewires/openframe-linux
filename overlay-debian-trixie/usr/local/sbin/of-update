@@ -30,7 +30,8 @@
 ##        key=value lines, for Sprite's helper: state (idle, checking, preparing, downloading,
 ##        installing), since, last (the last good run), result (ok or failed), message,
 ##        pending (updates waiting at the last look), checked (when that was), and
-##        restart=yes when an installed update takes effect only after a restart. Then the
+##        restart=yes when an installed update takes effect only after a restart; notice, for a
+##        fortnight after apps had to be removed to finish an update (which ones). Then the
 ##        updates themselves, an item= line each: package, new version, its tier, 1 once
 ##        it's installed, and the version it replaces (none for a new package). The tiers,
 ##        as Sprite shows them: "firmware" (openframe-firmware), "apps" (the app shop's
@@ -216,16 +217,64 @@ mend() {
 		dpkg --configure -a >/dev/null 2>&1
 	fi
 	apt-get check -qq -o Debug::NoLocking=1 >/dev/null 2>&1 && return 0
-	local SIM
+	local SIM GONE
 	SIM=$(apt-get -s -o Debug::NoLocking=1 -f install 2>/dev/null) || { log "a package is half installed, and apt can't say how to put it right"; return 1; }
-	if grep -q '^Remv ' <<< "$SIM"; then
-		log "a package is half installed, and putting it right would remove $(grep '^Remv ' <<< "$SIM" | cut -d' ' -f2 | tr '\n' ' '): left as it is"
+	GONE=$(removals "$SIM")
+	if ! only_apps "$GONE"; then
+		log "a package is half installed, and putting it right would remove $GONE: left as it is"
+		MEND_WHY="it would remove $GONE"
 		return 1
 	fi
-	log "a package is half installed: installing what it needs, $(grep '^Inst ' <<< "$SIM" | cut -d' ' -f2 | tr '\n' ' ')"
+	log "a package is half installed: installing what it needs, $(grep '^Inst ' <<< "$SIM" | cut -d' ' -f2 | tr '\n' ' ')${GONE:+(removing $GONE)}"
 	set_state installing
 	DEBIAN_FRONTEND=noninteractive apt-get -y -q -o Dpkg::Options::=--force-confold -f install >/dev/null 2>&1 &&
-		apt-get check -qq >/dev/null 2>&1
+		apt-get check -qq >/dev/null 2>&1 || return 1
+	apps_removed "$GONE"
+}
+
+# What apt would remove to do what it printed in $1 (its -s output), a word each.
+removals() {
+	grep '^Remv ' <<< "$1" | cut -d' ' -f2 | tr '\n' ' ' | sed 's/ $//'
+}
+
+# Whether everything in $1 (a list of packages) may be removed to finish an update: apps (the
+# app shop's, ofapp-*) may, and can be installed again; the system's own packages never are.
+only_apps() {
+	local p
+	for p in $1; do [[ $p == ofapp-* ]] || return 1; done
+	return 0
+}
+
+# Apps ($1) removed to finish an update: said on Sprite's Updates tab for a fortnight (notice),
+# so a tile gone from the home screen isn't a mystery.
+apps_removed() {
+	[ -n "$1" ] || return 0
+	local names
+	names=$(sed 's/ofapp-//g; s/ /, /g' <<< "$1")
+	log "removed to finish an update: $1"
+	put "notice=$names had to be removed to finish an update: install it again from the shop" "noticed=$(date +%s)"
+}
+
+# Updates still waiting once unattended-upgrades has done what it would ($LIST, after
+# prune_list): it keeps back one that needs another package removed, and would keep it back
+# every night, the unit saying "1 update waiting" for ever. Installed here if all it needs
+# removed is apps (see only_apps); otherwise said, with why. True if none is left.
+kept_back() {
+	[ -s "$LIST" ] || return 0
+	local P SIM GONE
+	P=$(cut -f1 "$LIST" | tr '\n' ' ' | sed 's/ $//')
+	SIM=$(apt-get -s -o Debug::NoLocking=1 install $P 2>&1)
+	GONE=$(removals "$SIM")
+	if [ -n "$GONE" ] && only_apps "$GONE"; then
+		log "installing $P, which needs $GONE removed"
+		DEBIAN_FRONTEND=noninteractive apt-get -y -q -o Dpkg::Options::=--force-confold install $P >/dev/null 2>&1 &&
+			apps_removed "$GONE"
+		prune_list
+		[ -s "$LIST" ] && return 1
+		return 0
+	fi
+	KEPT="$P${GONE:+ (it would remove $GONE)}"
+	return 1
 }
 
 # Whether apt's sources have changed since time $1 (a unit made a test unit just now, say): what
@@ -288,7 +337,8 @@ run)
 		set_state checking
 		lists || fail "the update servers couldn't be reached"
 	fi
-	mend || fail "an earlier update was left half done, and can't be put right by itself"
+	MEND_WHY=""
+	mend || fail "an earlier update was left half done, and can't be put right by itself${MEND_WHY:+ ($MEND_WHY)}"
 	write_list
 	fetch_news
 	N=$(wc -l < "$LIST")
@@ -304,9 +354,12 @@ run)
 		OK=$?
 		apt-get clean
 		prune_list
+		(( OK == 0 )) || { put "pending=$(wc -l < "$LIST")"; fail "some updates didn't install"; }
+		KEPT=""
+		kept_back
 		N=$(wc -l < "$LIST")
 		put "pending=$N"
-		(( OK == 0 )) || fail "some updates didn't install"
+		(( N == 0 )) || fail "$N update$( (( N > 1 )) && echo s) can't be installed by $( (( N > 1 )) && echo themselves || echo itself): ${KEPT:-$(cut -f1 "$LIST" | tr '\n' ' ')}"
 	fi
 	put "last=$(date +%s)" "result=ok" "message="
 	log "up to date$( [ -e /run/reboot-required ] && echo ", once it restarts")"
@@ -370,6 +423,9 @@ status)
 	echo "state=${STATE:-idle}"
 	echo "since=$SINCE"
 	for k in last result message pending checked; do echo "$k=$(get $k)"; done
+	# apps removed to finish an update (apps_removed), for a fortnight
+	N=$(get noticed)
+	[ -n "$N" ] && (( $(date +%s) - N < 14 * 86400 )) && echo "notice=$(get notice)"
 	echo "restart=$( [ -e /run/reboot-required ] && echo yes || echo no)"
 	echo "firmware=$(grep -qx openframe-firmware /run/reboot-required.pkgs 2>/dev/null && echo pending || echo no)"
 	echo "time=$(update_time)"

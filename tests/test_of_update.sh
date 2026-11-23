@@ -34,9 +34,14 @@ echo "apt-get $*" >> /tmp/calls
 case " $* " in
 	*" check "*) [ -e /tmp/BROKEN ] && { echo "E: Unmet dependencies."; exit 100; }; exit 0 ;;
 	*" -s "*" -f install "*)
-		[ -e /tmp/BROKEN_REMOVES ] && echo "Remv some-app [1]"
+		[ -e /tmp/BROKEN_REMOVES ] && echo "Remv $(cat /tmp/BROKEN_REMOVES) [1]"
 		echo "Inst openframe-scripts [1] (2 OpenFrame:trixie [all])"; exit 0 ;;
 	*" -f install "*) rm -f /tmp/BROKEN; exit 0 ;;
+	# KEPT_REMOVES: what installing a kept-back update would remove
+	*" -s "*" install "*)
+		[ -e /tmp/KEPT_REMOVES ] && echo "Remv $(cat /tmp/KEPT_REMOVES) [1]"
+		echo "Inst ${*##* } [1] (2 OpenFrame:trixie [all])"; exit 0 ;;
+	*" -y "*" install "*) for p in ${*##*install }; do printf '%s\t2\n' "$p" >> /tmp/INSTALLED; done; exit 0 ;;
 	*" update "*)
 		[ -e /tmp/UPDATE_FAIL ] && { echo "E: Failed to fetch http://deb.debian.org/dists/trixie/InRelease"; exit 100; }
 		[ -e /tmp/NO_TESTING ] && { echo "E: The repository 'https://kernel.openbeak.net trixie-testing Release' does not have a Release file."; exit 100; }
@@ -61,8 +66,8 @@ cat > /stub/unattended-upgrade <<'EOF'
 echo "unattended-upgrade $* state=$(sed -n 's/^state=//p' /run/of-update/state)" >> /tmp/calls
 [ -e /tmp/UU_HOLD ] && sleep 3
 [ -e /tmp/UU_FAIL ] && exit 1
-# installing: what's waiting is now in (the dpkg-query stand-in says so)
-[ "$*" = "" ] && [ ! -e /tmp/UU_FAIL ] && cut -f1,2 /var/lib/of-update/pending.list > /tmp/INSTALLED && echo 0 > /tmp/PENDING
+# installing: what's waiting is now in (the dpkg-query stand-in says so), but UU_KEEP's (kept back)
+[ "$*" = "" ] && [ ! -e /tmp/UU_FAIL ] && cut -f1,2 /var/lib/of-update/pending.list | grep -v "^$(cat /tmp/UU_KEEP 2>/dev/null || echo NONE)	" > /tmp/INSTALLED && echo 0 > /tmp/PENDING
 exit 0
 EOF
 cat > /stub/dpkg-query <<'EOF'
@@ -268,13 +273,36 @@ touch /tmp/BROKEN
 grep -q "^apt-get -y -q .* -f install" /tmp/calls && [ ! -e /tmp/BROKEN ] && [ "$("$U" status | sed -n 's/^result=//p')" = ok ] &&
 	ok "Update now puts it right (installing what it needs), and carries on" || bad "Update now puts it right" "$(cat /tmp/calls; "$U" status)"
 reset
-touch /tmp/BROKEN /tmp/BROKEN_REMOVES
+touch /tmp/BROKEN; echo openframe-scripts > /tmp/BROKEN_REMOVES
 : > /tmp/calls
 "$U" run now >/dev/null 2>&1
 ! grep -q "^apt-get -y -q .* -f install" /tmp/calls && [ "$("$U" status | sed -n 's/^result=//p')" = failed ] &&
-	"$U" status | grep -q "^message=.*can't be put right by itself" &&
-	ok "but not when that would remove a package: left, and said" || bad "a fix that would remove a package" "$(cat /tmp/calls; "$U" status)"
+	"$U" status | grep -q "^message=.*can't be put right by itself (it would remove openframe-scripts)" &&
+	ok "but not when that would remove a system package: left, and said what" || bad "a fix that would remove a package" "$(cat /tmp/calls; "$U" status)"
+reset
+touch /tmp/BROKEN; echo ofapp-clock > /tmp/BROKEN_REMOVES
+: > /tmp/calls
+"$U" run now >/dev/null 2>&1
+grep -q "^apt-get -y -q .* -f install" /tmp/calls && [ "$("$U" status | sed -n 's/^result=//p')" = ok ] &&
+	"$U" status | grep -q "^notice=clock had to be removed to finish an update" &&
+	ok "an app may be removed to put it right: done, and the app named" || bad "a fix removing an app" "$(cat /tmp/calls; "$U" status)"
 rm -f /tmp/BROKEN /tmp/BROKEN_REMOVES
+
+# An update unattended-upgrades keeps back (it needs another package removed): never left as
+# "1 update waiting" for ever. Installed if all it needs removed is an app; otherwise said why.
+reset
+echo 2 > /tmp/PENDING; echo pkg2 > /tmp/UU_KEEP; echo openframe-scripts > /tmp/KEPT_REMOVES
+"$U" run now >/dev/null 2>&1
+[ "$(field result)" = failed ] && field message | grep -q "^1 update can't be installed by itself: pkg2 (it would remove openframe-scripts)" &&
+	! grep -q "^apt-get -y -q .* install pkg2" /tmp/calls &&
+	ok "an update kept back that would remove a system package: said, with why, never done" || bad "a kept-back update" "$(cat /tmp/calls; "$U" status)"
+reset
+echo 2 > /tmp/PENDING; echo pkg2 > /tmp/UU_KEEP; echo ofapp-radio > /tmp/KEPT_REMOVES
+"$U" run now >/dev/null 2>&1
+grep -q "^apt-get -y -q .* install pkg2" /tmp/calls && [ "$(field result)" = ok ] && [ "$(field pending)" = 0 ] &&
+	field notice | grep -q "^radio had to be removed" &&
+	ok "one that would remove only an app: installed, and the app named" || bad "a kept-back update removing an app" "$(cat /tmp/calls; "$U" status)"
+rm -f /tmp/UU_KEEP /tmp/KEPT_REMOVES
 # Left alone: the catch-up after a start puts it right, however recent the last update.
 reset
 "$U" run now >/dev/null 2>&1   # a good update just now: a catch-up would do nothing
