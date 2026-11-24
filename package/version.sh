@@ -9,8 +9,8 @@
 # must be listed below, as must the workflow that builds it: a commit touching only an
 # unlisted one would rebuild the package under the version units already have, so they
 # would never get it. Adding paths only ever counts more commits, so the version can't
-# go backwards. The 1: epoch puts it above the old
-# YYYYMMDD-1 versions.
+# go backwards. (Until 26.11.171 it had a 1: epoch, to rank above the old YYYYMMDD-1
+# versions; dropped with the first-release images, which nothing older updates to.)
 
 overlay_dir="$1"
 [ "${2:-}" = --news ] && NEWS=1
@@ -26,7 +26,6 @@ paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
   "${overlay_dir}etc/sensors.d/openframe.conf" "${overlay_dir}boot/backlight.txt" \
   "${overlay_dir}boot/settings" \
   .github/workflows/package.yml package)
-EPOCH="1:"
 # With --news: the owners' notes instead, from the "News:" lines of the commits that made
 # each version, newest first, a line each: the version, a tab, the note. A commit may carry
 # several; most carry none ("Bug fixes and improvements", as Sprite puts it).
@@ -46,7 +45,7 @@ if [ "${NEWS:-}" ]; then
 				n != "" && (/^[ \t]*$/ || /^(Co-Authored-By|Claude-Session|Signed-off-by):/) { out(); next }
 				n != "" { l = $0; sub(/^[ \t]+/, "", l); n = n " " l }
 				END { out() }' |
-				awk -v i="$i" -v v="$EPOCH$ver" '{ print i "\t" NR "\t" v "\t" $0 }'
+				awk -v i="$i" -v v="$ver" '{ print i "\t" NR "\t" v "\t" $0 }'
 		done | sort -t "$(printf '\t')" -k1,1nr -k2,2n | cut -f3-
 	exit 0
 fi
@@ -54,4 +53,4 @@ fi
 month=$(TZ=UTC git log -1 --format=%cd --date=format-local:%y.%m -- "${paths[@]}")
 count=$(TZ=UTC git log --format=%cd --date=format-local:%y.%m -- "${paths[@]}" | grep -cx "${month}")
 [ -n "$month" ] && [ "$count" -gt 0 ] || { echo "Can't work out the version: no history?" >&2; exit 1; }
-echo "1:${month%.*}.$((10#${month#*.})).${count}"
+echo "${month%.*}.$((10#${month#*.})).${count}"

@@ -284,7 +284,7 @@ case "$1" in
 
 		# Once per system: the settings folder on the boot volume (OF-BOOT/settings), which
 		# holds what anyone may edit from any computer, as new images have it. backlight.txt
-		# moves into it from the root: the one first shipped (1:26.11.50) becomes the
+		# moves into it from the root: the one first shipped (26.11.50) becomes the
 		# shorter one, an edited one moves as it is (of-backlight reads either), and a
 		# system without one gets one. network.yaml is of-netplan's to move, at the next
 		# boot (it becomes wifi.txt, or settings/network.yaml). A Mac's companion file (._backlight.txt) goes with
