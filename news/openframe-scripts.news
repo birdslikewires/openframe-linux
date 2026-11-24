@@ -1,13 +1,13 @@
-1:26.11.170	The OpenFrame Flash screen no longer comes up garbled, with lines doubled and out of place.
-1:26.11.162	The settings folder on the OpenFrame's boot volume has a README.txt saying what each file is for.
-1:26.11.161	If an update's new kernel won't start, the OpenFrame goes back to the one before by itself.
-1:26.11.157	The bird stays on the screen while the OpenFrame starts, with a bar under it, instead of a black screen and a blinking cursor.
-1:26.11.151	Settings, Audio has a new "Mix at 48 kHz" switch, for an OpenFrame mostly used for video.
-1:26.11.150	Sound at another rate than your OpenFrame's (48 kHz video, say) is now resampled cleanly, without the false high tones it had.
-1:26.11.149	Direct to DAC is now remembered for each DAC separately, so a second DAC no longer starts at full volume.
-1:26.11.142	Change the sound output and what's playing follows it.
-1:26.11.137	Play through a USB DAC: plug it in, and the sound goes there.
-1:26.11.134	Give the OpenFrame a name, in Settings under About.
-1:26.11.130	Choose when the OpenFrame updates itself, in Settings under Updates.
-1:26.11.121	The OpenFrame now keeps itself up to date overnight, and restarts at about 4am when an update needs it.
-1:26.11.117	The SSH server stays off until there's a way to log in, by password or key.
+26.11.170	The OpenFrame Flash screen no longer comes up garbled, with lines doubled and out of place.
+26.11.162	The settings folder on the OpenFrame's boot volume has a README.txt saying what each file is for.
+26.11.161	If an update's new kernel won't start, the OpenFrame goes back to the one before by itself.
+26.11.157	The bird stays on the screen while the OpenFrame starts, with a bar under it, instead of a black screen and a blinking cursor.
+26.11.151	Settings, Audio has a new "Mix at 48 kHz" switch, for an OpenFrame mostly used for video.
+26.11.150	Sound at another rate than your OpenFrame's (48 kHz video, say) is now resampled cleanly, without the false high tones it had.
+26.11.149	Direct to DAC is now remembered for each DAC separately, so a second DAC no longer starts at full volume.
+26.11.142	Change the sound output and what's playing follows it.
+26.11.137	Play through a USB DAC: plug it in, and the sound goes there.
+26.11.134	Give the OpenFrame a name, in Settings under About.
+26.11.130	Choose when the OpenFrame updates itself, in Settings under Updates.
+26.11.121	The OpenFrame now keeps itself up to date overnight, and restarts at about 4am when an update needs it.
+26.11.117	The SSH server stays off until there's a way to log in, by password or key.
