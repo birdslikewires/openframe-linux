@@ -6,6 +6,8 @@
 # runs Debian's hook, which openframe-scripts' preinst moves aside (a dpkg diversion, which
 # plymouth updates respect), passes everything else it says through, and keeps its exit
 # status. It has Debian's name, so hooks that list plymouth as a prerequisite still find it.
+# Likewise its warning that the theme's text plugin (label-pango.so) is missing: it says so
+# for any script theme, and openframe-scripts' (the firmware's bird and a bar) draws no text.
 
 REAL=/usr/lib/openframe/plymouth-hook.distrib
 
@@ -18,5 +20,7 @@ esac
 
 exec 3>&1
 STATUS=$( { { "$REAL" "$@"; echo $? >&4; } |
-	grep -v -x 'W: plymouth: not including drm modules since MODULES=list' >&3; } 4>&1 )
+	grep -v -x -e 'W: plymouth: not including drm modules since MODULES=list' \
+		-e 'W: plymouth: The plugin label-pango.so is missing, the selected theme might not work as expected.' \
+		-e 'W: plymouth: You might want to install the plymouth-themes package to fix this.' >&3; } 4>&1 )
 exit "${STATUS:-1}"
