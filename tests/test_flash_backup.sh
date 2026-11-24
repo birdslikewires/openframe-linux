@@ -6,12 +6,17 @@
 # stick in use as a system starts its own system, rather than holding the panel or
 # switching off, when there's nothing for it to do. Nothing real is touched: the flash's
 # functions are loaded without its main part, with its paths in a directory of its own,
-# the firmware chip a file, and the panel, sounds and power-off stood in for. Run on
-# Linux, as any user:
+# the firmware chip a file, and the panel, sounds and power-off stood in for. It runs in a
+# Debian Trixie container (Docker) unless it's in one already, so the tools are the ones
+# OpenFrames have: Ubuntu 26.04's dd (Rust's coreutils), on GitHub's runners, sometimes
+# refused the check's direct reads ("IO error: Invalid input"), which Debian's never has.
 #   bash tests/test_flash_backup.sh [path to flash] [path to of-expand]
 # Prints one line per case; exits non-zero if any case fails.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
+if [ ! -e /.dockerenv ] && [ $# -eq 0 ]; then
+	exec docker run --rm -v "$HERE/..:/src:ro" debian:trixie bash /src/tests/test_flash_backup.sh
+fi
 SRC=${1:-$HERE/../overlay-debian-trixie/usr/lib/openframe/flash/flash}
 EXPAND=${2:-$HERE/../overlay-debian-trixie/usr/local/sbin/of-expand}
 T=$(mktemp -d)
