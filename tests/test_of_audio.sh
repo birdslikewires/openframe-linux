@@ -152,9 +152,9 @@ bash $A hotplug 2>/dev/null
 [ "$(pcm)" = hw:CARD=DAC ] && [ "$(cat /tmp/mix/DAC/PCM)" = 60 ] && ok "back in: the DAC, its volume as it was" || bad "back in" "$(cat /tmp/mix/DAC/PCM)"
 
 # openframe-resampler's converter: plug uses it where it's installed (not the linear one),
-# and the mixer's periods are 5880 frames at 44.1 kHz (147 x 40: 48 kHz meets it at 160/147).
-grep -q 'period_size 5880' /tmp/asound.conf && grep -q 'buffer_size 17640' /tmp/asound.conf && ! grep -q rate_converter /tmp/asound.conf &&
-	ok "the mixer's periods 5880 frames; no converter named without openframe-resampler" || bad "periods, no converter" "$(cat /tmp/asound.conf)"
+# and the mixer's periods are 4410 frames at 44.1 kHz (147 x 30: 48 kHz meets it at 160/147).
+grep -q 'period_size 4410' /tmp/asound.conf && grep -q 'buffer_size 17640' /tmp/asound.conf && ! grep -q rate_converter /tmp/asound.conf &&
+	ok "the mixer's periods 4410 frames; no converter named without openframe-resampler" || bad "periods, no converter" "$(cat /tmp/asound.conf)"
 touch /tmp/rate_openframe.so
 OF_AUDIO_RATEMOD=/tmp/rate_openframe.so bash $A apply 2>/dev/null
 [ "$(grep -c 'rate_converter "openframe"' /tmp/asound.conf)" = 1 ] && ok "with openframe-resampler: plug uses its converter" || bad "the converter" "$(cat /tmp/asound.conf)"
@@ -189,16 +189,16 @@ bash $A hotplug 2>/dev/null
 	ok "direct after a replug: the DAC's volume at full again" || bad "direct after a replug" "$(cat /tmp/mix/DAC/PCM)"
 bash $A set direct=no 2>/dev/null
 
-# The mixer at 48 kHz (mixer_rate=48000), the DAC taking it: 6400-frame periods, the same time.
+# The mixer at 48 kHz (mixer_rate=48000), the DAC taking it: 4800-frame periods, the same time.
 # Back to 44.1 kHz. And on the OpenFrame's own card too.
 bash $A set mixer_rate=48000 2>/dev/null
-[ "$(setting mixer_rate)" = 48000 ] && grep -q 'rate 48000' /tmp/asound.conf && grep -q 'period_size 6400' /tmp/asound.conf &&
-	bash $A status | grep -qx mixer_rate=48000 && ok "mixer_rate=48000: the DAC mixed at 48 kHz, 6400-frame periods" ||
+[ "$(setting mixer_rate)" = 48000 ] && grep -q 'rate 48000' /tmp/asound.conf && grep -q 'period_size 4800' /tmp/asound.conf &&
+	bash $A status | grep -qx mixer_rate=48000 && ok "mixer_rate=48000: the DAC mixed at 48 kHz, 4800-frame periods" ||
 	bad "mixer_rate=48000" "$(setting mixer_rate); $(cat /tmp/asound.conf)"
 bash $A set output=builtin 2>/dev/null
 grep -q 'hw:CARD=MID' /tmp/asound.conf && grep -q 'rate 48000' /tmp/asound.conf && ok "and the OpenFrame's own at 48 kHz" || bad "the OpenFrame's own at 48 kHz" "$(cat /tmp/asound.conf)"
 bash $A set output=08bb:2704 mixer_rate=44100 2>/dev/null
-grep -q 'rate 44100' /tmp/asound.conf && grep -q 'period_size 5880' /tmp/asound.conf && bash $A status | grep -qx mixer_rate=44100 &&
+grep -q 'rate 44100' /tmp/asound.conf && grep -q 'period_size 4410' /tmp/asound.conf && bash $A status | grep -qx mixer_rate=44100 &&
 	ok "mixer_rate=44100: back to 44.1 kHz" || bad "back to 44.1 kHz" "$(cat /tmp/asound.conf)"
 bash $A set mixer_rate=96000 >/dev/null 2>&1 && bad "mixer_rate other than 44100 or 48000 refused" || ok "mixer_rate other than 44100 or 48000 refused"
 echo 60 > /tmp/mix/DAC/PCM

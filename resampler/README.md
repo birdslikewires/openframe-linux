@@ -23,8 +23,9 @@ without SSE. This package is one 26 KB file:
   by interpolation unless a table of it would be no bigger, which on the Atom costs twice the
   time. The patch takes the table whenever it's 4 MB or less.
 - **A small table.** The rate plugin gives Speex the ratio of the two sides' periods, so
-  of-audio gives the mixer periods of 5880 frames at 44.1 kHz (147 x 40, 133 ms). 48 kHz then
-  meets it at 6400 frames, 160/147: a table of 147 rows, made at once. 96, 88.2 and 22.05 kHz
+  of-audio gives the mixer periods of 4410 frames at 44.1 kHz (147 x 30, 100 ms). 48 kHz then
+  meets it at 4800 frames, 160/147: a table of 147 rows, made at once. (5880 frames did the same,
+  but a program opening the sound with `snd_pcm_set_params` at 48 kHz then failed.) 96, 88.2 and 22.05 kHz
   meet it at simple ratios too.
 - **32-bit as well as 16-bit** (`rate_openframe.c`, from alsa-plugins' `rate_speexrate.c`): a
   DAC mixed at 32 bits gets the 24 bits of a 24-bit source, through Speex's float path, rather

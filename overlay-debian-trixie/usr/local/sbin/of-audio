@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-audio v26.11.4 (24th November 2026)
+## of-audio v26.11.5 (24th November 2026)
 ##  Where the OpenFrame's sound goes: its own (the speaker and headphone socket) or a USB DAC,
 ##  from OF-BOOT/settings/audio.txt, written into /etc/asound.conf as ALSA's default.
 ##    of-audio status      the sound cards there are and which is in use, key=value lines:
@@ -44,7 +44,7 @@
 ##  Audio at another rate than the card's (48 kHz into the 44.1 kHz mixer, say) is resampled
 ##  by openframe-resampler's "openframe" converter (the Speex resampler, quality 5) where it's
 ##  installed, not ALSA's own linear one, which leaves false tones in the treble. The mixer's
-##  periods are 5880 frames at 44.1 kHz (6400 at 48 kHz): 147 x 40, so 48, 96 and 22.05 kHz
+##  periods are 4410 frames at 44.1 kHz (4800 at 48 kHz): 147 x 30, so 48, 96 and 22.05 kHz
 ##  meet it at a simple ratio (160/147) that the converter does with a small table. An asound.conf of someone's own (without of-audio's first line) is
 ##  left as it is.
 
@@ -227,12 +227,16 @@ apply() {
 	[ "$C_KIND" = usb ] && dac_way "$C_N"
 	# plug's converter, for audio at a rate the card (or mixer) isn't at
 	[ -e "$RATEMOD" ] && conv=$'\n\trate_converter "openframe"'
-	# the mixer's periods: 147 x 40 frames at 44.1 kHz (133 ms), so the common rates meet it at
-	# a simple ratio; 6400 at 48 kHz, the same time
+	# the mixer's periods: 147 x 30 frames at 44.1 kHz (100 ms), so the common rates meet it at
+	# a simple ratio; 4800 at 48 kHz, the same time. Four to the buffer, and 100 ms: 5880
+	# (133 ms, three to the buffer) did the same for the converter, but a program opening
+	# the sound at 48, 96 or 22.05 kHz with snd_pcm_set_params (Sprite's test sound, at 44.1
+	# kHz into a 48 kHz mixer, say) then failed ("Unable to get period size"). Tried on an
+	# Audient iD4 at 8 to 192 kHz, latencies 50 ms to 1 s, with set_params and aplay alike.
 	rate=${DAC_RATE:-$(mixer_rate)}
 	case $rate in
-		44100) periods=$'\n\t\tperiod_size 5880\n\t\tbuffer_size 17640' ;;
-		48000) periods=$'\n\t\tperiod_size 6400\n\t\tbuffer_size 19200' ;;
+		44100) periods=$'\n\t\tperiod_size 4410\n\t\tbuffer_size 17640' ;;
+		48000) periods=$'\n\t\tperiod_size 4800\n\t\tbuffer_size 19200' ;;
 	esac
 	if [ "$DIRECT" = yes ]; then
 		conf="# $C_NAME, direct: the stream as it is, nothing mixed in, resampled or converted (unless
