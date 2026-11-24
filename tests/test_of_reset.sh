@@ -48,9 +48,11 @@ apt-mark auto new-dep-d >/dev/null
 
 # Settings: the templates, and the owner's own
 cp $O/boot/settings/*.txt /usr/lib/openframe/settings/ 2>/dev/null || { mkdir -p /usr/lib/openframe/settings; cp $O/boot/settings/*.txt /usr/lib/openframe/settings/; }
-printf '## Sprite, the touch screen.\n\nstartup=\ncalibration=\n' > /opt/sprite/share/sprite/sprite.txt
+printf '## The touch screen.\n\nstartup=\ncalibration=\n' > /opt/sprite/share/sprite/interface.txt
 cp /usr/lib/openframe/settings/*.txt /boot/settings/
 sed -i 's/^name=.*/name=HomeWiFi/; s/^password=.*/password=secret-wifi-pass/' /boot/settings/wifi.txt
+# (under its old name, sprite.txt, as a unit not yet moved over has it)
+rm -f /boot/settings/interface.txt
 printf '## Sprite\n\nstartup=clock\ncalibration=1.01,0,-3,0,0.99,2\n' > /boot/settings/sprite.txt
 echo "network: {}" > /boot/settings/network.yaml
 echo "password=secret-wifi-pass" > /var/lib/of-netplan/wifi.txt
@@ -96,8 +98,10 @@ fi
 cmp -s /boot/settings/wifi.txt /usr/lib/openframe/settings/wifi.txt && ! grep -rq secret-wifi-pass /boot/settings /var/lib/of-netplan /etc/netplan &&
 	ok "the Wi-Fi password is nowhere" || bad "the Wi-Fi password is nowhere" "$(grep -r secret-wifi-pass /boot /var/lib/of-netplan /etc/netplan)"
 [ ! -e /boot/settings/network.yaml ] && ok "the owner's own settings files go" || bad "the owner's own settings files go" "$(ls /boot/settings)"
-grep -qx 'calibration=1.01,0,-3,0,0.99,2' /boot/settings/sprite.txt && grep -qx 'startup=' /boot/settings/sprite.txt &&
-	ok "the touch calibration stays, the startup app goes" || bad "the touch calibration stays" "$(cat /boot/settings/sprite.txt)"
+grep -qx 'calibration=1.01,0,-3,0,0.99,2' /boot/settings/interface.txt && grep -qx 'startup=' /boot/settings/interface.txt &&
+	[ ! -e /boot/settings/sprite.txt ] &&
+	ok "the touch calibration stays (from sprite.txt, its old name), the startup app goes, interface.txt it is" ||
+	bad "the touch calibration stays" "$(ls /boot/settings; cat /boot/settings/interface.txt)"
 [ -e /var/lib/of-netplan/lan.mac ] && ok "the unit's MAC stays" || bad "the unit's MAC stays"
 [ ! -e /var/lib/sprite/layout ] && [ ! -e /var/lib/sprite/welcomed ] && [ ! -e /var/lib/private/sprite-apps ] && ok "the home screen, its welcome and apps' data go" || bad "the home screen and apps' data go"
 [ ! -e /etc/apt/sources.list.d/openframe-testing.list ] && grep -qx 'testing=no' /boot/settings/test.txt &&

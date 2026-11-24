@@ -6,7 +6,7 @@
 #   wifi.txt       The Wi-Fi network to join, and its password.
 #   ethernet.txt   A fixed address for the wired network (or leave it to the router).
 #   name.txt       The OpenFrame's name on your network.
-#   sprite.txt     The touch screen: the app to open at start, the clock, screensaver
+#   interface.txt  The touch screen: the app to open at start, the clock, screensaver
 #                  and screen off.
 #   backlight.txt  How automatic brightness follows the room.
 #   audio.txt      Where the sound goes (a USB DAC, say).
