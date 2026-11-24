@@ -1,3 +1,19 @@
+26.11.117	The OpenFrame starts with its bird all the way from the first logo to the home screen, which fades in from it.
+26.11.114	Until the OpenFrame has set its clock from the internet after a start, the clock shows 00:00 rather than a wrong time.
+26.11.108	A flip clock screensaver comes on after five minutes untouched; change or turn it off in Settings, Display.
+26.11.105	Settings, Display can now turn the screen off after a while untouched. A tap turns it back on.
+26.11.102	Settings, About now shows this OpenFrame's details at a glance: its model, firmware, memory, storage, and a Crystal HD card if it has one.
+26.11.89	The bar now has a speaker. Tap it to change the volume without opening Settings.
+26.11.80	The Audio tab shows how a USB DAC is connected, and what it's playing at.
+26.11.69	Play a test sound, left then right then both, in Settings under Audio.
+26.11.65	Choose where the sound goes, a USB DAC included, in Settings under Audio.
+26.11.59	Name the OpenFrame in Settings, under About.
+26.11.57	The screen shows each brightness as you drag the slider.
+26.11.56	Remote access can be turned off again, in Settings under Network.
+26.11.53	Set how dim and how bright automatic brightness goes, and whether the screen switches off in the dark, in Settings under Display.
+26.11.51	A welcome screen helps set up a new OpenFrame.
+26.11.51	Choose when the OpenFrame updates itself, in Settings under Updates.
+26.11.51	Sprite says when it's been updated, rather than just restarting.
 26.11.44	Settings, About, can erase the OpenFrame for its next owner.
 26.11.41	Settings has an Updates tab, showing what's waiting and what's new.
 26.11.39	Once an hour, the OpenFrame tells openbeak.net it's running. Settings, About, says exactly what's sent.
