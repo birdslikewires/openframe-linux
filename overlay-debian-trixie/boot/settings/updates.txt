@@ -2,7 +2,7 @@
 
 # The OpenFrame updates itself once a day, within half an hour of this time, and restarts
 # then if an update needs it (the screen goes dark for a minute or so). Pick a time nobody's
-# looking at it: 03:00 (the middle of the night) unless you change it here or in Sprite's
-# Settings, under Updates. A whole hour, 24-hour clock: 11:00 for 11am, 15:00 for 3pm.
+# looking at it: 03:00 (the middle of the night) unless you change it here or in Settings
+# on the screen, under Updates. A whole hour, 24-hour clock: 11:00 for 11am, 15:00 for 3pm.
 
 time=03:00

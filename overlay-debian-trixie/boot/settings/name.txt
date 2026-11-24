@@ -3,7 +3,7 @@
 # What it's called. Any name will do, as you'd write it: name=Andy's Kitchen. Its name on
 # the network is made from it, andys-kitchen: your router lists it by that, and Windows
 # computers can reach it by it (ssh of@andys-kitchen), as can others where the router
-# answers for the names it hands out. Empty: openframe. Sprite's Settings can change it
-# too, under About.
+# answers for the names it hands out. Empty: openframe. Settings on the screen can
+# change it too, under About.
 
 name=

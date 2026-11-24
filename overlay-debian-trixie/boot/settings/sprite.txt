@@ -1,4 +1,4 @@
-## Sprite, the touch screen.
+## The touch screen: the OpenFrame's interface.
 
 # The app to open whenever the OpenFrame starts, instead of the home screen. Give its name
 # as the home screen shows it, e.g. startup=Clock. Leave it empty for the home screen.
@@ -13,3 +13,16 @@ calibration=
 # or seconds=yes. Settings on the screen changes these too.
 clock=24h
 seconds=no
+
+# The screensaver, a flip clock, comes on once the screen's been left untouched this many
+# minutes: screensaver=5 (the default), or 0 (never), 1, 2, 10, 15, 30 or 60. A tap ends it.
+screensaver=5
+
+# The screensaver: empty for the flip clock, or the id of a screensaver app from the Shop (the
+# name of its file in /usr/share/sprite/apps, without .app)
+saver=
+
+# The screen turns off once it's been left untouched this many minutes: sleep=0 (never, the
+# default), 1, 2, 5, 10, 15, 30 or 60. A tap turns it back on, at the screensaver if it was
+# showing (another tap ends that). Settings on the screen changes this too.
+sleep=0

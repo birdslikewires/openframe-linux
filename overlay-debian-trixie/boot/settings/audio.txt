@@ -1,9 +1,9 @@
 ## Audio: where the OpenFrame's sound goes.
 
 # output=builtin for its own speaker and headphone socket, or a USB DAC by its USB id
-# (vendor:product, such as 08bb:2704: Sprite's Settings show it, under Audio). A DAC plugged
-# in for the first time becomes the output by itself; unplugged, the sound comes from the
-# OpenFrame until it's back.
+# (vendor:product, such as 08bb:2704: Settings on the screen show it, under Audio). A DAC
+# plugged in for the first time becomes the output by itself; unplugged, the sound comes from
+# the OpenFrame until it's back.
 output=builtin
 
 # The DACs that get the audio direct, by their USB ids (spaces between): each is sent the

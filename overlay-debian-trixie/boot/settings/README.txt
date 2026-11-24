@@ -1,7 +1,7 @@
 ## The OpenFrame's settings
 
 # Each file sets one part of the OpenFrame, and can be edited on any computer. Each
-# explains itself inside; most can be changed in Sprite's Settings too.
+# explains itself inside; most can be changed in Settings on the screen too.
 #
 #   wifi.txt       The Wi-Fi network to join, and its password.
 #   ethernet.txt   A fixed address for the wired network (or leave it to the router).
