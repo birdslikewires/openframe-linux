@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## flash v26.11.22 (24th November 2026)
+## flash v26.11.23 (24th November 2026)
 ##  Installs this system onto an OpenFrame's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
@@ -260,9 +260,27 @@ console_restore() {
 	[ -n "$CONSOLE_LEVEL" ] && dmesg -n "$CONSOLE_LEVEL" 2>/dev/null
 }
 
-# Puts the boot splash away and clears the panel, with no cursor.
+# Waits for the console to be the framebuffer's (fbcon). The kernel hands it over only at the
+# first text after the boot splash (its deferred takeover), and in the background: drawn
+# straight away, a screen lands on the placeholder console's 80x25 and is wrapped as that
+# turns into the panel's 100x30 under it. Two seconds at most (none without a framebuffer).
+console_ready() {
+	local i v
+	for ((i = 0; i < 40; i++)); do
+		for v in /sys/class/vtconsole/vtcon*; do
+			grep -q 'frame buffer' "$v/name" 2>/dev/null && [ "$(cat "$v/bind" 2>/dev/null)" = 1 ] && return 0
+		done
+		sleep 0.05
+	done
+	return 1
+}
+
+# Puts the boot splash away and clears the panel, with no cursor: the first clear hands the
+# console to the framebuffer, and the second clears that, at the panel's size.
 panel_clear() {
 	command -v plymouth >/dev/null && plymouth --ping 2>/dev/null && plymouth quit 2>/dev/null
+	tty_out $'\033[0m\033[2J\033[?25l'
+	console_ready
 	tty_out $'\033[0m\033[2J\033[?25l'
 }
 
