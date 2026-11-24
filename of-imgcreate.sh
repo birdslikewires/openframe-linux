@@ -22,7 +22,8 @@ if [[ "$#" -lt 5 ]]; then
 	echo "  name:            System name. Will be used for filename and partition prefix."
 	echo "  filesystem:      ext4 (journaled, recommended: it shrugs off power cuts), ext2 or btrfs."
 	echo "  totalMB:         The total size of the image file; specify 'of1' or 'of2' for respective internal MMC."
-	echo "  bootMB:          The size of the FAT16 boot volume (32 MB minimum, for the initrd)."
+	echo "  bootMB:          The size of the FAT16 boot volume (32 MB minimum, for the initrd; the"
+	echo "                   images use 68, a 64 MiB volume, for a kernel kept to fall back on too)."
 	echo
 	echo "  Images start the kernel directly from the firmware's shell, with an initrd. From its first"
 	echo "  boot the system leaves the initrd out whenever it can (of-bootnsh). An image for the"

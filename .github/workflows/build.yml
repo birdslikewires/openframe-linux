@@ -177,7 +177,9 @@ jobs:
         env:
           KERNEL_VERSION: ${{ steps.kernel.outputs.version }}
         run: |
-          ./of-imgcreate.sh of ext4 uni 46 "debian trixie" \
+          # /boot 68 MB, which is 64 MiB: room for the kernel, the previous one kept to fall
+          # back on (of-bootnsh), and an initrd being rebuilt beside the old one
+          ./of-imgcreate.sh of ext4 uni 68 "debian trixie" \
             ./overlay-debian-trixie "" \
             http://deb.debian.org/debian
 
