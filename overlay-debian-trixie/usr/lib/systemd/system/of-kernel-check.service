@@ -1,0 +1,9 @@
+# The kernels on the boot volume checked, and a new one's trial settled, once the unit's been
+# up a while (of-kernel-check, and of-bootnsh): a damaged kernel put right; a new one kept
+# if it started, or the previous one put back if it didn't.
+[Unit]
+Description=OpenFrame kernel check
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/of-kernel-check

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.17 (24th November 2026)
+## of-bootnsh v26.11.18 (24th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on, and
 ##  startup.nsh, which runs it.
 ##
@@ -13,9 +13,24 @@
 ##  It's copied to the boot volume from /usr/lib/openframe/grubq.efi when boot.nsh
 ##  uses it.
 ##
-##  The firmware's shell only starts files ending in .efi, and the boot volume has
-##  no room for a second copy of the kernel, so the kernel is renamed to vmlinuz.efi
-##  and grub.cfg points at it too.
+##  The firmware's shell only starts files ending in .efi, so the kernel is renamed
+##  to vmlinuz.efi, and grub.cfg points at it too.
+##
+##  The kernel it replaces is kept, as vmlinuz-prev.efi, to fall back on: a new kernel
+##  is on trial (the mark oftrial, holding its version) until it's been up a minute and
+##  a half (of-kernel-check). boot.nsh marks each try (oftried1, then oftried2); with
+##  the second already marked, two tries haven't come up (a kernel that panics restarts
+##  the unit after 20 s), so it starts vmlinuz-prev.efi instead, with ofkernel=prev on
+##  its command line, and of-kernel-check puts it back as the kernel to start. Both
+##  files' checksums are kept (/var/lib/openframe-scripts/kernels.sha256), and
+##  of-kernel-check checks them after every start, putting back a damaged vmlinuz.efi
+##  from vmlinuz-prev.efi before it's needed: the shell can't be left to find one,
+##  since after failing to start a file it starts the next kernel in a state that
+##  hangs early in its start. Only on a stub start without the initrd (the previous kernel's initrd
+##  is gone by then), and only on this system's own /boot. The previous kernel's package
+##  (and so its modules) is kept from apt's autoremove while it's there
+##  (/etc/apt/apt.conf.d/51openframe-kernel-keep). A kernel that hangs rather than
+##  panics still needs switching off and on to fall back: these units have no watchdog.
 ##
 ##  An empty vmlinuz-<version> is left in place of the renamed kernel. It takes no
 ##  space on FAT, and it lets update-initramfs and linux-version find the kernel,
@@ -138,6 +153,10 @@ MMCFIXEFI="$LIBDIR/BlwMmcFix.efi"
 MACRUN="/run/of-bootnsh"                     # this boot: mac-pending once a store has been asked for
 GRUBQEFI="$LIBDIR/grubq.efi"
 KEEPINITRD="/var/lib/openframe-scripts/keep-initrd"
+PREVEFI="vmlinuz-prev.efi"                   # the kernel before, to fall back on
+KSTATE="/var/lib/openframe-scripts/kernels"  # the versions in vmlinuz.efi and vmlinuz-prev.efi
+KEEPAPT="/etc/apt/apt.conf.d/51openframe-kernel-keep"
+KSUMS="/var/lib/openframe-scripts/kernels.sha256" # vmlinuz.efi's and vmlinuz-prev.efi's, for of-kernel-check
 FWWRITING="/var/lib/openframe-firmware/writing"   # of-firmware-update: the chip is being written
 NEWNSH=""
 
@@ -476,7 +495,7 @@ VERSION=""
 if [[ "$INITRD" =~ ^initrd\.img-(.+)$ ]]; then
 	VERSION="${BASH_REMATCH[1]}"
 else
-	NEWEST=$(ls -t "$BOOTDIR"/vmlinuz-* 2>/dev/null | head -1)
+	NEWEST=$(ls -t "$BOOTDIR"/vmlinuz-[0-9]* 2>/dev/null | head -1) # (not vmlinuz-prev.efi)
 	[[ "$NEWEST" != "" ]] && VERSION="${NEWEST##*/vmlinuz-}"
 fi
 
@@ -542,12 +561,48 @@ grub_kernel() {
 	rm -f "$NEWCFG"
 }
 
+# The packages of the kernels in vmlinuz.efi and vmlinuz-prev.efi, kept from apt's autoremove
+# (51openframe-kernel lets it take old kernels), so the previous one has its modules
+kernel_keep() {
+	local CUR PREV V LIST=""
+	read -r CUR PREV 2>/dev/null < "$KSTATE"
+	for V in $(printf '%s\n' $CUR $PREV | sort -u); do
+		[[ "$V" =~ ^[A-Za-z0-9.+_-]+$ ]] && LIST="$LIST\t\"^linux-image-${V//./\\.}\$\";\n"
+	done
+	[ -n "$LIST" ] || { rm -f "$KEEPAPT"; return; }
+	printf '// of-bootnsh: the kernels on /boot (vmlinuz.efi, and vmlinuz-prev.efi to fall back on)\n// keep their packages, and so their modules\nAPT::NeverAutoRemove {\n%b};\n' "$LIST" \
+		> "$KEEPAPT.new" && mv -f "$KEEPAPT.new" "$KEEPAPT"
+}
+
 # The kernel is vmlinuz.efi in either mode. A freshly installed kernel replaces the
-# previous one. -s, not -f: an empty file is our placeholder, and moving it would
-# leave nothing to boot.
+# previous one, which is kept as vmlinuz-prev.efi, and goes on trial (see the notes at the
+# top): copied, not renamed, so a power cut never leaves no vmlinuz.efi. -s, not -f: an
+# empty file is our placeholder, and moving it would leave nothing to boot.
 if [[ "$VERSION" != "" ]] && [ -s "$BOOTDIR/vmlinuz-$VERSION" ]; then
 	boot_rw
+	OLDVER=""
+	if [[ "$BOOTDIR" == "/boot" ]] && [ -s "$BOOTDIR/$KERNELEFI" ] && ! systemd-detect-virt -q --chroot 2>/dev/null; then
+		read -r OLDVER _ 2>/dev/null < "$KSTATE"
+		[ -n "$OLDVER" ] || OLDVER=$(uname -r) # (before there was a record: what's running)
+		sync
+		if cp "$BOOTDIR/$KERNELEFI" "$BOOTDIR/$PREVEFI.new" && sync && mv -f "$BOOTDIR/$PREVEFI.new" "$BOOTDIR/$PREVEFI"; then
+			rm -f "$BOOTDIR/oftried1" "$BOOTDIR/oftried2"
+			echo "$VERSION" > "$BOOTDIR/oftrial"
+			sync
+		else
+			rm -f "$BOOTDIR/$PREVEFI.new"
+			OLDVER=""
+		fi
+	fi
 	mv -f "$BOOTDIR/vmlinuz-$VERSION" "$BOOTDIR/$KERNELEFI"
+	sync
+	if [[ "$BOOTDIR" == "/boot" ]]; then
+		mkdir -p "${KSTATE%/*}"
+		echo "$VERSION $OLDVER" > "$KSTATE"
+		kernel_keep
+		(cd "$BOOTDIR" && sha256sum "$KERNELEFI" $([ -s "$PREVEFI" ] && echo "$PREVEFI")) > "$KSUMS.new" &&
+			mv -f "$KSUMS.new" "$KSUMS"
+	fi
 fi
 
 if [ -s "$BOOTDIR/$KERNELEFI" ]; then
@@ -592,15 +647,30 @@ if [[ "$MODE" == "stub" ]]; then
 		done
 	fi
 
+	# The kernel's line, with the trial's around it while there's a previous kernel to fall
+	# back on (see the notes at the top); $1 indents them
+	kernel_lines() {
+		local K="${KERNELEFI%.efi}" P="${PREVEFI%.efi}"
+		if [[ "$ROOTPART" != "" ]] && [[ "$BOOTDIR" == "/boot" ]] && [ -s "$BOOTDIR/$PREVEFI" ]; then
+			printf '%sif exist oftried2 then\n%s  %s %s ofkernel=prev\n%sendif\n' "$1" "$1" "$P" "$ARGS" "$1"
+			printf '%sif exist oftried1 then\n%s  echo 2 > oftried2\n%sendif\n' "$1" "$1" "$1"
+			printf '%sif exist oftrial then\n%s  echo 1 > oftried1\n%sendif\n' "$1" "$1" "$1"
+			printf '%s%s %s\n' "$1" "$K" "$ARGS"
+		else
+			printf '%s%s %s\n' "$1" "$K" "$ARGS"
+		fi
+	}
+
 	{
 		switch_lines "$MARKER"
 		mac_lines
 		if [ $MMCFIX -eq 1 ]; then
 			# The kernel only if BlwMmcFix.efi worked (the shell's lasterror is 0), else GRUB.
-			printf 'BlwMmcFix.efi\nif %%lasterror%% == 0 then\n  %s %s\nendif\n%s\n' \
-				"${KERNELEFI%.efi}" "$ARGS" "$GRUBEFI"
+			printf 'BlwMmcFix.efi\nif %%lasterror%% == 0 then\n'
+			kernel_lines "  "
+			printf 'endif\n%s\n' "$GRUBEFI"
 		else
-			printf '%s %s\n' "${KERNELEFI%.efi}" "$ARGS"
+			kernel_lines ""
 		fi
 	} > "$NEWNSH"
 

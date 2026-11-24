@@ -50,6 +50,7 @@ NAMEMARKER="/var/lib/openframe-scripts/name-default"
 AUDIOMARKER="/var/lib/openframe-scripts/audio-default"
 SPLASHMARKER="/var/lib/openframe-scripts/splash-default"
 BLRESTOREMARKER="/var/lib/openframe-scripts/backlight-restore-default"
+KERNELCHECKMARKER="/var/lib/openframe-scripts/kernel-check-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -244,6 +245,15 @@ case "$1" in
 			in_chroot || systemctl daemon-reload 2>/dev/null || true
 			mkdir -p "${BLRESTOREMARKER%/*}"
 			touch "$BLRESTOREMARKER"
+		fi
+
+		# Once per system: a new kernel goes on trial, the one before kept to fall back on if it
+		# doesn't start (of-bootnsh), and of-kernel-check.timer settles the trial once the unit's
+		# been up a minute and a half. Disabling it afterwards sticks.
+		if [ ! -e "$KERNELCHECKMARKER" ]; then
+			systemctl enable --quiet of-kernel-check.timer 2>/dev/null || true
+			mkdir -p "${KERNELCHECKMARKER%/*}"
+			touch "$KERNELCHECKMARKER"
 		fi
 
 		# Once per system: the boot splash, the firmware's bird where the firmware drew it with a

@@ -1,0 +1,10 @@
+# A minute and a half after each start: a kernel that gets this far started.
+[Unit]
+Description=OpenFrame kernel trial check, after each start
+
+[Timer]
+OnBootSec=90s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
