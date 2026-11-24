@@ -128,4 +128,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ASSIGNEE: ${{ vars.TESTING_ASSIGNEE || 'andydvsn' }}   # who's told (an organisation can't be)
-        run: bash ci/testing-issue.sh "Crystal HD $(dpkg-deb -f out/openframe-resampler_*.deb Version) is in testing."
+        run: bash ci/testing-issue.sh "openframe-resampler $(dpkg-deb -f out/openframe-resampler_*.deb Version) is in testing."

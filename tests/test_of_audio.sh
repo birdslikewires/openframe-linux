@@ -159,9 +159,9 @@ grep -q 'period_size 4410' /tmp/asound.conf && grep -q 'buffer_size 17640' /tmp/
 	ok "the mixer's periods 4410 frames; no converter named without openframe-resampler" || bad "periods, no converter" "$(cat /tmp/asound.conf)"
 touch /tmp/rate_openframe.so
 OF_AUDIO_RATEMOD=/tmp/rate_openframe.so bash $A apply 2>/dev/null
-[ "$(grep -c 'rate_converter "openframe"' /tmp/asound.conf)" = 1 ] && ok "with openframe-resampler: plug uses its converter" || bad "the converter" "$(cat /tmp/asound.conf)"
+[ "$(grep -cF 'rate_converter [ "openframe" "linear" ]' /tmp/asound.conf)" = 1 ] && ok "with openframe-resampler: plug uses its converter" || bad "the converter" "$(cat /tmp/asound.conf)"
 OF_AUDIO_RATEMOD=/tmp/rate_openframe.so bash $A set direct=yes 2>/dev/null
-grep -q 'rate_converter "openframe"' /tmp/asound.conf && grep -q 'slave.pcm "hw:CARD=DAC"' /tmp/asound.conf && ! grep -q period_size /tmp/asound.conf &&
+grep -qF 'rate_converter [ "openframe" "linear" ]' /tmp/asound.conf && grep -q 'slave.pcm "hw:CARD=DAC"' /tmp/asound.conf && ! grep -q period_size /tmp/asound.conf &&
 	ok "direct: the converter too (for a rate the DAC can't take), no mixer periods" || bad "direct, the converter" "$(cat /tmp/asound.conf)"
 OF_AUDIO_RATEMOD=/tmp/rate_openframe.so bash $A set direct=no 2>/dev/null
 rm /tmp/rate_openframe.so
@@ -202,6 +202,12 @@ grep -q 'hw:CARD=MID' /tmp/asound.conf && grep -q 'rate 48000' /tmp/asound.conf 
 bash $A set output=08bb:2704 mixer_rate=44100 2>/dev/null
 grep -q 'rate 44100' /tmp/asound.conf && grep -q 'period_size 4410' /tmp/asound.conf && bash $A status | grep -qx mixer_rate=44100 &&
 	ok "mixer_rate=44100: back to 44.1 kHz" || bad "back to 44.1 kHz" "$(cat /tmp/asound.conf)"
+# A DAC whose rates are a range ("8000 - 96000 (continuous)"): mixed at 44.1 kHz, not its lowest
+sed -i 's/Rates: 32000, 44100, 48000/Rates: 8000 - 96000 (continuous)/' /tmp/proc/card1/stream0
+bash $A apply 2>/dev/null
+grep -q 'rate 44100' /tmp/asound.conf && grep -q 'period_size 4410' /tmp/asound.conf && ok "a DAC with a range of rates: mixed at 44.1 kHz" ||
+	bad "a range of rates" "$(cat /tmp/proc/card1/stream0; cat /tmp/asound.conf)"
+sed -i 's/Rates: 8000 - 96000 (continuous)/Rates: 32000, 44100, 48000/' /tmp/proc/card1/stream0
 bash $A set mixer_rate=96000 >/dev/null 2>&1 && bad "mixer_rate other than 44100 or 48000 refused" || ok "mixer_rate other than 44100 or 48000 refused"
 echo 60 > /tmp/mix/DAC/PCM
 

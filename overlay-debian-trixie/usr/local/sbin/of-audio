@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-audio v26.11.6 (24th November 2026)
+## of-audio v26.11.7 (24th November 2026)
 ##  Where the OpenFrame's sound goes: its own (the speaker and headphone socket) or a USB DAC,
 ##  from OF-BOOT/settings/audio.txt, written into /etc/asound.conf as ALSA's default.
 ##    of-audio status      the sound cards there are and which is in use, key=value lines:
@@ -214,9 +214,12 @@ dac_way() {
 		!p { next }
 		/Format: / { fmt = $2; bits = fmt; gsub(/[^0-9]/, "", bits); bits = substr(bits, 1, 2) + 0 }
 		/Bits: / { bits = $2 + 0 }
-		/Rates: / { for (i = 2; i <= NF; i++) { r = $i; gsub(/[^0-9]/, "", r); rates[r + 0] = 1; if (!first) first = r + 0 } }
+		# "Rates: 8000 - 96000 (continuous)": a range (any rate in it), else a list
+		/Rates: / && /continuous/ { n++; lo[n] = $2 + 0; hi[n] = $4 + 0; if (!first) first = lo[n] }
+		/Rates: / && !/continuous/ { for (i = 2; i <= NF; i++) { r = $i; gsub(/[^0-9]/, "", r); rates[r + 0] = 1; if (!first) first = r + 0 } }
 		/Bits: |Rates: / { if (fmt != "" && bits > best) { best = bits; bestfmt = fmt } }
-		END { rate = (want in rates) ? want : (44100 in rates) ? 44100 : (48000 in rates) ? 48000 : first; print bestfmt, rate }' "$f")
+		function has(r,   i) { if (r in rates) return 1; for (i = 1; i <= n; i++) if (r >= lo[i] && r <= hi[i]) return 1; return 0 }
+		END { rate = has(want) ? want : has(44100) ? 44100 : has(48000) ? 48000 : first; print bestfmt, rate }' "$f")
 }
 
 apply() {
@@ -226,7 +229,7 @@ apply() {
 	DAC_FMT="" DAC_RATE=""
 	[ "$C_KIND" = usb ] && dac_way "$C_N"
 	# plug's converter, for audio at a rate the card (or mixer) isn't at
-	[ -e "$RATEMOD" ] && conv=$'\n\trate_converter "openframe"'
+	[ -e "$RATEMOD" ] && conv=$'\n\trate_converter [ "openframe" "linear" ]'
 	# the mixer's periods: 147 x 30 frames at 44.1 kHz (100 ms), so the common rates meet it at
 	# a simple ratio; 4800 at 48 kHz, the same time. Four to the buffer, and 100 ms: 5880
 	# (133 ms, three to the buffer) did the same for the converter, but a program opening
@@ -302,8 +305,10 @@ ctl.!default {
 		# dac_way); played before anything, it touches nothing that follows. A software volume
 		# control made first, low: played through, ALSA would make it at full.
 		[ "$DIRECT" = no ] && [ -z "$mixer" ] && softvol_ready "$C_ID"
+		# Never waiting for it: direct, the default is the DAC itself, and something playing on it
+		# would have aplay wait till it stopped, and an update with it (-N: busy is just skipped)
 		[ "$C_KIND" = usb ] && head -c $(( ${DAC_RATE:-44100} * 4 / 10 )) /dev/zero |
-			aplay -q -D default -t raw -f S16_LE -c 2 -r "${DAC_RATE:-44100}" >/dev/null 2>&1
+			timeout 5 aplay -N -q -D default -t raw -f S16_LE -c 2 -r "${DAC_RATE:-44100}" >/dev/null 2>&1
 		restart_playing
 	fi
 	[ "$DIRECT" = no ] && [ -z "$mixer" ] && softvol_ready "$C_ID"

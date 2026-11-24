@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-backlight v26.11.14 (24th November 2026) by Andrew Davison
+## of-backlight v26.11.15 (24th November 2026) by Andrew Davison
 ##  Backlight control with fading for OpenFrame, and automatic brightness from the
 ##  light sensor. None of it needs root.
 ##
@@ -24,7 +24,8 @@
 ##    of-backlight sleep    fades the backlight off and holds it there, automatic brightness
 ##                          and a fixed level both: Sprite's display sleep, after a while
 ##                          untouched. Kept while the service restarts (as an update
-##                          restarts it), not across a reboot.
+##                          restarts it), not across a reboot; /run/of-backlight/asleep is
+##                          there meanwhile, so a Sprite started then starts asleep too.
 ##    of-backlight wake     ends that, back to the level it should have. Any other request
 ##                          (a level, auto, show) does too.
 ##  'set' has the service read backlight.txt again once it has written it.
@@ -72,10 +73,12 @@ SERVICE="of-backlight.service"
 RUNDIR="/run/of-backlight"
 CTL="$RUNDIR/control"
 STATUS="$RUNDIR/status"
-# While asleep, the service's: this boot's ID, so a restart of the service (an update's)
-# stays asleep and a reboot doesn't. (Its run directory can't be kept through a restart:
-# with DynamicUser=, systemd would then make it private, out of everyone else's reach.)
+# While asleep, the service's: this boot's ID and the level before, so a restart of the
+# service (an update's) stays asleep and a reboot doesn't. (Its run directory can't be kept
+# through a restart: with DynamicUser=, systemd would then make it private, out of everyone
+# else's reach.) And one in the run directory, for anyone to see (Sprite, as it starts).
 ASLEEP="${STATE_DIRECTORY:-/var/lib/of-backlight}/asleep"
+ASLEEP_RUN="$RUNDIR/asleep"
 BOOTID=/proc/sys/kernel/random/boot_id
 
 
@@ -321,15 +324,19 @@ daemon() {
 	# shown: until when a level asked for by 'show' holds (epoch seconds; 0 for none);
 	# asleep: off by 'sleep' until a 'wake' (or any level asked for), and still so if the
 	# service was restarted meanwhile (an update), so Sprite's display sleep isn't undone
-	local said="" passes=0 since_conf=0 wait shown=0 asleep=0 now v next="" got
+	# before: the level when it went to sleep, for the wake (automatic brightness with no
+	# light reading has nothing else to go back to)
+	local said="" passes=0 since_conf=0 wait shown=0 asleep=0 before=0 now v next="" got
 	local was="" boot=""
-	read -r was 2>/dev/null < "$ASLEEP"
+	read -r was before 2>/dev/null < "$ASLEEP"
 	read -r boot 2>/dev/null < "$BOOTID"
+	[[ $before =~ ^[0-9]{1,3}$ ]] && (( 10#$before <= 100 )) || before=0
 	if [ -n "$was" ] && [ "$was" = "$boot" ]; then
 		asleep=1
+		: > "$ASLEEP_RUN"
 		echo "Asleep, as before the restart."
 	else
-		rm -f "$ASLEEP"
+		rm -f "$ASLEEP" "$ASLEEP_RUN"
 	fi
 	while true; do
 
@@ -410,17 +417,27 @@ daemon() {
 				if (( !asleep )); then
 					echo "Asleep: the backlight off until a wake."
 					asleep=1 shown=0
-					cat "$BOOTID" > "$ASLEEP" 2>/dev/null
+					getbl
+					before=$CRNTBL
+					read -r boot 2>/dev/null < "$BOOTID"
+					echo "$boot $before" > "$ASLEEP" 2>/dev/null
+					: > "$ASLEEP_RUN"
 					setbl 0
 				fi
 				continue
 			elif [ "$req" = "wake" ]; then
-				(( asleep )) && echo "Awake."
+				if (( asleep )); then
+					echo "Awake."
+					# Back to the level before: a fixed one is put back anyway, but automatic
+					# brightness only changes with a light reading, and without one the screen
+					# would stay off. With one, it carries on from there.
+					[ "$mode" = auto ] && (( before > 0 )) && setbl "$before"
+				fi
 				asleep=0 A_force=1
-				rm -f "$ASLEEP"
+				rm -f "$ASLEEP" "$ASLEEP_RUN"
 				continue
 			fi
-			[ "$req" != "reload" ] && (( asleep )) && { echo "Awake (a request)."; asleep=0 A_force=1; rm -f "$ASLEEP"; }
+			[ "$req" != "reload" ] && (( asleep )) && { echo "Awake (a request)."; asleep=0 A_force=1; rm -f "$ASLEEP" "$ASLEEP_RUN"; }
 			if [[ $req =~ ^show\ ([0-9]{1,3})$ ]] && (( 10#${BASH_REMATCH[1]} <= 100 )); then
 				# At once, no fade: the hardware level for it, the power on first. Not saved.
 				(( v = 10#${BASH_REMATCH[1]} ))
