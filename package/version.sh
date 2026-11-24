@@ -19,6 +19,7 @@ paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
   "${overlay_dir}usr/lib/udev/rules.d" "${overlay_dir}usr/lib/udev/hwdb.d" "${overlay_dir}usr/lib/openframe" \
   "${overlay_dir}usr/share/initramfs-tools" "${overlay_dir}usr/lib/systemd/system" \
   "${overlay_dir}usr/lib/sysctl.d" "${overlay_dir}etc/dpkg/dpkg.cfg.d/openframe-*" \
+  "${overlay_dir}usr/lib/modules-load.d" "${overlay_dir}usr/share/plymouth/themes" \
   "${overlay_dir}usr/share/keyrings" "${overlay_dir}usr/local/bin/readlightsensor" \
   "${overlay_dir}usr/lib/systemd/timesyncd.conf.d" "${overlay_dir}etc/apt/apt.conf.d/50openframe-*" \
   "${overlay_dir}etc/apt/apt.conf.d/52openframe-*" \
@@ -26,7 +27,7 @@ paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
   "${overlay_dir}boot/settings" \
   .github/workflows/package.yml package)
 EPOCH="1:"
-# With --news: the owners' notes instead, from the "News:" trailers of the commits that made
+# With --news: the owners' notes instead, from the "News:" lines of the commits that made
 # each version, newest first, a line each: the version, a tab, the note. A commit may carry
 # several; most carry none ("Bug fixes and improvements", as Sprite puts it).
 if [ "${NEWS:-}" ]; then
@@ -34,7 +35,16 @@ if [ "${NEWS:-}" ]; then
 		awk '{ n[$2]++; m = $2; sub(/\..*/, "", m); mm = substr($2, 4) + 0; print $1, m "." mm "." n[$2] }' |
 		while read -r hash ver; do
 			i=$((${i:-0} + 1))
-			git log -1 --format='%(trailers:key=News,valueonly,unfold)' "$hash" | sed '/^$/d' |
+			# Each "News:" line anywhere in the message, running on to a blank line or the next
+			# "Key:" line, its lines joined: not git's trailers alone, which only count in the
+			# message's last paragraph and fold only indented lines (a News: paragraph before
+			# the Co-Authored-By one, or a note wrapped onto a plain line, was missed)
+			git log -1 --format=%B "$hash" | awk '
+				function out() { if (n != "") print n; n = "" }
+				/^News:/ { out(); n = $0; sub(/^News:[ \t]*/, "", n); next }
+				n != "" && (/^[ \t]*$/ || /^[A-Za-z][A-Za-z0-9-]*: /) { out(); next }
+				n != "" { l = $0; sub(/^[ \t]+/, "", l); n = n " " l }
+				END { out() }' |
 				awk -v i="$i" -v v="$EPOCH$ver" '{ print i "\t" NR "\t" v "\t" $0 }'
 		done | sort -t "$(printf '\t')" -k1,1nr -k2,2n | cut -f3-
 	exit 0
