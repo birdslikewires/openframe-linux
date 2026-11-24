@@ -1,24 +1,24 @@
 Architectures: all i386
 Codename: trixie-testing
 Components: main
-Date: Tue, 24 Nov 2026 12:13:35 +0000
+Date: Tue, 24 Nov 2026 12:39:16 +0000
 Description: OpenFrame Linux packages before release, for test units
 Label: OpenFrame Linux testing
 Origin: OpenFrame
 Suite: trixie-testing
 MD5Sum:
- 9ab990dea7106c69bf6d9f78610c1c5e             1546 Release
- d32f937283b53cfd8f79d3e83fd71b52             3084 main/binary-i386/Packages
- 8f5bbd7301803b9bc9562850b88dfe6c             1463 main/binary-i386/Packages.gz
+ 98de49857488389668abce68387d038b             1546 Release
+ a92204b0ca664957adde1facee7d3ccc             3084 main/binary-i386/Packages
+ 3f6bb513904690510c6e1168832024a4             1465 main/binary-i386/Packages.gz
 SHA1:
- 31ef6be060a1a79e8250b22d623d6c9d7de3775a             1546 Release
- a2b32e579fd91691776400301ddf96682e7d8b3e             3084 main/binary-i386/Packages
- 0d917072f1f13d7d335f80d6f57f8f4afaf5bf7a             1463 main/binary-i386/Packages.gz
+ 9854cc9f0f6745076ea72eefa7db1723e3a65acb             1546 Release
+ 30a3b5db1d2e647061ca84050a934947a01f42a9             3084 main/binary-i386/Packages
+ a2ac217c1e5325e252be167373d48df3d4e5eb00             1465 main/binary-i386/Packages.gz
 SHA256:
- 7ca158a46ff060474e954c813cb660c087d4ebb11f6b057bc52372fcc3181dd7             1546 Release
- bfc70558a012fdcd59fabe563dc7cf79eebb465ea4aa52c79fc371f054a1c5ff             3084 main/binary-i386/Packages
- 2b11b549be700e741477a0f5b8c099c81a736b52973d65eaccfb1c94664ba945             1463 main/binary-i386/Packages.gz
+ 355454eed08dc20f7cb01df55d8639345c82cbc07d89525d83d3d9d05a32a45b             1546 Release
+ 5846af8333f3a5f9d955b037f29da67e29d039e729709f0eca5f9bdbde50282c             3084 main/binary-i386/Packages
+ d90c142dfa5d2e46daa68109e89a36689e2ec4a5a8d9ff89c7f4bef4eee4e8ac             1465 main/binary-i386/Packages.gz
 SHA512:
- 2ee0dd7bb50567fca635db3ea45a6245d813b8ff8d539411933c8a22394a79caded922fa2ca02c7fdf0fc1cca94aa61f50edb6ad9dd58ccf346f8fb7fef86b18             1546 Release
- bd551336f91f575929b5fb0a872b140d4c74768bf3bc9bb385e2cfa0eb75987a229181f64eb6ca3a1fdb3fc4faf0dbd8e0c404e5c8a9e4458311e9b4f4c92287             3084 main/binary-i386/Packages
- 667b38e17bbb4ded45c35d3669858d9c0e802952ce2c5041938ebb6b580c1894c67641b76398ba784aa696f591088561800fbc0ae8207f0caf08d3c7f1d907e0             1463 main/binary-i386/Packages.gz
+ 0b6a1097a55da7fed77d33b42699e31a568f3efcdf6ca5835b7051b11bdee1b73e331295b8a7d013ec4703766b890486004481c72a4a0e5fb27db68eaaeca13d             1546 Release
+ 9518bfb7caf14c48391fc8f885a53e2d88eaa5a53d7d180517dcfd256fcf8bb47eb4a10fd97d17314b01c6fd5d49cd2bc2cf3a7645fa57a321ed0cf53e03a240             3084 main/binary-i386/Packages
+ 346934f8ce7befadfd3a88ca4b5ca1aadf050e72d40e33a3d8054fde890ae129e6e14bc34e278595986885d90c312b4d5101c0b76d61547ad95744cfb592e8f9             1465 main/binary-i386/Packages.gz
