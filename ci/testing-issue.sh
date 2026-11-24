@@ -22,11 +22,16 @@ if [ -z "$waiting" ]; then
 	exit 0
 fi
 
-body="Test units (OF-BOOT/settings/test.txt says \`testing=yes\`) take these from ${SITE}'s testing suite. Other OpenFrames don't have them yet.
+# What's waiting comes first, as a plain line: GitHub's push notification for a new issue
+# shows the start of its body, and promote.yml reads the table, so no | in it.
+summary=$(while read -r pkg tver rver; do printf '%s %s, ' "$pkg" "$tver"; done <<< "$waiting")
+body="In testing: ${summary%, }.
 
 | Package | In testing | Released |
 |---|---|---|
 $(while read -r pkg tver rver; do printf '| %s | %s | %s |\n' "$pkg" "$tver" "$rver"; done <<< "$waiting")
+
+Test units (OF-BOOT/settings/test.txt says \`testing=yes\`) take these from ${SITE}'s testing suite. Other OpenFrames don't have them yet.
 
 Reply **ok** to release them to every OpenFrame: they install overnight. Reply **no** to close this and keep them back for now; the next publish opens it again. (Just the word: anything longer is an ordinary comment.)"
 
