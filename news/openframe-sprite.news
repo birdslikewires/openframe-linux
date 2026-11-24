@@ -1,3 +1,7 @@
+26.11.128	The bar shows a download arrow when updates are waiting to install, and the Updates tab in Settings gets a dot.
+26.11.128	Tap the clock to open Settings at Display, where its format is set.
+26.11.128	A tap on the dark screen brings back the screensaver if it was showing, for a quick look at the time.
+26.11.128	The screen's settings file on the boot volume is now settings/interface.txt; yours is moved over by itself.
 26.11.117	The OpenFrame starts with its bird all the way from the first logo to the home screen, which fades in from it.
 26.11.114	Until the OpenFrame has set its clock from the internet after a start, the clock shows 00:00 rather than a wrong time.
 26.11.108	A flip clock screensaver comes on after five minutes untouched; change or turn it off in Settings, Display.
