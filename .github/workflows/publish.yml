@@ -117,9 +117,15 @@ jobs:
         run: |
           TITLE="OpenFrame Trixie $TAG"
           NOTES="Debian Trixie image built with kernel $TAG, from ${SHA:0:7} (build run $RUN_ID)."
+          # The tag goes on the image's commit, if GitHub lets this workflow's token put it there:
+          # it doesn't when any workflow file has changed since that commit (that needs the
+          # 'workflows' permission, which this token can't have; HTTP 403). Then it goes on
+          # main as it is now, which has today's workflows; the notes name the image's commit.
           if ! gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
             gh release create "$TAG" image/*.img.gz image/*.img.gz.md5 \
-              --repo "$REPO" --target "$SHA" --title "$TITLE" --notes "$NOTES"
+              --repo "$REPO" --target "$SHA" --title "$TITLE" --notes "$NOTES" ||
+              gh release create "$TAG" image/*.img.gz image/*.img.gz.md5 \
+                --repo "$REPO" --target "$(gh api "repos/$REPO/commits/main" --jq .sha)" --title "$TITLE" --notes "$NOTES"
             exit 0
           fi
           echo "Replacing the $TAG release's image."
@@ -140,8 +146,8 @@ jobs:
           done < assets.txt
           gh release edit "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NOTES"
           # The tag moves to the commit the image was built from.
-          # (Not fatal: GitHub refused it once, HTTP 403, with the image already swapped and the
-          # tag already there. The notes name the image's commit whatever the tag says.)
+          # (Not fatal: refused when workflow files have changed since that commit, as above, and
+          # the image is in place by now. The notes name the image's commit whatever the tag says.)
           gh api -X PATCH "repos/$REPO/git/refs/tags/$TAG" -f sha="$SHA" -F force=true > /dev/null ||
             echo "::warning::The $TAG tag couldn't be moved to ${SHA:0:7}: it stays where it was."
           gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name'
