@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.18 (24th November 2026)
+## of-bootnsh v26.11.19 (24th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on, and
 ##  startup.nsh, which runs it.
 ##
@@ -16,8 +16,8 @@
 ##  The firmware's shell only starts files ending in .efi, so the kernel is renamed
 ##  to vmlinuz.efi, and grub.cfg points at it too.
 ##
-##  The kernel it replaces is kept, as vmlinuz-prev.efi, to fall back on: a new kernel
-##  is on trial (the mark oftrial, holding its version) until it's been up a minute and
+##  The kernel it replaces is kept, as vmlinuz-prev.efi, to fall back on (unless that one
+##  hadn't proved itself yet: then the previous kernel stays); a new kernel is on trial (the mark oftrial, holding its version) until it's been up a minute and
 ##  a half (of-kernel-check). boot.nsh marks each try (oftried1, then oftried2); with
 ##  the second already marked, two tries haven't come up (a kernel that panics restarts
 ##  the unit after 20 s), so it starts vmlinuz-prev.efi instead, with ofkernel=prev on
@@ -26,8 +26,9 @@
 ##  of-kernel-check checks them after every start, putting back a damaged vmlinuz.efi
 ##  from vmlinuz-prev.efi before it's needed: the shell can't be left to find one,
 ##  since after failing to start a file it starts the next kernel in a state that
-##  hangs early in its start. Only on a stub start without the initrd (the previous kernel's initrd
-##  is gone by then), and only on this system's own /boot. The previous kernel's package
+##  hangs early in its start. Only on a stub start without the initrd (the previous
+##  kernel's initrd is gone by then), and only on this system's own /boot: elsewhere
+##  there's no trial, and no marks. of-kernel-check shares this script's lock. The previous kernel's package
 ##  (and so its modules) is kept from apt's autoremove while it's there
 ##  (/etc/apt/apt.conf.d/51openframe-kernel-keep). A kernel that hangs rather than
 ##  panics still needs switching off and on to fall back: these units have no watchdog.
@@ -453,6 +454,12 @@ fi
 if [[ $MACONLY -eq 1 ]] && [[ "$(head -n $SWITCHLINES "$BOOTNSH" 2>/dev/null)" != "$(switch_lines "$MARKER")" ]]; then
 	MACONLY=0
 fi
+# So is one whose trial lines name a previous kernel that isn't there (of-kernel-check removed a
+# damaged one): a failed start of it would go on to the next kernel line, a second kernel in
+# one start, which hangs
+if [[ $MACONLY -eq 1 ]] && grep -q "vmlinuz-prev" "$BOOTNSH" 2>/dev/null && [ ! -s "$BOOTDIR/$PREVEFI" ]; then
+	MACONLY=0
+fi
 
 # BlwLanMac.efi was BlwMac.efi's name before firmware 26.11.20; its lines go too.
 if [[ $MACONLY -eq 1 ]]; then
@@ -574,36 +581,54 @@ kernel_keep() {
 		> "$KEEPAPT.new" && mv -f "$KEEPAPT.new" "$KEEPAPT"
 }
 
-# The kernel is vmlinuz.efi in either mode. A freshly installed kernel replaces the
-# previous one, which is kept as vmlinuz-prev.efi, and goes on trial (see the notes at the
-# top): copied, not renamed, so a power cut never leaves no vmlinuz.efi. -s, not -f: an
-# empty file is our placeholder, and moving it would leave nothing to boot.
+# The checksums of the kernels on the boot volume (for of-kernel-check), written and synced
+# before anything relies on them; extra "sum name" lines given as arguments are kept too
+kernel_sums() {
+	{ (cd "$BOOTDIR" && sha256sum "$KERNELEFI" $([ -s "$PREVEFI" ] && echo "$PREVEFI")); [ $# -eq 0 ] || printf '%s\n' "$@"; } > "$KSUMS.new" &&
+		sync "$KSUMS.new" && mv -f "$KSUMS.new" "$KSUMS" && sync
+}
+
+# The kernel is vmlinuz.efi in either mode. A freshly installed kernel replaces it, and the one
+# it replaces is kept as vmlinuz-prev.efi (copied, not renamed, so a power cut never leaves no
+# vmlinuz.efi), unless vmlinuz.efi is itself still on trial, never started, or has just failed
+# (the previous kernel running): the previous kernel is then the one known to start, and stays.
+# The new one goes on trial further on, where boot.nsh is written, if boot.nsh will carry the
+# trial's lines. -s, not -f: an empty file is our placeholder, and moving it would leave
+# nothing to boot.
+NEWKERNEL=""
 if [[ "$VERSION" != "" ]] && [ -s "$BOOTDIR/vmlinuz-$VERSION" ]; then
 	boot_rw
 	OLDVER=""
+	CURVER="" PREVVER=""
+	[[ "$BOOTDIR" == "/boot" ]] && read -r CURVER PREVVER 2>/dev/null < "$KSTATE"
 	if [[ "$BOOTDIR" == "/boot" ]] && [ -s "$BOOTDIR/$KERNELEFI" ] && ! systemd-detect-virt -q --chroot 2>/dev/null; then
-		read -r OLDVER _ 2>/dev/null < "$KSTATE"
-		[ -n "$OLDVER" ] || OLDVER=$(uname -r) # (before there was a record: what's running)
-		sync
-		if cp "$BOOTDIR/$KERNELEFI" "$BOOTDIR/$PREVEFI.new" && sync && mv -f "$BOOTDIR/$PREVEFI.new" "$BOOTDIR/$PREVEFI"; then
-			rm -f "$BOOTDIR/oftried1" "$BOOTDIR/oftried2"
-			echo "$VERSION" > "$BOOTDIR/oftrial"
-			sync
+		NEWKERNEL=1
+		if [ -s "$BOOTDIR/$PREVEFI" ] && { [ -e "$BOOTDIR/oftrial" ] || grep -qw ofkernel=prev /proc/cmdline; }; then
+			OLDVER=$PREVVER
 		else
-			rm -f "$BOOTDIR/$PREVEFI.new"
-			OLDVER=""
+			OLDVER=${CURVER:-$(uname -r)} # (before there was a record: what's running)
+			sync
+			if cp "$BOOTDIR/$KERNELEFI" "$BOOTDIR/$PREVEFI.new" && sync && mv -f "$BOOTDIR/$PREVEFI.new" "$BOOTDIR/$PREVEFI"; then
+				sync
+			else
+				rm -f "$BOOTDIR/$PREVEFI.new"
+				OLDVER=""
+			fi
 		fi
 	fi
+	# While vmlinuz.efi changes, either content passes of-kernel-check
+	[[ "$BOOTDIR" == "/boot" ]] && kernel_sums "$(sha256sum < "$BOOTDIR/vmlinuz-$VERSION" | cut -d' ' -f1)  $KERNELEFI"
 	mv -f "$BOOTDIR/vmlinuz-$VERSION" "$BOOTDIR/$KERNELEFI"
 	sync
 	if [[ "$BOOTDIR" == "/boot" ]]; then
 		mkdir -p "${KSTATE%/*}"
-		echo "$VERSION $OLDVER" > "$KSTATE"
-		kernel_keep
-		(cd "$BOOTDIR" && sha256sum "$KERNELEFI" $([ -s "$PREVEFI" ] && echo "$PREVEFI")) > "$KSUMS.new" &&
-			mv -f "$KSUMS.new" "$KSUMS"
+		echo "$VERSION $OLDVER" > "$KSTATE.new" && mv -f "$KSTATE.new" "$KSTATE"
+		kernel_sums
 	fi
 fi
+# apt keeps the packages of what's in vmlinuz.efi and vmlinuz-prev.efi (of-kernel-check may
+# have changed which), whenever this runs
+[[ "$BOOTDIR" == "/boot" ]] && [ -s "$KSTATE" ] && kernel_keep
 
 if [ -s "$BOOTDIR/$KERNELEFI" ]; then
 	if [[ "$VERSION" != "" ]] && [ ! -e "$BOOTDIR/vmlinuz-$VERSION" ]; then
@@ -647,11 +672,27 @@ if [[ "$MODE" == "stub" ]]; then
 		done
 	fi
 
+	# The trial: only where boot.nsh carries its lines (a stub start without the initrd, on
+	# this system's own /boot, with a previous kernel to fall back on). A new kernel goes on
+	# trial then; otherwise there's no trial, and any marks go, or nothing would clear them.
+	TRIALS=""
+	[[ "$ROOTPART" != "" ]] && [[ "$BOOTDIR" == "/boot" ]] && [ -s "$BOOTDIR/$PREVEFI" ] && TRIALS=1
+	if [ -n "$TRIALS" ] && [ -n "$NEWKERNEL" ]; then
+		boot_rw
+		rm -f "$BOOTDIR/oftried1" "$BOOTDIR/oftried2"
+		echo "$VERSION" > "$BOOTDIR/oftrial"
+		sync
+	elif [ -z "$TRIALS" ] && [[ "$BOOTDIR" == "/boot" ]] && ls "$BOOTDIR"/oftri* >/dev/null 2>&1; then
+		boot_rw
+		rm -f "$BOOTDIR/oftrial" "$BOOTDIR/oftried1" "$BOOTDIR/oftried2"
+		sync
+	fi
+
 	# The kernel's line, with the trial's around it while there's a previous kernel to fall
 	# back on (see the notes at the top); $1 indents them
 	kernel_lines() {
 		local K="${KERNELEFI%.efi}" P="${PREVEFI%.efi}"
-		if [[ "$ROOTPART" != "" ]] && [[ "$BOOTDIR" == "/boot" ]] && [ -s "$BOOTDIR/$PREVEFI" ]; then
+		if [ -n "$TRIALS" ]; then
 			printf '%sif exist oftried2 then\n%s  %s %s ofkernel=prev\n%sendif\n' "$1" "$1" "$P" "$ARGS" "$1"
 			printf '%sif exist oftried1 then\n%s  echo 2 > oftried2\n%sendif\n' "$1" "$1" "$1"
 			printf '%sif exist oftrial then\n%s  echo 1 > oftried1\n%sendif\n' "$1" "$1" "$1"
@@ -676,6 +717,12 @@ if [[ "$MODE" == "stub" ]]; then
 
 else
 
+	# GRUB starts the kernel: no trial (nothing would mark its tries), so no marks either
+	if [[ "$BOOTDIR" == "/boot" ]] && ls "$BOOTDIR"/oftri* >/dev/null 2>&1; then
+		boot_rw
+		rm -f "$BOOTDIR/oftrial" "$BOOTDIR/oftried1" "$BOOTDIR/oftried2"
+		sync
+	fi
 	{
 		switch_lines "$MARKER"
 		mac_lines

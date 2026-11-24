@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-kernel-check v26.11.1 (24th November 2026)
+## of-kernel-check v26.11.2 (24th November 2026)
 ##  Settles a new kernel's trial (see of-bootnsh), and checks the kernels on the boot
 ##  volume, once the unit's been up a minute and a half (of-kernel-check.timer). A kernel update keeps the kernel before it as
 ##  vmlinuz-prev.efi on the boot volume and marks the new one on trial (oftrial, its
@@ -47,33 +47,64 @@ fi
 
 [ "$(id -u)" -eq 0 ] || { echo "of-kernel-check needs root: it writes to /boot."; exit 1; }
 
-# Whether file $1 on the boot volume matches its recorded checksum (true with none recorded)
+# One at a time with of-bootnsh, which writes the kernels and their checksums: a kernel being
+# installed (of-dpkg-recover finishing one, say) is never judged half-way
+exec 8> /run/of-bootnsh.lock && flock 8
+
+# Whether file $1 on the boot volume matches a checksum recorded for it (true with none
+# recorded; of-bootnsh records the new kernel's alongside the old while it moves it in)
 intact() {
 	local SUM
-	SUM=$(awk -v f="$1" '$2 == f { print $1 }' "$KSUMS" 2>/dev/null)
-	[ -z "$SUM" ] || [ "$(sha256sum < "$BOOT/$1" 2>/dev/null | cut -d' ' -f1)" = "$SUM" ]
+	grep -q -E "[[:space:]]$1\$" "$KSUMS" 2>/dev/null || return 0
+	SUM=$(sha256sum < "$BOOT/$1" 2>/dev/null | cut -d' ' -f1)
+	[ -n "$SUM" ] && grep -q -E "^$SUM[[:space:]]+$1\$" "$KSUMS"
+}
+sums() { (cd "$BOOT" && sha256sum "$@") > "$KSUMS.new" && sync "$KSUMS.new" && mv -f "$KSUMS.new" "$KSUMS"; }
+# vmlinuz.efi now holds the previous kernel: the record says so (apt's keep list follows it,
+# through of-bootnsh, run at the end)
+on_prev() {
+	local CUR PREV
+	read -r CUR PREV 2>/dev/null < "$KSTATE"
+	[ -n "$PREV" ] && echo "$PREV $PREV" > "$KSTATE.new" && mv -f "$KSTATE.new" "$KSTATE"
+	BOOTNSH=1
+}
+BOOTNSH=""
+# vmlinuz-prev.efi over vmlinuz.efi: true only if it got there whole
+put_prev_back() {
+	sync
+	if cp "$BOOT/vmlinuz-prev.efi" "$BOOT/vmlinuz.efi.new" && sync && cmp -s "$BOOT/vmlinuz-prev.efi" "$BOOT/vmlinuz.efi.new" &&
+		mv -f "$BOOT/vmlinuz.efi.new" "$BOOT/vmlinuz.efi" && sync; then
+		return 0
+	fi
+	rm -f "$BOOT/vmlinuz.efi.new"
+	sync
+	return 1
 }
 
-# The kernels on the boot volume: a damaged one put right, before anything needs it
-if [ -s "$KSUMS" ]; then
+# The kernels on the boot volume: a damaged one put right, before anything needs it. Only
+# where boot.nsh carries the trial (a stub start without the initrd): with GRUB or the initrd,
+# the previous kernel wouldn't match what starts it.
+if [ -s "$KSUMS" ] && grep -q oftried2 "$BOOT/boot.nsh" 2>/dev/null; then
 	if ! intact vmlinuz.efi && [ -s "$BOOT/vmlinuz-prev.efi" ] && intact vmlinuz-prev.efi; then
-		log "vmlinuz.efi is damaged: the previous kernel put back in its place"
 		/usr/lib/openframe/bootrw open || exit 1
-		sync
-		cp "$BOOT/vmlinuz-prev.efi" "$BOOT/vmlinuz.efi.new" && sync && mv -f "$BOOT/vmlinuz.efi.new" "$BOOT/vmlinuz.efi"
-		sync
+		if put_prev_back; then
+			log "vmlinuz.efi is damaged: the previous kernel put back in its place"
+			mkdir -p "${FAILED%/*}"
+			echo "$(date -u '+%F %T') vmlinuz.efi (damaged)" >> "$FAILED"
+			sums vmlinuz.efi vmlinuz-prev.efi
+			on_prev
+		else
+			log "vmlinuz.efi is damaged, and the previous kernel couldn't be put back in its place"
+		fi
 		/usr/lib/openframe/bootrw close
-		mkdir -p "${FAILED%/*}"
-		echo "$(date -u '+%F %T') vmlinuz.efi (damaged)" >> "$FAILED"
-		(cd "$BOOT" && sha256sum vmlinuz.efi vmlinuz-prev.efi) > "$KSUMS.new" && mv -f "$KSUMS.new" "$KSUMS"
 	elif [ -e "$BOOT/vmlinuz-prev.efi" ] && ! intact vmlinuz-prev.efi; then
 		log "vmlinuz-prev.efi is damaged: removed, so nothing falls back to it"
 		/usr/lib/openframe/bootrw open || exit 1
 		rm -f "$BOOT/vmlinuz-prev.efi"
 		sync
 		/usr/lib/openframe/bootrw close
-		(cd "$BOOT" && sha256sum vmlinuz.efi) > "$KSUMS.new" && mv -f "$KSUMS.new" "$KSUMS"
-		/usr/local/sbin/of-bootnsh >/dev/null 2>&1 # (boot.nsh without the trial's lines)
+		sums vmlinuz.efi
+		BOOTNSH=1 # (boot.nsh without the trial's lines)
 	elif ! intact vmlinuz.efi; then
 		log "vmlinuz.efi is damaged, and there's no previous kernel to put back: reinstall the kernel"
 	fi
@@ -83,40 +114,43 @@ fi
 # vmlinuz.efi, so it's sound
 if [ ! -s "$KSUMS" ] && ! marks && ! grep -qw ofkernel=prev /proc/cmdline && [ -s "$BOOT/vmlinuz.efi" ]; then
 	mkdir -p "${KSUMS%/*}"
-	(cd "$BOOT" && sha256sum vmlinuz.efi $([ -s vmlinuz-prev.efi ] && echo vmlinuz-prev.efi)) > "$KSUMS.new" &&
-		mv -f "$KSUMS.new" "$KSUMS"
+	sums vmlinuz.efi $([ -s "$BOOT/vmlinuz-prev.efi" ] && echo vmlinuz-prev.efi)
 fi
 
-marks || grep -qw ofkernel=prev /proc/cmdline || exit 0
+# of-bootnsh, when the kernels changed here: with the lock let go first, since it takes it
+finish() {
+	exec 8>&-
+	[ -n "$BOOTNSH" ] && /usr/local/sbin/of-bootnsh >/dev/null 2>&1
+	exit 0
+}
+
+marks || grep -qw ofkernel=prev /proc/cmdline || finish
 
 TRIAL=$(tr -d '\r\0' < "$BOOT/oftrial" 2>/dev/null | head -1)
-/usr/lib/openframe/bootrw open || exit 1
-trap '/usr/lib/openframe/bootrw close' EXIT
 
 if grep -qw ofkernel=prev /proc/cmdline; then
 	# The previous kernel's running: the new one didn't come up, twice, or vmlinuz.efi
 	# couldn't be started at all
-	log "kernel ${TRIAL:-(unknown)} didn't start, twice: back on the previous kernel, which stays"
-	if [ -s "$BOOT/vmlinuz-prev.efi" ]; then
+	/usr/lib/openframe/bootrw open || exit 1
+	if [ ! -s "$BOOT/vmlinuz-prev.efi" ] || put_prev_back; then
+		log "kernel ${TRIAL:-(unknown)} didn't start, twice: back on the previous kernel, which stays"
+		rm -f "$BOOT/oftrial" "$BOOT/oftried1" "$BOOT/oftried2"
 		sync
-		cp "$BOOT/vmlinuz-prev.efi" "$BOOT/vmlinuz.efi.new" && sync && mv -f "$BOOT/vmlinuz.efi.new" "$BOOT/vmlinuz.efi"
+		mkdir -p "${FAILED%/*}"
+		echo "$(date -u '+%F %T') ${TRIAL:-unknown}" >> "$FAILED"
+		[ -s "$BOOT/vmlinuz-prev.efi" ] && sums vmlinuz.efi vmlinuz-prev.efi && on_prev
+	else
+		# The marks stay, so the next start goes to the previous kernel again
+		log "kernel ${TRIAL:-(unknown)} didn't start, twice, and the previous kernel couldn't be put back in its place"
 	fi
-	rm -f "$BOOT/oftrial" "$BOOT/oftried1" "$BOOT/oftried2"
-	sync
-	mkdir -p "${FAILED%/*}"
-	echo "$(date -u '+%F %T') ${TRIAL:-unknown}" >> "$FAILED"
-	read -r CUR PREV 2>/dev/null < "$KSTATE"
-	[ -n "$PREV" ] && echo "$PREV $PREV" > "$KSTATE"
-	(cd "$BOOT" && sha256sum vmlinuz.efi vmlinuz-prev.efi) > "$KSUMS.new" && mv -f "$KSUMS.new" "$KSUMS"
-elif [ ! -e "$BOOT/oftried1" ]; then
-	# Not tried yet: installed since this start (a kernel update finished at start-up by
-	# of-dpkg-recover, say), so it's for the next start to try
-	trap - EXIT
 	/usr/lib/openframe/bootrw close
-	exit 0
-else
+elif [ -e "$BOOT/oftried1" ]; then
+	# (Not tried yet, without: installed since this start, by of-dpkg-recover say, so it's for
+	# the next start to try)
 	log "kernel ${TRIAL:-$(uname -r)} started: kept"
+	/usr/lib/openframe/bootrw open || exit 1
 	rm -f "$BOOT/oftrial" "$BOOT/oftried1" "$BOOT/oftried2"
 	sync
+	/usr/lib/openframe/bootrw close
 fi
-exit 0
+finish
