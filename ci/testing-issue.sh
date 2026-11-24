@@ -22,10 +22,11 @@ if [ -z "$waiting" ]; then
 	exit 0
 fi
 
-# What's waiting comes first, as a plain line: GitHub's push notification for a new issue
-# shows the start of its body, and promote.yml reads the table, so no | in it.
-summary=$(while read -r pkg tver rver; do printf '%s %s, ' "$pkg" "$tver"; done <<< "$waiting")
-body="In testing: ${summary%, }.
+# What's waiting comes first, a package and its version to a line: GitHub's push
+# notification for a new issue shows the start of its body (a few lines), and promote.yml
+# reads the table, so no | in them.
+summary=$(while read -r pkg tver rver; do printf '%s %s\n' "$pkg" "$tver"; done <<< "$waiting")
+body="${summary}
 
 | Package | In testing | Released |
 |---|---|---|
