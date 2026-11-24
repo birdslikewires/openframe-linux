@@ -18,7 +18,7 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 FAILS=0
 ok() { echo "ok   $1"; }
-bad() { echo "FAIL $1"; [ -n "${2:-}" ] && sed 's/^/       /' <<< "$2" | tail -10; FAILS=$((FAILS + 1)); }
+bad() { echo "FAIL $1"; [ -n "${2:-}" ] && sed 's/^/       /' <<< "$2" | tail -16; FAILS=$((FAILS + 1)); }
 
 # The flash without its main part (from its root check on).
 sed '/^if \[ "\$(id -u)" -ne 0 \]; then$/,$d' "$SRC" > "$T/lib.sh"
@@ -217,7 +217,10 @@ chk() {    # chk <name> <internal memory size> <corrupt: yes|no> <want: written|
 	out=$(bash -c ". '$T/env.sh'; MODE=cli; W='$T/w'; UDIR='$T/unit'; MMCSIZE=$2; check_mmc test && echo CHECKED" 2>&1)
 	local got=failed
 	grep -q "^CHECKED" <<< "$out" && grep -qx "state=written" "$T/unit/info.txt" && got=written
-	[ "$got" = "$4" ] && ok "$1: $got" || bad "$1: $got (want $4)" "$out"
+	# (on failure, what dd said too: with_progress keeps it in its progress file, $W/progress)
+	[ "$got" = "$4" ] && ok "$1: $got" || bad "$1: $got (want $4)" "$out
+dd said: $(tr '\r' '\n' < "$T/w/progress" 2>/dev/null | grep -v '^$' | tail -5)
+$(df -T "$T" 2>/dev/null | tail -1)"
 }
 chk "checking a write on an OpenFrame 2's internal memory (twice the image)" 9437184 no written
 chk "checking a write on an internal memory the image's size"              4718592 no written
