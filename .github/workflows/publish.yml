@@ -140,5 +140,8 @@ jobs:
           done < assets.txt
           gh release edit "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NOTES"
           # The tag moves to the commit the image was built from.
-          gh api -X PATCH "repos/$REPO/git/refs/tags/$TAG" -f sha="$SHA" -F force=true > /dev/null
+          # (Not fatal: GitHub refused it once, HTTP 403, with the image already swapped and the
+          # tag already there. The notes name the image's commit whatever the tag says.)
+          gh api -X PATCH "repos/$REPO/git/refs/tags/$TAG" -f sha="$SHA" -F force=true > /dev/null ||
+            echo "::warning::The $TAG tag couldn't be moved to ${SHA:0:7}: it stays where it was."
           gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets[].name'
