@@ -463,6 +463,14 @@ case "$1" in
 			touch "$REGDBMARKER"
 		fi
 
+		# On every update, the backlight service restarted, if it's running, so it's the new
+		# of-backlight that answers (the old one went on until the next start: 26.11.153's
+		# display sleep went unheard by it). It keeps its mode, and display sleep, through it.
+		if ! in_chroot; then
+			systemctl daemon-reload 2>/dev/null
+			systemctl try-restart of-backlight.service 2>/dev/null
+		fi || true
+
 		# Refresh the boot volume on every update, keeping the current mode. This gives
 		# systems already in stub mode the empty vmlinuz-<version> that lets
 		# update-initramfs find the kernel. It also clears what blocks a rebuild:
