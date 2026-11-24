@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## flash v26.11.21 (23rd November 2026)
+## flash v26.11.22 (24th November 2026)
 ##  Installs this system onto an OpenFrame's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
@@ -1552,7 +1552,7 @@ cli_flash() {
 		fi
 		if system_stick; then
 			echo "This stick's Wi-Fi network is copied onto the new system (its other settings are"
-			echo "set from Sprite); the stick's own settings stay as they are."
+			echo "set on the screen); the stick's own settings stay as they are."
 		else
 			echo "This stick's settings are copied onto the new system; the stick's own stay as they are."
 		fi

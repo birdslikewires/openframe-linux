@@ -525,13 +525,14 @@ case "$1" in
 		# Once per system: udev's vendor and model name tables out of its hardware database (dpkg
 		# leaves them out from now on: dpkg.cfg.d/openframe-hwdb-names), and the database rebuilt
 		# without them, about 20 MB smaller; it's read at every start.
+		# (Marked done only once the database is rebuilt: a power cut between the two leaves it
+		# for the next update)
 		if [ ! -e "$HWDBMARKER" ]; then
-			if ls /usr/lib/udev/hwdb.d/20-*.hwdb >/dev/null 2>&1; then
-				rm -f /usr/lib/udev/hwdb.d/20-*.hwdb
-				systemd-hwdb update --usr 2>/dev/null || true
+			rm -f /usr/lib/udev/hwdb.d/20-*.hwdb
+			if systemd-hwdb update --usr 2>/dev/null; then
+				mkdir -p "${HWDBMARKER%/*}"
+				touch "$HWDBMARKER"
 			fi
-			mkdir -p "${HWDBMARKER%/*}"
-			touch "$HWDBMARKER"
 		fi
 
 		# Once per system, the wireless regulatory database the kernel can read. wireless-regdb

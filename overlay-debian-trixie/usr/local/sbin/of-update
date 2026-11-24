@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-update v26.11.4 (23rd November 2026)
+## of-update v26.11.5 (24th November 2026)
 ##  Keeps the OpenFrame up to date by itself: Debian's updates, and OpenBeak's (Sprite,
 ##  these scripts, the kernel and the firmware), installed by unattended-upgrades as set up
 ##  in /etc/apt/apt.conf.d/52openframe-updates. Owners never have to log in for them.
@@ -192,9 +192,10 @@ lists() {
 		out=$(apt-get -qq --error-on=any update 2>&1) && return 0
 		# A test unit whose testing suites aren't all there yet (a repository makes its own at
 		# its first publish to testing) still takes everything else: every error about a
-		# testing suite (apt's line after any failure names none)
-		if [ -n "$out" ] && ! grep '^E:' <<< "$out" | grep -v 'Some index files failed to download' | grep -qv -- '-testing'; then
-			log "no testing suite there yet: $(grep '^E:' <<< "$out" | head -1)"
+		# testing suite (apt's line after any failure names none). Likewise the apps repository:
+		# a fault there holds back the apps, never the system's own updates.
+		if [ -n "$out" ] && ! grep '^E:' <<< "$out" | grep -v 'Some index files failed to download' | grep -v -e '-testing' -e 'apps\.openbeak\.net' | grep -q .; then
+			log "a testing suite or the apps repository not there: $(grep '^E:' <<< "$out" | head -1)"
 			return 0
 		fi
 		(( try < 3 )) && sleep 60

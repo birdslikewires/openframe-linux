@@ -35,14 +35,15 @@ if [ "${NEWS:-}" ]; then
 		awk '{ n[$2]++; m = $2; sub(/\..*/, "", m); mm = substr($2, 4) + 0; print $1, m "." mm "." n[$2] }' |
 		while read -r hash ver; do
 			i=$((${i:-0} + 1))
-			# Each "News:" line anywhere in the message, running on to a blank line or the next
-			# "Key:" line, its lines joined: not git's trailers alone, which only count in the
+			# Each "News:" line anywhere in the message, running on to a blank line, the next
+			# News: line or a trailer of ours, its lines joined (so a wrapped line starting
+			# "Settings: ..." stays in the note): not git's trailers alone, which only count in the
 			# message's last paragraph and fold only indented lines (a News: paragraph before
 			# the Co-Authored-By one, or a note wrapped onto a plain line, was missed)
 			git log -1 --format=%B "$hash" | awk '
 				function out() { if (n != "") print n; n = "" }
 				/^News:/ { out(); n = $0; sub(/^News:[ \t]*/, "", n); next }
-				n != "" && (/^[ \t]*$/ || /^[A-Za-z][A-Za-z0-9-]*: /) { out(); next }
+				n != "" && (/^[ \t]*$/ || /^(Co-Authored-By|Claude-Session|Signed-off-by):/) { out(); next }
 				n != "" { l = $0; sub(/^[ \t]+/, "", l); n = n " " l }
 				END { out() }' |
 				awk -v i="$i" -v v="$EPOCH$ver" '{ print i "\t" NR "\t" v "\t" $0 }'

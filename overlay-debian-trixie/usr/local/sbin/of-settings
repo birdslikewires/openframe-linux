@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-settings v26.11.7 (16th November 2026)
+## of-settings v26.11.8 (24th November 2026)
 ##  Bundles a bunch of handy settings into one place.
 
 usage() {
@@ -404,6 +404,10 @@ EOF
 		LOCALE="${2}"
 
 		if ! locale -a 2>/dev/null | grep -qx "${LOCALE}"; then
+			if ! command -v locale-gen >/dev/null 2>&1; then
+				echo "Only C.UTF-8 is built in: 'sudo apt install locales' first, for '${LOCALE}'."
+				exit 1
+			fi
 			echo -n "Generating locale '${LOCALE}'..."
 			sed -i "s/^# *\(${LOCALE}\)/\1/" /etc/locale.gen
 			locale-gen "${LOCALE}" || { echo " failed."; exit 1; }

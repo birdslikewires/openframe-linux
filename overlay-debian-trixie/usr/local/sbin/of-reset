@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-reset v26.11.3 (24th November 2026)
+## of-reset v26.11.4 (24th November 2026)
 ##  Erases an OpenFrame for its next owner, back to how its image left it, then restarts it.
 ##    of-reset --yes        do it (Sprite's About tab: "Erase everything", asked twice)
 ##    of-reset --dry-run    say what it would do, and do nothing
@@ -156,7 +156,7 @@ done
 run rm -f /etc/ssh/ssh_host_*
 
 # --- what was kept from those settings, and the rest of the owner's ------------------------
-say "network settings kept from the old files, Sprite's home screen and apps' data, update record"
+say "network settings kept from the old files, the interface's home screen and apps' data, update record"
 run rm -f /var/lib/of-netplan/wifi.txt /var/lib/of-netplan/ethernet.txt /var/lib/of-netplan/user.yaml \
 	/var/lib/of-netplan/live.yaml /var/lib/of-netplan/issue.note
 run rm -f /etc/netplan/*.yaml
