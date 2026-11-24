@@ -1,0 +1,11 @@
+# OpenFrame (openframe-scripts): apps.openbeak.net, where Sprite's Shop installs apps from,
+# can only ever supply apps, packages named ofapp-*: anything else it might offer, it never
+# installs, whatever its version.
+
+Package: ofapp-*
+Pin: origin "apps.openbeak.net"
+Pin-Priority: 500
+
+Package: *
+Pin: origin "apps.openbeak.net"
+Pin-Priority: -1

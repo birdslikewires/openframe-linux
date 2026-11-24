@@ -13,9 +13,12 @@ Unattended-Upgrade::Origins-Pattern {
 	"origin=Debian,codename=${distro_codename}-updates";
 	"origin=OpenFrame,codename=${distro_codename}";
 	"origin=OpenFrame Kernel,codename=${distro_codename}";
+	// the apps installed from Sprite's Shop (apps.openbeak.net)
+	"origin=OpenFrame Apps,codename=${distro_codename}";
 	// test units only (OF-BOOT/settings/test.txt): OpenBeak's updates before release
 	"origin=OpenFrame,codename=${distro_codename}-testing";
 	"origin=OpenFrame Kernel,codename=${distro_codename}-testing";
+	"origin=OpenFrame Apps,codename=${distro_codename}-testing";
 };
 
 // Each package a small step, so a power cut leaves little half-done (of-dpkg-recover

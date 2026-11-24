@@ -25,6 +25,7 @@ on:
       - 'overlay-*/etc/apt/apt.conf.d/50openframe-*'
       - 'overlay-*/etc/apt/apt.conf.d/52openframe-*'
       - 'overlay-*/etc/sensors.d/openframe.conf'
+      - 'overlay-*/etc/apt/preferences.d/openframe-*'
       - 'overlay-*/usr/share/keyrings/**'
       - 'package/**'
       - '.github/workflows/package.yml'
@@ -265,13 +266,14 @@ jobs:
             # /boot hook (openframe-boot), no translated messages (openframe-nolocale), no
             # firmware for drivers our kernel doesn't build (openframe-unused-firmware), apt's
             # small lists and caches (50openframe-slim), automatic updates (52openframe-updates),
-            # and names for the temperature readings (sensors.d/openframe.conf). Images get the
+            # names for the temperature readings (sensors.d/openframe.conf), and the apps
+            # repository's pin (preferences.d/openframe-apps: ofapp-* only). Images get the
             # same files from the overlay, so dpkg finds them identical and doesn't ask.
             : > "${PKG}/DEBIAN/conffiles"
             for conf in etc/dpkg/dpkg.cfg.d/openframe-boot etc/dpkg/dpkg.cfg.d/openframe-nolocale \
                         etc/dpkg/dpkg.cfg.d/openframe-unused-firmware \
                         etc/apt/apt.conf.d/50openframe-slim etc/apt/apt.conf.d/52openframe-updates \
-                        etc/sensors.d/openframe.conf; do
+                        etc/sensors.d/openframe.conf etc/apt/preferences.d/openframe-apps; do
               [ -f "${overlay_dir}${conf}" ] || continue
               mkdir -p "${PKG}/${conf%/*}"
               install -m 644 "${overlay_dir}${conf}" "${PKG}/${conf}"

@@ -22,7 +22,7 @@ paths=("${overlay_dir}usr/local/bin/of-*" "${overlay_dir}usr/local/sbin/of-*" \
   "${overlay_dir}usr/lib/modules-load.d" "${overlay_dir}usr/share/plymouth/themes" \
   "${overlay_dir}usr/share/keyrings" "${overlay_dir}usr/local/bin/readlightsensor" \
   "${overlay_dir}usr/lib/systemd/timesyncd.conf.d" "${overlay_dir}etc/apt/apt.conf.d/50openframe-*" \
-  "${overlay_dir}etc/apt/apt.conf.d/52openframe-*" \
+  "${overlay_dir}etc/apt/apt.conf.d/52openframe-*" "${overlay_dir}etc/apt/preferences.d/openframe-*" \
   "${overlay_dir}etc/sensors.d/openframe.conf" "${overlay_dir}boot/backlight.txt" \
   "${overlay_dir}boot/settings" \
   .github/workflows/package.yml package)

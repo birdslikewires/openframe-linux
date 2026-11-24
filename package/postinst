@@ -52,6 +52,7 @@ SPLASHMARKER="/var/lib/openframe-scripts/splash-default"
 BLRESTOREMARKER="/var/lib/openframe-scripts/backlight-restore-default"
 KERNELCHECKMARKER="/var/lib/openframe-scripts/kernel-check-default"
 SETREADMEMARKER="/var/lib/openframe-scripts/settings-readme-default"
+APPSREPOMARKER="/var/lib/openframe-scripts/apps-repo-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -495,6 +496,29 @@ case "$1" in
 			fi
 			mkdir -p "${FWREPOMARKER%/*}"
 			touch "$FWREPOMARKER"
+		fi
+
+		# Once per system, the apps repository (apps.openbeak.net), which Sprite's Shop installs apps
+		# from: its own key (openframe-apps.gpg, never the system repositories', which it can't
+		# vouch for), and pinned by this package (preferences.d/openframe-apps) so it can only ever
+		# supply ofapp-* packages. Their updates come overnight with the rest (52openframe-updates).
+		# Removing the list afterwards keeps it removed. On every update its keyring is kept to
+		# the one this package ships, as the others are.
+		APPSKEY=/usr/share/keyrings/openframe-apps.gpg
+		APPSKR=/etc/apt/keyrings/openframe-apps.gpg
+		if [ ! -e "$APPSREPOMARKER" ]; then
+			APPSLIST=/etc/apt/sources.list.d/openframe-apps.list
+			if [ ! -e "$APPSLIST" ] && [ -f "$APPSKEY" ] && [ -d /etc/apt/sources.list.d ]; then
+				mkdir -p /etc/apt/keyrings
+				install -m 644 "$APPSKEY" "$APPSKR"
+				CODENAME=$(. /etc/os-release && echo "${VERSION_CODENAME:-trixie}")
+				echo "deb [signed-by=$APPSKR] https://apps.openbeak.net/ ${CODENAME} main" > "$APPSLIST"
+			fi
+			mkdir -p "${APPSREPOMARKER%/*}"
+			touch "$APPSREPOMARKER"
+		fi
+		if [ -f "$APPSKEY" ] && [ -f "$APPSKR" ] && ! cmp -s "$APPSKEY" "$APPSKR"; then
+			install -m 644 "$APPSKEY" "$APPSKR.new" && mv -f "$APPSKR.new" "$APPSKR"
 		fi
 
 		# Once per system, the wireless regulatory database the kernel can read. wireless-regdb
