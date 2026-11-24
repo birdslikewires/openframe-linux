@@ -1,3 +1,4 @@
+1:26.11.170	The OpenFrame Flash screen no longer comes up garbled, with lines doubled and out of place.
 1:26.11.162	The settings folder on the OpenFrame's boot volume has a README.txt saying what each file is for.
 1:26.11.161	If an update's new kernel won't start, the OpenFrame goes back to the one before by itself.
 1:26.11.157	The bird stays on the screen while the OpenFrame starts, with a bar under it, instead of a black screen and a blinking cursor.
