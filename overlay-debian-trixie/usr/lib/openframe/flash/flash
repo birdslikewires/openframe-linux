@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## flash v26.11.23 (24th November 2026)
+## flash v26.11.24 (24th November 2026)
 ##  Installs this system onto an OpenFrame's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
@@ -260,7 +260,8 @@ console_restore() {
 }
 
 # Waits for the console to be the framebuffer's (fbcon). The kernel hands it over only at the
-# first text after the boot splash (its deferred takeover), and in the background: drawn
+# first real text after the boot splash (its deferred takeover; see panel_clear), and in the
+# background: drawn
 # straight away, a screen lands on the placeholder console's 80x25 and is wrapped as that
 # turns into the panel's 100x30 under it. Two seconds at most (none without a framebuffer).
 console_ready() {
@@ -274,12 +275,26 @@ console_ready() {
 	return 1
 }
 
-# Puts the boot splash away and clears the panel, with no cursor: the first clear hands the
-# console to the framebuffer, and the second clears that, at the panel's size.
+# Puts the boot splash away and clears the panel, with no cursor. While the splash is up,
+# systemd's status messages are on (Plymouth turns them on, SIGRTMIN+20) and go to Plymouth,
+# which writes them out to the console as it exits, after it has stopped answering: drawn
+# before it had gone, the panel was scrolled away by a screenful of "[ OK ]" lines (seen on
+# an OpenFrame 1). So this waits for plymouthd itself to be gone, turns the messages off
+# again, and only then clears (which wipes whatever came out meanwhile). Then a dot: the kernel's placeholder
+# console only hands over to the framebuffer at real text (it ignores a clear, which is
+# all spaces), so without it the panel was drawn at the placeholder's 80x25 and wrapped
+# when it became 100x30. The placeholder shows nothing, and the second clear, once the
+# framebuffer has the console, wipes the dot.
 panel_clear() {
-	command -v plymouth >/dev/null && plymouth --ping 2>/dev/null && plymouth quit 2>/dev/null
-	tty_out $'\033[0m\033[2J\033[?25l'
+	if command -v plymouth >/dev/null && plymouth --ping 2>/dev/null; then
+		plymouth quit 2>/dev/null
+		local i
+		for ((i = 0; i < 60; i++)); do pidof plymouthd >/dev/null || break; sleep 0.05; done
+		console_hush
+	fi
+	tty_out $'\033[0m\033[2J\033[?25l\033[H.'
 	console_ready
+	console_hush
 	tty_out $'\033[0m\033[2J\033[?25l'
 }
 
