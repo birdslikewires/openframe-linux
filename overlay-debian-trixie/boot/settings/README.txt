@@ -12,6 +12,5 @@
 #   audio.txt      Where the sound goes (a USB DAC, say).
 #   updates.txt    When the OpenFrame installs its updates.
 #   ssh.txt        Signing in from another computer (SSH).
-#   setup.txt      A project to install when the system first starts.
 #   flash.txt      Installing a fresh system onto the internal memory.
 #   test.txt       Taking OpenBeak's updates before they're released.

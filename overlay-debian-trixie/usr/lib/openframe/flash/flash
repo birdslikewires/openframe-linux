@@ -38,8 +38,7 @@
 ##       recognise is never touched: we stop.
 ##    4. Write the image to the MMC and read it back (three tries). A restart during
 ##       the read-back checks it again rather than writing it again.
-##    5. Put the kept settings into the MMC's OF-BOOT/settings (all but flash.txt),
-##       setup.txt included, so provisioning runs on the new system's first start. From a
+##    5. Put the kept settings into the MMC's OF-BOOT/settings (all but flash.txt). From a
 ##       stick in use as a system, only wifi.txt's network name and password.
 ##    6. Mark the unit done, reset this stick's settings to the blank ones (flash.txt
 ##       stays; 'again' becomes 'yes'; a stick in use as a system keeps its own), play a

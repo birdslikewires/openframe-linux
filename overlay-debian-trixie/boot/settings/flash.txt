@@ -2,8 +2,8 @@
 
 # Set flash=yes to install a fresh system onto an OpenFrame's internal memory.
 
-# The settings specified in the backlight.txt, ethernet.txt, and wifi.txt files
-# will be moved to that new system, as will setup.txt if you have added one.
+# The settings in the other files here (wifi.txt, ethernet.txt, name.txt and the
+# rest) will be moved to that new system.
 
 # With backup=yes, the internal memory is backed up first. On a new stick first
 # started with flash=yes, the backups go on a new OF-BACKUP volume made from the

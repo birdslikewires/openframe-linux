@@ -9,7 +9,7 @@ Description=OpenFrame Flash, for the internal memory
 ConditionPathExists=|/boot/settings/flash.txt
 ConditionPathExists=|/usr/lib/openframe/flash/image.img.gz
 After=local-fs.target systemd-udevd.service
-Before=of-firmware.service of-mac-reboot.service getty@tty1.service of-provision.service
+Before=of-firmware.service of-mac-reboot.service getty@tty1.service
 Before=systemd-user-sessions.service display-manager.service startx.service xinit.service
 
 [Service]

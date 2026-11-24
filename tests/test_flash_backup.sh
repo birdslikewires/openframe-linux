@@ -262,7 +262,7 @@ sets() {    # sets <system | flash>: run keep_settings then finish, at boot
 	printf 'flash=again\n' > "$T/settings/flash.txt"
 	printf '\xef\xbb\xbf## mine\r\naddress=192.168.1.50\r\ngateway=192.168.1.1\r\nName = My Net\r\npassword=pa=ss word\r\n' > "$T/settings/wifi.txt"
 	printf 'name=kitchen\n' > "$T/settings/name.txt"
-	printf 'project=x\n' > "$T/settings/setup.txt"
+	printf 'auto=x\n' > "$T/settings/updates.txt"
 	echo "state=written" > "$T/sunit/info.txt"
 	bash -c ". '$T/env.sh'; TEMPLATES='$T/templates'; MODE=boot; CID=c1; UDIR='$T/sunit'; W='$T/w'; mkdir -p \$W
 		if [ $1 = system ]; then BACKUPDIR='$T/sbk'; else BACKUPDIR=\$BACKUPMNT; mkdir -p \$BACKUPDIR; fi
@@ -277,11 +277,11 @@ if [ "$K" = "wifi.txt " ] && grep -qx 'Name = My Net' "$T/kept/wifi.txt" && grep
 	ok "system stick: the unit gets only the Wi-Fi name and password, in the blank wifi.txt"
 else bad "system stick: the unit gets $K" "$(cat "$T/kept/wifi.txt" 2>/dev/null; cat "$T/sets.out")"; fi
 if grep -q 'address=192.168.1.50' "$T/settings/wifi.txt" && grep -qx 'name=kitchen' "$T/settings/name.txt" &&
-	grep -qx 'project=x' "$T/settings/setup.txt" && grep -qx 'flash=yes' "$T/settings/flash.txt"; then
+	grep -qx 'auto=x' "$T/settings/updates.txt" && grep -qx 'flash=yes' "$T/settings/flash.txt"; then
 	ok "system stick: keeps its own settings (flash=again becomes yes)"
 else bad "system stick: its settings changed" "$(head -50 "$T/settings/"*.txt; cat "$T/sets.out")"; fi
 rm -rf "$T/kept"; sets flash
-if [ -f "$T/kept/name.txt" ] && [ -f "$T/kept/setup.txt" ] && grep -q '192.168.1.50' "$T/kept/wifi.txt" &&
+if [ -f "$T/kept/name.txt" ] && grep -qx 'auto=x' "$T/kept/updates.txt" && grep -q '192.168.1.50' "$T/kept/wifi.txt" &&
 	grep -qx 'name=' "$T/settings/name.txt" && grep -qx 'address=' "$T/settings/wifi.txt" && grep -qx 'flash=yes' "$T/settings/flash.txt"; then
 	ok "flash stick: the unit gets all its settings; the stick goes back to the blank ones"
 else bad "flash stick: settings" "$(ls "$T/kept"; head -50 "$T/settings/"*.txt; cat "$T/sets.out")"; fi

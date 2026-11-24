@@ -9,39 +9,11 @@ All of the overlays and scripts used to create the image files are in this repo,
 Images start into the OpenFrame's touch [interface](https://github.com/birdslikewires/openframe-sprite): a home screen of apps and settings, with one app at a time full screen. It can open one app at startup instead, for an OpenFrame with a single job. The login prompt is still there over SSH, and comes back on the screen if the interface is removed (`sudo apt remove openframe-sprite`) or keeps failing.
 
 
-## First-Boot Provisioning
-
-Images include `of-provision`, a first-boot mechanism for installing software without baking every combination of packages into the image itself.
-
-To use it, fill in `setup.txt` in the `settings` folder of the `OF-BOOT` volume before first boot: `project=` and the address of the project you want installed, e.g.
-
-```
-project=https://github.com/birdslikewires/openframe-hamclock
-```
-
-For a GitHub project like this, `of-provision` works out the raw `install.sh` URL itself, trying the `main` branch and then falling back to `master`. To pin a release, tag or branch, give its address on GitHub instead (`https://github.com/owner/project/tree/v1.2`, or `.../releases/tag/v1.2`), and that version's `install.sh` is used; a link to an `install.sh` on GitHub (`.../blob/<ref>/install.sh`) or anywhere else is used as it is. For anything else hosted elsewhere, it looks for `install.sh` at the root of the given URL, e.g. `https://example.com/my-openframe-app/` is expected to have an installer at `https://example.com/my-openframe-app/install.sh`.
-
-Any other lines in `setup.txt` are settings for the project's installer, passed to `install.sh` as environment variables named `SETUP_` and the setting's name in capitals: `name=Kitchen` arrives as `SETUP_NAME=Kitchen`. A project that wants settings says which in its instructions.
-
-On first boot, the `of-provision.service` systemd unit checks `/boot/settings/setup.txt` (or `/boot/setup.txt`, as on older images, where it holds just the address on a line of its own; that still works). If it names a project, it downloads the resulting `install.sh` and runs it as the `of` user, logging output to `/var/log/setup.log`. The device then reboots automatically. With no project, nothing happens and `setup.txt` stays as it is.
-
-The service disables itself as soon as it fires, so it only runs on the first boot. A download that fails (the network not up yet, say) is tried again at the next boot, three boots in all. On success `setup.txt` is removed; if the downloads fail or the installer exits with an error, it's renamed to `setup.txt.failed`, the reason is shown on the login screen, and, on a system running from a USB stick, the log is copied to `settings/setup.log`, where a computer can read it.
-
-To provision another install after first run, re-enable the service and restore `setup.txt` (systems from images before November 2026 only look for it in the root, `/boot/setup.txt`):
-
-```
-sudo systemctl enable of-provision.service
-sudo of-settings bootrw enable                   # /boot is normally read-only
-sudo mv /boot/settings/setup.txt.failed /boot/settings/setup.txt   # or recreate it with a new URL
-sudo reboot
-```
-
-
 ## OpenFrame Flash: Installing onto an OpenFrame's Internal Memory
 
 The image is also a flash stick, with OpenFrame Flash. Written to a USB stick (4 GB or more), it can install itself onto an OpenFrame 1's or OpenFrame 2's internal memory and bring the firmware up to date, without a network, and then go on to the next unit:
 
-1. Write the image to the stick. In the `settings` folder of `OF-BOOT`, set `flash=yes` in `flash.txt`, and fill in any other settings for the unit (`wifi.txt`, `ethernet.txt`, `setup.txt` and so on).
+1. Write the image to the stick. In the `settings` folder of `OF-BOOT`, set `flash=yes` in `flash.txt`, and fill in any other settings for the unit (`wifi.txt`, `ethernet.txt`, `name.txt` and so on).
 2. Put the stick in the OpenFrame and switch it on. The first time, the rest of the stick becomes a drive called `OF-BACKUP`. The screen says what's happening; don't switch off. The firmware and the internal memory are backed up to `OF-BACKUP` first, in a folder for the unit, and checked. If the firmware needs updating, that happens next and the OpenFrame restarts by itself. Then the new system is written to the internal memory and checked, and the stick's settings are copied onto it.
 3. When it says it's done and switches off, remove the stick. The OpenFrame starts its new system, with the settings from step 1.
 4. Back on the computer, the stick's settings are blank again (`flash.txt` still says yes), and `OF-BACKUP` has the unit's folder: `mmc.img.gz` (the internal memory as it was), `firmware.bin` and `info.txt`. Fill in the next unit's settings and repeat. A unit the stick has already done is left alone; set `flash=again` to install it again.
@@ -67,7 +39,6 @@ The `settings` folder in the `OF-BOOT` volume holds everything meant to be chang
 - `network.yaml` (not there unless you add it): a full [netplan](https://netplan.io) configuration, for anything the `.txt` files can't do, such as several Wi-Fi networks. It's used as it is, and `wifi.txt` and `ethernet.txt` only fill in what it doesn't set up. If netplan can't use it, the network carries on without it and the login prompt says what's wrong.
 
 In `wifi.txt` and `ethernet.txt`, leave `address`, `gateway` and `dns` empty for an address from the router (DHCP). For a fixed one, give the address with its prefix or mask (`192.168.1.50/24`, `192.168.1.50/255.255.255.0`, or just `192.168.1.50` for a /24) and the gateway (usually your router's address). DNS is the gateway unless you list servers, separated by commas; servers listed with an automatic address replace the router's. A setting that isn't right is ignored (the network stays automatic), and the login prompt says so, as does the interface, with an amber warning in its status bar. With both networks connected, the wired one carries the traffic.
-- `setup.txt`: a project to install when the system first starts, and any settings for it; see First-Boot Provisioning.
 - `interface.txt` (`sprite.txt` before November 2026): the interface's settings: `startup=` names an app to open whenever the OpenFrame starts, instead of the home screen (holding an app's tile and choosing "Open at startup" sets it too), and `calibration=` holds the touchscreen calibration from Settings on the screen.
 - `test.txt`: `testing=yes` makes the OpenFrame a test unit, which takes OpenBeak's updates before they're released (see Test Units and Releases below). Leave it at `no` unless you're helping to test.
 - `ssh.txt`: logging in as `of`. `password=` sets its password (for SSH and `sudo`) at the next start, and is then emptied in the file, so the password never stays on `OF-BOOT`, which anyone can read; `key=` lines are public keys allowed to log in (the whole of a `.pub` file each), applied at every start. Images give `of` no password (every unit used to have the same one, `joggler`), so until one is set, here or in Settings on the screen, SSH needs a key; and until anyone can log in (a password or a key for a person's account, or a key for root), the SSH server doesn't start, so a new unit isn't listening with no way in. Setting a password in Settings on the screen starts it. `sudo` needs no password: `of` is the person's account, and nothing runs as it unless someone's logged in (the interface runs as a user of its own). On a flash stick the password stays in `ssh.txt`, so that each unit the stick installs gets it (and empties it in its own). Units set up before 22 November 2026 keep the password they had.

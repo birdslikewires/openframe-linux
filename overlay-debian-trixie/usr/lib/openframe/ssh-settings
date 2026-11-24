@@ -30,7 +30,7 @@ END="# end of the keys from ssh.txt"
 
 log() { echo "ssh-settings: $*"; }
 
-# True on a flash stick (flash=yes or again in settings/flash.txt), as of-provision tells.
+# True on a flash stick (flash=yes or again in settings/flash.txt).
 # Not the image copy: every release stick carries that until its system fills up, so the
 # password stayed in the file, and was set again at each start over one set since.
 flash_stick() {

@@ -287,8 +287,7 @@ case "$1" in
 		# moves into it from the root: the one first shipped (1:26.11.50) becomes the
 		# shorter one, an edited one moves as it is (of-backlight reads either), and a
 		# system without one gets one. network.yaml is of-netplan's to move, at the next
-		# boot (it becomes wifi.txt, or settings/network.yaml). setup.txt works in either
-		# place, so it stays where it is. A Mac's companion file (._backlight.txt) goes with
+		# boot (it becomes wifi.txt, or settings/network.yaml). A Mac's companion file (._backlight.txt) goes with
 		# the original.
 		if [ ! -e "$SETTINGSMARKER" ] && [ -d /boot ]; then
 			SETDIR=/boot/settings
