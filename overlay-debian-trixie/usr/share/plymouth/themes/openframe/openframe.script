@@ -1,0 +1,40 @@
+// The OpenFrame's boot splash (openframe-scripts): the pecking bird exactly where the firmware
+// drew it (bird.png is the firmware's own image, 204x82 at 274,199 on the 800x480 panel, white
+// on black), so the change from the firmware to Linux doesn't show; under it, a short bar that
+// fills as the start goes on. Shutting down and restarting, just the bird.
+
+Window.SetBackgroundTopColor(0, 0, 0);
+Window.SetBackgroundBottomColor(0, 0, 0);
+
+// The panel's 800x480; any other screen has it in the middle
+ox = Window.GetX() + Math.Int((Window.GetWidth() - 800) / 2);
+oy = Window.GetY() + Math.Int((Window.GetHeight() - 480) / 2);
+
+bird.sprite = Sprite(Image("bird.png"));
+bird.sprite.SetPosition(ox + 274, oy + 199, 1);
+
+// The bar: 160x4, centred under the bird (which the firmware centres by its mass, on x 400),
+// a dim track and white filling it from the left
+bar.w = 160;
+bar.h = 4;
+bar.x = ox + 400 - bar.w / 2;
+bar.y = oy + 330;
+bar.fill = Image("fill.png");
+bar.track = Sprite();
+bar.done = Sprite();
+bar.shown = 0;
+
+fun progress_cb(duration, progress) {
+	if (Plymouth.GetMode() != "boot") return;
+	if (!bar.shown) {
+		bar.track.SetImage(Image("track.png").Scale(bar.w, bar.h));
+		bar.track.SetPosition(bar.x, bar.y, 2);
+		bar.done.SetPosition(bar.x, bar.y, 3);
+		bar.shown = 1;
+	}
+	w = Math.Int(progress * bar.w);
+	if (w > bar.w) w = bar.w;
+	if (w < 1) return;
+	bar.done.SetImage(bar.fill.Scale(w, bar.h));
+}
+Plymouth.SetBootProgressFunction(progress_cb);

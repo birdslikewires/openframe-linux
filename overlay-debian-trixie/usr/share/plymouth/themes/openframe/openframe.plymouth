@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=OpenFrame
+Description=The pecking bird, where the firmware drew it, with a bar under it that fills as the OpenFrame starts
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/openframe
+ScriptFile=/usr/share/plymouth/themes/openframe/openframe.script

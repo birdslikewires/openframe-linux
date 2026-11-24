@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-bootnsh v26.11.16 (16th November 2026)
+## of-bootnsh v26.11.17 (24th November 2026)
 ##  Writes boot.nsh, the script the firmware's EFI shell runs at power-on, and
 ##  startup.nsh, which runs it.
 ##
@@ -582,6 +582,14 @@ if [[ "$MODE" == "stub" ]]; then
 	elif [[ "$INITRD" != "" ]]; then
 		# The EFI stub takes the initrd path from the root of the boot volume, with backslashes.
 		ARGS="$ARGS initrd=\\${INITRD//\//\\}"
+	fi
+	# The boot splash (Plymouth showing the firmware's bird: openframe-scripts sets its theme),
+	# with no cursor blinking on the console under it: only on a quiet start, so taking 'quiet'
+	# out of grub.cfg's linux line brings back the messages, with nothing over them
+	if grep -q -E '(^|[[:space:]])quiet([[:space:]]|$)' <<< "$ARGS"; then
+		for A in splash vt.global_cursor_default=0; do
+			grep -q -E "(^|[[:space:]])${A//./\\.}([[:space:]]|\$)" <<< "$ARGS" || ARGS="$ARGS $A"
+		done
 	fi
 
 	{

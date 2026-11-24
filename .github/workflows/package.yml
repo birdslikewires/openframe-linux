@@ -18,6 +18,8 @@ on:
       - 'overlay-*/usr/share/initramfs-tools/**'
       - 'overlay-*/usr/lib/systemd/system/**'
       - 'overlay-*/usr/lib/sysctl.d/**'
+      - 'overlay-*/usr/lib/modules-load.d/**'
+      - 'overlay-*/usr/share/plymouth/themes/**'
       - 'overlay-*/usr/lib/systemd/timesyncd.conf.d/**'
       - 'overlay-*/etc/dpkg/dpkg.cfg.d/openframe-*'
       - 'overlay-*/etc/apt/apt.conf.d/50openframe-*'
@@ -247,6 +249,17 @@ jobs:
             if [ -d "${overlay_dir}usr/lib/sysctl.d" ]; then
               mkdir -p "${PKG}/usr/lib/sysctl.d"
               install -m 644 "${overlay_dir}usr/lib/sysctl.d/"*.conf "${PKG}/usr/lib/sysctl.d/"
+            fi
+            # The display driver loaded early, and the boot splash (the firmware's bird)
+            if [ -d "${overlay_dir}usr/lib/modules-load.d" ]; then
+              mkdir -p "${PKG}/usr/lib/modules-load.d"
+              install -m 644 "${overlay_dir}usr/lib/modules-load.d/"*.conf "${PKG}/usr/lib/modules-load.d/"
+            fi
+            if [ -d "${overlay_dir}usr/share/plymouth/themes" ]; then
+              for theme in "${overlay_dir}usr/share/plymouth/themes/"*/; do
+                mkdir -p "${PKG}/usr/share/plymouth/themes/$(basename "$theme")"
+                install -m 644 "$theme"* "${PKG}/usr/share/plymouth/themes/$(basename "$theme")/"
+              done
             fi
             # dpkg, apt and lm-sensors settings, as conffiles so local changes are kept: the
             # /boot hook (openframe-boot), no translated messages (openframe-nolocale), no

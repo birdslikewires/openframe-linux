@@ -48,6 +48,8 @@ TESTSETTINGSMARKER="/var/lib/openframe-scripts/test-settings-default"
 UPDATETIMEMARKER="/var/lib/openframe-scripts/update-time-default"
 NAMEMARKER="/var/lib/openframe-scripts/name-default"
 AUDIOMARKER="/var/lib/openframe-scripts/audio-default"
+SPLASHMARKER="/var/lib/openframe-scripts/splash-default"
+BLRESTOREMARKER="/var/lib/openframe-scripts/backlight-restore-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -229,6 +231,31 @@ case "$1" in
 			in_chroot || systemctl start of-backlight.service 2>/dev/null || true
 			mkdir -p "${BACKLIGHTMARKER%/*}"
 			touch "$BACKLIGHTMARKER"
+		fi
+
+		# Once per system: systemd's own save and restore of the backlight's level, masked for the
+		# OpenFrame's, which of-backlight already looks after (its mode, kept across restarts).
+		# Saved with the screen asleep (Sprite's display sleep), systemd's put 0 back at the next
+		# start, raised to its lowest, 3%, and the boot splash dimmed till of-backlight brought
+		# it up again. Unmasking it afterwards sticks.
+		if [ ! -e "$BLRESTOREMARKER" ]; then
+			# (masked by hand, as systemctl would, so an image's chroot gets it too)
+			ln -sf /dev/null '/etc/systemd/system/systemd-backlight@backlight:openframe-bl.service' 2>/dev/null || true
+			in_chroot || systemctl daemon-reload 2>/dev/null || true
+			mkdir -p "${BLRESTOREMARKER%/*}"
+			touch "$BLRESTOREMARKER"
+		fi
+
+		# Once per system: the boot splash, the firmware's bird where the firmware drew it with a
+		# bar under it (usr/share/plymouth/themes/openframe), so the firmware's logo carries on
+		# into Linux. of-bootnsh puts 'splash' on the kernel's command line. Choosing another
+		# theme afterwards (plymouth-set-default-theme) sticks.
+		if [ ! -e "$SPLASHMARKER" ]; then
+			if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+				plymouth-set-default-theme openframe 2>/dev/null || true
+			fi
+			mkdir -p "${SPLASHMARKER%/*}"
+			touch "$SPLASHMARKER"
 		fi
 
 		# Once per system: the settings folder on the boot volume (OF-BOOT/settings), which

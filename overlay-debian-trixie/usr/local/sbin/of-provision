@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-provision v26.11.10 (22nd November 2026)
+## of-provision v26.11.11 (24th November 2026)
 ##  Installs a project named in setup.txt on the boot volume (in its settings folder,
 ##  /boot/settings, or in its root as on older images) when the system first starts:
 ##  downloads the project's install.sh and runs it as the normal user. Lets community
@@ -186,8 +186,10 @@ fi
 
 # A project to install: what follows goes on tty1 (the getty stays away for it), from a
 # clear screen, with no input (an installer that asks a question gets no answer rather
-# than waiting for a keyboard the unit may not have).
+# than waiting for a keyboard the unit may not have). The boot splash goes first, or it
+# would cover it all.
 if [ -w /dev/tty1 ]; then
+	command -v plymouth >/dev/null && plymouth --ping 2>/dev/null && plymouth quit 2>/dev/null
 	printf '\033c' > /dev/tty1
 	exec < /dev/null > /dev/tty1 2>&1
 fi
