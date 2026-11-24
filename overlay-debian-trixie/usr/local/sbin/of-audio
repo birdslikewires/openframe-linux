@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-audio v26.11.5 (24th November 2026)
+## of-audio v26.11.6 (24th November 2026)
 ##  Where the OpenFrame's sound goes: its own (the speaker and headphone socket) or a USB DAC,
 ##  from OF-BOOT/settings/audio.txt, written into /etc/asound.conf as ALSA's default.
 ##    of-audio status      the sound cards there are and which is in use, key=value lines:
@@ -442,7 +442,9 @@ hotplug)
 	apply
 	# low, once it's the output (a software volume control is only there by then)
 	for id in "${NEW[@]}"; do volume "$id" "$LOW"; done
-	(( ${#NEW[@]} )) && store_levels
+	# (an if: as the last command, '(( 0 )) && ...' was hotplug's exit status, and every
+	# start with no new DAC showed of-audio-hotplug.service as failed)
+	if (( ${#NEW[@]} )); then store_levels; fi
 	;;
 store)
 	alsactl store 2>/dev/null

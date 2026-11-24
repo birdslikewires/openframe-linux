@@ -148,8 +148,10 @@ cards mid
 bash $A hotplug 2>/dev/null
 [ "$(pcm)" = hw:CARD=MID ] && [ "$(setting output)" = 08bb:2704 ] && ok "unplugged: the OpenFrame's own, the DAC still chosen" || bad "unplugged" "$(cat /tmp/asound.conf)"
 cards mid dac1
-bash $A hotplug 2>/dev/null
+bash $A hotplug 2>/dev/null; rc=$?
 [ "$(pcm)" = hw:CARD=DAC ] && [ "$(cat /tmp/mix/DAC/PCM)" = 60 ] && ok "back in: the DAC, its volume as it was" || bad "back in" "$(cat /tmp/mix/DAC/PCM)"
+# Nothing new (as at most starts): still a success, or systemd shows the service as failed
+[ $rc -eq 0 ] && ok "hotplug with no new DAC: exit 0" || bad "hotplug with no new DAC: exit $rc"
 
 # openframe-resampler's converter: plug uses it where it's installed (not the linear one),
 # and the mixer's periods are 4410 frames at 44.1 kHz (147 x 30: 48 kHz meets it at 160/147).
