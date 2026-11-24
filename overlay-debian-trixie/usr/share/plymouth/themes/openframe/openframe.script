@@ -14,27 +14,36 @@ bird.sprite = Sprite(Image("bird.png"));
 bird.sprite.SetPosition(ox + 274, oy + 199, 1);
 
 // The bar: 160x4, centred under the bird (which the firmware centres by its mass, on x 400),
-// a dim track and white filling it from the left
+// with round ends like Sprite's home pill: a dim track, and white filling it from the left. The
+// fill is its two round ends and the stretch between them, so the ends stay round as it grows
+// (an image scaled would squash them).
 bar.w = 160;
 bar.h = 4;
 bar.x = ox + 400 - bar.w / 2;
 bar.y = oy + 330;
-bar.fill = Image("fill.png");
-bar.track = Sprite();
-bar.done = Sprite();
+bar.mid = Image("fill.png");
+bar.tracked = 0;
 bar.shown = 0;
 
 fun progress_cb(duration, progress) {
 	if (Plymouth.GetMode() != "boot") return;
-	if (!bar.shown) {
-		bar.track.SetImage(Image("track.png").Scale(bar.w, bar.h));
-		bar.track.SetPosition(bar.x, bar.y, 2);
-		bar.done.SetPosition(bar.x, bar.y, 3);
-		bar.shown = 1;
-	}
 	w = Math.Int(progress * bar.w);
 	if (w > bar.w) w = bar.w;
-	if (w < 1) return;
-	bar.done.SetImage(bar.fill.Scale(w, bar.h));
+	if (!bar.tracked) {
+		bar.track = Sprite(Image("track.png"));
+		bar.track.SetPosition(bar.x, bar.y, 2);
+		bar.tracked = 1;
+	}
+	if (w < 5) return; // the fill: its two ends and at least a pixel between
+	if (!bar.shown) {
+		bar.left = Sprite(Image("fill-left.png"));
+		bar.left.SetPosition(bar.x, bar.y, 3);
+		bar.done = Sprite();
+		bar.done.SetPosition(bar.x + 2, bar.y, 3);
+		bar.right = Sprite(Image("fill-right.png"));
+		bar.shown = 1;
+	}
+	bar.done.SetImage(bar.mid.Scale(w - 4, bar.h));
+	bar.right.SetPosition(bar.x + w - 2, bar.y, 3);
 }
 Plymouth.SetBootProgressFunction(progress_cb);
