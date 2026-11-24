@@ -23,8 +23,12 @@ DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade
 # Additions. Nothing here pulls in perl (about 44 MB with its modules): perl-base, which
 # the system needs anyway, is enough for our scripts. i2c-tools and the perl SSL libraries
 # left the list for that reason (November 2026); 'apt install i2c-tools' brings it back.
-APT_SYSTEM="acpi bash-completion bc ca-certificates cloud-guest-utils curl dosfstools e2fsck-static e2fsprogs exfatprogs firmware-realtek htop initramfs-tools inotify-tools locales libbsd0 libdaemon0 libedit2 liblockfile-bin liblockfile1 libpango-1.0-0 lm-sensors lockfile-progs lsb-release nano net-tools netplan.io openssl pciutils plymouth psmisc sudo systemd-resolved systemd-timesyncd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wget wpasupplicant wireless-regdb wireless-tools yq zram-tools zstd"
-APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg123"
+# Nor the locales package (C.UTF-8 is built into libc), wget (curl does the same),
+# e2fsck-static or pango and its fonts: gone too, about 31 MB. mpg321 plays as mpg123 (an
+# alternative): Debian's mpg123 brought PulseAudio, PortAudio, JACK, NAS and OpenAL for outputs
+# nobody uses here, about 12 MB against 0.4.
+APT_SYSTEM="acpi bash-completion bc ca-certificates cloud-guest-utils curl dosfstools e2fsprogs exfatprogs firmware-realtek htop initramfs-tools inotify-tools libbsd0 libdaemon0 libedit2 liblockfile-bin liblockfile1 lm-sensors lockfile-progs lsb-release nano net-tools netplan.io openssl pciutils plymouth psmisc sudo systemd-resolved systemd-timesyncd usbutils usb-modeswitch usb-modeswitch-data unzip uuid wpasupplicant wireless-regdb wireless-tools yq zram-tools zstd"
+APT_AUDIO="alsa-utils libmad0 libvorbisidec1 libsoxr0 mpg321"
 # libpam-systemd gives each login its own session, so SSH connections are closed cleanly at poweroff.
 APT_SSH="ssh openssh-server libpam-systemd"
 
@@ -47,10 +51,10 @@ echo "=== Tweaks and Permissions =========================="
 echo
 sleep 2
 
-echo "Generating C.UTF-8 locale..."
+# C.UTF-8 is built into libc: nothing to generate, and no locales package for update-locale
+echo "Setting the C.UTF-8 locale..."
 echo
-locale-gen C.UTF-8
-update-locale LANG=C.UTF-8
+echo "LANG=C.UTF-8" > /etc/default/locale
 mv /etc/localtime /etc/localtime.dist
 ln -s /usr/share/zoneinfo/UTC /etc/localtime
 echo

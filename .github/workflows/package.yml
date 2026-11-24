@@ -271,7 +271,7 @@ jobs:
             # same files from the overlay, so dpkg finds them identical and doesn't ask.
             : > "${PKG}/DEBIAN/conffiles"
             for conf in etc/dpkg/dpkg.cfg.d/openframe-boot etc/dpkg/dpkg.cfg.d/openframe-nolocale \
-                        etc/dpkg/dpkg.cfg.d/openframe-unused-firmware \
+                        etc/dpkg/dpkg.cfg.d/openframe-unused-firmware etc/dpkg/dpkg.cfg.d/openframe-hwdb-names \
                         etc/apt/apt.conf.d/50openframe-slim etc/apt/apt.conf.d/52openframe-updates \
                         etc/sensors.d/openframe.conf etc/apt/preferences.d/openframe-apps; do
               [ -f "${overlay_dir}${conf}" ] || continue

@@ -53,6 +53,7 @@ BLRESTOREMARKER="/var/lib/openframe-scripts/backlight-restore-default"
 KERNELCHECKMARKER="/var/lib/openframe-scripts/kernel-check-default"
 SETREADMEMARKER="/var/lib/openframe-scripts/settings-readme-default"
 APPSREPOMARKER="/var/lib/openframe-scripts/apps-repo-default"
+HWDBMARKER="/var/lib/openframe-scripts/hwdb-names-default"
 
 # True inside a chroot, as when an image is being built.
 in_chroot() {
@@ -519,6 +520,18 @@ case "$1" in
 		fi
 		if [ -f "$APPSKEY" ] && [ -f "$APPSKR" ] && ! cmp -s "$APPSKEY" "$APPSKR"; then
 			install -m 644 "$APPSKEY" "$APPSKR.new" && mv -f "$APPSKR.new" "$APPSKR"
+		fi
+
+		# Once per system: udev's vendor and model name tables out of its hardware database (dpkg
+		# leaves them out from now on: dpkg.cfg.d/openframe-hwdb-names), and the database rebuilt
+		# without them, about 20 MB smaller; it's read at every start.
+		if [ ! -e "$HWDBMARKER" ]; then
+			if ls /usr/lib/udev/hwdb.d/20-*.hwdb >/dev/null 2>&1; then
+				rm -f /usr/lib/udev/hwdb.d/20-*.hwdb
+				systemd-hwdb update --usr 2>/dev/null || true
+			fi
+			mkdir -p "${HWDBMARKER%/*}"
+			touch "$HWDBMARKER"
 		fi
 
 		# Once per system, the wireless regulatory database the kernel can read. wireless-regdb

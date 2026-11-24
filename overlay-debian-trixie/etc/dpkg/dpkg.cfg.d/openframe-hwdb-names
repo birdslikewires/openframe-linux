@@ -1,0 +1,6 @@
+# OpenFrame: no vendor and model name tables in udev's hardware database (about 20 MB with the
+# compiled database, which udev reads at every start). They only put names to vendors and
+# models; lsusb and lspci fall back to what each device says of itself. The rest of the
+# database (keyboards, sensors, touchscreens) stays. openframe-scripts' postinst removes them
+# once from a system that has them, and rebuilds the database.
+path-exclude=/usr/lib/udev/hwdb.d/20-*.hwdb

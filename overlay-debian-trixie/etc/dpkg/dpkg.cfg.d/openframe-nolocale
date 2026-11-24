@@ -1,3 +1,4 @@
 # OpenFrame: no translated program messages (about 57 MB); everything speaks English.
-# The locale definitions (locales, /usr/share/i18n) stay, so other locales still work.
+# The images have no locales package either: C.UTF-8, built into libc, is the one they use.
+# 'apt install locales' brings the others back.
 path-exclude=/usr/share/locale/*/LC_MESSAGES/*.mo
