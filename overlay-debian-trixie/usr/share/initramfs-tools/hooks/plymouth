@@ -8,6 +8,10 @@
 # status. It has Debian's name, so hooks that list plymouth as a prerequisite still find it.
 # Likewise its warning that the theme's text plugin (label-pango.so) is missing: it says so
 # for any script theme, and openframe-scripts' (the firmware's bird and a bar) draws no text.
+# Nor does it need fonts, and OpenFrames have no fontconfig (taken out to save space): Debian's
+# hook copies fontconfig's files into the initrd and runs fc-match and fc-cache, under set -e,
+# so without them it failed, and every kernel update with it. Then a copy of it runs in which just those
+# lines may fail, quietly; should Debian's hook change so they aren't found, it runs as it is.
 
 REAL=/usr/lib/openframe/plymouth-hook.distrib
 
@@ -18,9 +22,20 @@ case "$1" in
 	prereqs) exec "$REAL" "$@" ;;
 esac
 
+HOOK=$REAL
+TMP=""
+if [ ! -e /etc/fonts/fonts.conf ] && TMP=$(mktemp); then
+	sed -E -e '/^[[:space:]]*cp .*\/etc\/fonts\//s/$/ 2>\/dev\/null || true/' -e '/^[[:space:]]*fc-cache /s/$/ || true/' \
+		-e '/^[[:space:]]*[A-Z_]+=\$\(fc-match /s/$/ || true/' "$REAL" > "$TMP"
+	if [ $(($(grep -c '|| true$' "$TMP") - $(grep -c '|| true$' "$REAL"))) -eq 5 ] && chmod 755 "$TMP"; then
+		HOOK=$TMP
+	fi
+fi
+
 exec 3>&1
-STATUS=$( { { "$REAL" "$@"; echo $? >&4; } |
+STATUS=$( { { "$HOOK" "$@"; echo $? >&4; } |
 	grep -v -x -e 'W: plymouth: not including drm modules since MODULES=list' \
 		-e 'W: plymouth: The plugin label-pango.so is missing, the selected theme might not work as expected.' \
 		-e 'W: plymouth: You might want to install the plymouth-themes package to fix this.' >&3; } 4>&1 )
+[ -z "$TMP" ] || rm -f "$TMP"
 exit "${STATUS:-1}"
