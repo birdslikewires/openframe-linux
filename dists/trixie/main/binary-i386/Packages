@@ -42,31 +42,31 @@ Description: OpenFrame's sample rate converter for ALSA
  mixer, say), in place of ALSA's own linear converter.
 
 Package: openframe-scripts
-Version: 1:26.11.169
+Version: 1:26.11.171
 Architecture: all
 Maintainer: OpenFrame <andy@dvsn.net>
 Depends: bash, dosfstools, e2fsprogs, yq, unattended-upgrades, openframe-resampler
-Filename: pool/trixie/openframe-scripts_26.11.169_all.deb
-Size: 321124
-MD5sum: aa5c79e0ceafc26d7bd828a0f94a14ec
-SHA1: 480478767d7ad8a4331569dd0cde349a536b5b04
-SHA256: e2c642aa9bec9e5e99de3527ba42e726ef24f502c81bfcc0822a3349a8b7b8da
+Filename: pool/trixie/openframe-scripts_26.11.171_all.deb
+Size: 317606
+MD5sum: 27c8761fa956672ce3225f9fafafa67b
+SHA1: 3fe5af2c70e6b341d82e5689d1bcc2aaa2f4541e
+SHA256: 33337c776ab4c5f646a23309a373f268b7d8e6e495ac5f624b3b5deba5ae5a45
 Section: admin
 Priority: optional
 Description: OpenFrame management scripts
  Scripts for managing OpenFrame devices.
 
 Package: openframe-sprite
-Version: 26.11.128
+Version: 26.11.130
 Architecture: i386
 Maintainer: OpenFrame Project <noreply@openbeak.net>
 Installed-Size: 7520
 Depends: libasound2t64 (>= 1.0.16), libbsd0 (>= 0.7.0), libc6 (>= 2.38), libdisplay-info2 (>= 0.2.0), libdrm2 (>= 2.4.119), libinput10 (>= 1.26.0), libliftoff0 (>= 0.4.1), libmd0 (>= 0.0.0), libpixman-1-0 (>= 0.30.0), libseat1 (>= 0.5.0), libudev1 (>= 183), libwayland-client0 (>= 1.20.0), libwayland-server0 (>= 1.22.0), libxau6 (>= 1:1.0.11), libxcb-composite0, libxcb-errors0 (>= 1.0.1), libxcb-ewmh2 (>= 0.4.2), libxcb-icccm4 (>= 0.4.2), libxcb-render0, libxcb-res0 (>= 1.10), libxcb-xfixes0 (>= 1.15), libxcb1, libxcvt0 (>= 0.1.0), libxdmcp6, libxfont2 (>= 1:2.0.1), libxkbcommon0 (>= 0.5.0), libxshmfence1, x11-xkb-utils, xkb-data, libx11-6, libxext6, libxcursor1, libxfixes3, libxi6, libxrandr2, libxss1, libasound2t64, openframe-scripts (>= 1:26.11.165), curl, iproute2
-Filename: pool/trixie/openframe-sprite_26.11.128_i386.deb
-Size: 2436332
-MD5sum: 21e31892b190aaf82e4a8b696f141399
-SHA1: 8cfbebfe95de9c9fd38ceb3196ca72c2b2a8b36d
-SHA256: f9e758897b20492220f84b07725d26ddd9e31669cecd195261bbd500315e3006
+Filename: pool/trixie/openframe-sprite_26.11.130_i386.deb
+Size: 2436616
+MD5sum: 9fcf68ecbe2eec2bef7727169114a84f
+SHA1: 8441fa8866b291f0bb0994ba9981c3967a526f0c
+SHA256: 0b5e0a80a5ca2612894c1750b79ef997295bae921261afcb7a111bdfa3c7629e
 Section: x11
 Priority: optional
 Homepage: https://github.com/birdslikewires/openframe-sprite
