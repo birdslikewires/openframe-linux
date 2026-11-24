@@ -3,8 +3,10 @@ run-name: openframe-sprite import and publish
 
 # openframe-sprite, the touch shell, is built and released by its own repository
 # (birdslikewires/openframe-sprite). This brings each new release into the linux.openbeak.net
-# repository, which images install it from (run_on_build/00-of-prep.sh). It looks every three
-# hours, and can be run by hand for a release straight away. The repository steps below are
+# repository, which images install it from (run_on_build/00-of-prep.sh). openframe-sprite's
+# package workflow starts it as it releases (a sprite-released repository_dispatch, sent with
+# its DISPATCH_TOKEN); it also looks every three hours, in case that didn't happen, and can be
+# run by hand. The repository steps below are
 # crystalhd.yml's, which are package.yml's: change them together. It shares their concurrency
 # group, so the repo branch is never updated by two at once.
 
@@ -12,6 +14,10 @@ on:
   schedule:
     - cron: '17 */3 * * *'
   workflow_dispatch:
+  # openframe-sprite's package workflow, as it releases (the version's in the payload; this
+  # takes the newest release whatever it says)
+  repository_dispatch:
+    types: [sprite-released]
 
 permissions:
   contents: write
