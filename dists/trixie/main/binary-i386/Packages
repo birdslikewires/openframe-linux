@@ -42,15 +42,15 @@ Description: OpenFrame's sample rate converter for ALSA
  mixer, say), in place of ALSA's own linear converter.
 
 Package: openframe-scripts
-Version: 26.11.173
+Version: 26.11.174
 Architecture: all
 Maintainer: OpenFrame <andy@dvsn.net>
 Depends: bash, dosfstools, e2fsprogs, yq, unattended-upgrades, openframe-resampler
-Filename: pool/trixie/openframe-scripts_26.11.173_all.deb
-Size: 317784
-MD5sum: 4d6379b4d4c3bda0131670811a3857b3
-SHA1: 57006f588dc811133ee6d06f1b59ec961ac549e7
-SHA256: 3ec7ae2a90c1128990ee86f3deefb86b3219ddc8f220910f43fe6592434796d6
+Filename: pool/trixie/openframe-scripts_26.11.174_all.deb
+Size: 317868
+MD5sum: 6426556801c99cd36aac6b811639bc48
+SHA1: 2f206f66d250c9989ccbd803f3af6f11d1f8df0d
+SHA256: 799cd8d144fef5228b67087cf0ec9bf96a2eb088467fffcd70de66a1771d4ca7
 Section: admin
 Priority: optional
 Description: OpenFrame management scripts
