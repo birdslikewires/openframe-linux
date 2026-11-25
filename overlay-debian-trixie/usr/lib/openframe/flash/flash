@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## flash v26.11.24 (24th November 2026)
+## flash v26.11.25 (25th November 2026)
 ##  Installs this system onto an OpenFrame's internal memory (MMC), with the firmware
 ##  brought up to date, after backing up what the unit had. Run as 'of-flash boot' by
 ##  of-flash.service at every boot, and 'of-flash flash|backup|status|clean' by hand.
@@ -72,7 +72,10 @@
 ##  has grown can test the boot-time steps; OF_FLASH_TEST_NOPOWEROFF=1 stays on
 ##  where it would switch off.
 
-VERSION="26.11.21"
+# Shown in the band: this file's own version, from its first line above, so the two can't
+# drift apart (the band said v26.11.21 into v26.11.24)
+VERSION=$(sed -n 's/^## flash v\([0-9][0-9.]*\) .*/\1/p' "${BASH_SOURCE[0]}" 2>/dev/null | head -1)
+VERSION=${VERSION:-unknown}
 SETDIR="/boot/settings"
 FLASHTXT="$SETDIR/flash.txt"
 TEMPLATES="/usr/lib/openframe/settings"
@@ -480,6 +483,9 @@ message() {
 		while IFS= read -r TXT; do
 			OUT+=$(at $ROW 4 "$TXT" "$COL")
 			ROW=$((ROW + 1))
+			# a line folded onto the next goes on in the colour it had there (the last one set
+			# in this part), not the colour it started with
+			[[ "$TXT" =~ .*($'\033'\[[0-9\;]*m) ]] && COL="${BASH_REMATCH[1]}"
 		done < <(printf '%s\n' "$L" | fold -s -w 92)
 	done
 	OUT+=$'\033['"$((ROW + 1));4H"
@@ -490,9 +496,9 @@ message() {
 # The message screens. The unit's folder goes on a line of its own, without a full
 # stop after it. Done: $1 the unit's folder.
 screen_done() {
-	message "$B_GRN" "Done" "${C_LGN}√  ${C_WHT}The new system is installed on the internal memory, with this stick's $(system_stick && echo "Wi-Fi network" || echo settings)." "" \
+	message "$B_GRN" "Done" "${C_LGN}√  ${C_WHT}The new system is installed on the internal memory." "" \
 		"${C_GRY}Backups:  $(backups_at "$1")" "" \
-		"Remove the stick once the OpenFrame has switched off: it starts the new system next time."
+		"Remove the stick once the OpenFrame has switched off."
 }
 
 # Already installed: $1 the unit's folder from then (its name starts with when).
@@ -579,7 +585,7 @@ backup_mode() {
 # own system (a stick in use as a system has no OF-BACKUP).
 backups_at() {
 	if [ "$BACKUPDIR" = "$BACKUPMNT" ]; then echo "OF-BACKUP/$1"
-	else echo "$BACKUPDIR/$1, on this stick's system"; fi
+	else echo "$BACKUPDIR/$1"; fi
 }
 details_at() {
 	if [ "$BACKUPDIR" = "$BACKUPMNT" ]; then echo "The details are in the OF-BACKUP drive on the stick."
@@ -1431,9 +1437,9 @@ run_unit() {
 		power_off
 	else
 		echo
-		echo "Done: the new system is installed on the internal memory, with this stick's"
-		echo "settings. The backups are in ${UDIR}."
-		echo "Switch off, remove the stick, and the OpenFrame starts the new system."
+		echo "Done: the new system is installed on the internal memory."
+		echo "The backups are in ${UDIR}."
+		echo "Switch off, then remove the stick."
 	fi
 }
 

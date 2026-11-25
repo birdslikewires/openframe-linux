@@ -116,7 +116,7 @@ room "too little room even for the firmware's"   'flash=yes\nbackup=no\n' no
 got=$(bash -c ". '$T/env.sh'; mount_backup() { true; }; choose_backupdir; echo \"\$BACKUPDIR|\$(backups_at u1)\"")
 [ "$got" = "$T/of-backup|OF-BACKUP/u1" ] && ok "with OF-BACKUP: the folders there" || bad "with OF-BACKUP: $got"
 got=$(bash -c ". '$T/env.sh'; mount_backup() { false; }; choose_backupdir; echo \"\$BACKUPDIR|\$(backups_at u1)|\$(details_at)\"")
-if [ "$got" = "$T/state/backups|$T/state/backups/u1, on this stick's system|The details are on this stick's system, in $T/state/backups." ] &&
+if [ "$got" = "$T/state/backups|$T/state/backups/u1|The details are on this stick's system, in $T/state/backups." ] &&
    [ -d "$T/state/backups" ]; then
 	ok "without OF-BACKUP: the folders on this stick's system"
 else
