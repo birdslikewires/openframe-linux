@@ -1,24 +1,24 @@
 Architectures: all i386
 Codename: trixie
 Components: main
-Date: Wed, 25 Nov 2026 01:19:26 +0000
+Date: Wed, 25 Nov 2026 06:57:52 +0000
 Description: OpenFrame Linux packages
 Label: OpenFrame Linux
 Origin: OpenFrame
 Suite: trixie
 MD5Sum:
- 9a6dac49c5f38b59dd5948021f3ef22d             1491 Release
+ 59fcf04715b23395634813f4a7d59afe             1491 Release
  7f25238121975279d5e89b0cc29b07b2             4233 main/binary-i386/Packages
- e4629e1a0ffe8f40b5d7ffd47dd2f995             1863 main/binary-i386/Packages.gz
+ 5e35e4a883282b490d7282928c078f81             1863 main/binary-i386/Packages.gz
 SHA1:
- 5bfdda0ea5a0106811e6a67bb838e9f3c06d27c6             1491 Release
+ 8f92983baecbc456b88f750511a23a7eb740ccd7             1491 Release
  e0a9c66d1004d524f498f3a85cea34f6e806957b             4233 main/binary-i386/Packages
- f1b9af3fa25b7974eff119a104b2192e45748709             1863 main/binary-i386/Packages.gz
+ 59b22966cdd509c69f67a722d33c3584743d1e5d             1863 main/binary-i386/Packages.gz
 SHA256:
- 5d838cdf14a2f2b804277c937edae5ac7f12f7b46f42bf4fd611dc9c3cd683f9             1491 Release
+ ce44bfbc8b6e930277f02fcc82e5cdc66070ba42a7de66700a2438b8ed19233e             1491 Release
  3d2fbf8cdf75ec2cba8b851a2fc12097c0b1baccfd590f54d6d2ffdc561bb4bb             4233 main/binary-i386/Packages
- c3a078e36539d953d07cd66d86c80bed3c454dee809c499f3ec9fa64c9497d88             1863 main/binary-i386/Packages.gz
+ ddb864e239b80e71d7782e15ea27712ff6922e2cc19df0f99c77554e2b655ebd             1863 main/binary-i386/Packages.gz
 SHA512:
- 0fa9364b8a8c1a6e7139808dbf38b2712745a4a0a6488b78fba57826e2ade54b3eceaa800d45ec20b46dbeae1d1e42be01ee553e5b0074076a444704c062d361             1491 Release
+ db3e369021b879fd2d29c44cef82e837fe6ad1b5bdae5e79b9e7420562714ed3634d8c740efd965375621ff89876f4e32765016a39179a3c03db4c5f08dce248             1491 Release
  a849622f0544c1b259e8d1ccadca03989b8d5f37733d6ab2699e87d4beaf319f65052db5c0e3f6d1bade64f8763fee386539ab93b1ba36a7a06f43bd93924056             4233 main/binary-i386/Packages
- 904e437e21228260ac3015312d867477968d49ad3ff7778ef1d7812dbb3b65430d06bda04e4259835290b1434d6ad4e7a5ceb7e4539f3ea8cf0a9df20bc6b2c6             1863 main/binary-i386/Packages.gz
+ a211a95fac68429606fbc18f736092483ada32bcd49aa51552b2e51314c4b63ba701c0b9c33f5c3dcc0cf116e44f1aff111f9141b89b991d01737d38cbfaa6b0             1863 main/binary-i386/Packages.gz

@@ -1,24 +1,24 @@
 Architectures: all i386
 Codename: trixie-testing
 Components: main
-Date: Wed, 25 Nov 2026 02:54:27 +0000
+Date: Wed, 25 Nov 2026 06:57:52 +0000
 Description: OpenFrame Linux packages before release, for test units
 Label: OpenFrame Linux testing
 Origin: OpenFrame
 Suite: trixie-testing
 MD5Sum:
- bbb4a907d4f3fe7bb82a8872967cf6d0             1546 Release
+ 2a06a1f446e0463dc70f9fe88e665470             1546 Release
  af081378b6668fd771bd6c1abfe222bd             1665 main/binary-i386/Packages
- 5644a102a99dc3e54bfbbd78db6dc531              911 main/binary-i386/Packages.gz
+ c86bba85e9f59902fe8a1b7ad3d4f256              911 main/binary-i386/Packages.gz
 SHA1:
- 12f17c1a74b71b6060cc3a5e20859308b76a9898             1546 Release
+ 094e9be4b468fc80d1f55c346619afda39e16224             1546 Release
  ac84495d31efd53fe29466d3d4b254a7bcc035f3             1665 main/binary-i386/Packages
- 3d8c94fa76cd5814fba9d61c94496d0ab56570e5              911 main/binary-i386/Packages.gz
+ 4001feb2eb715f2b37811cc3307b89b49231a616              911 main/binary-i386/Packages.gz
 SHA256:
- 0aa72545d523b33a8edb9e4c0108ed8b3006361f47b0d08eca25305d403de39d             1546 Release
+ 7a943e1c2a299fcd6a942a3ffdb1c1fb0f77d9337f40aa68ed0c3e39163e4c64             1546 Release
  00f4b82df343cf9b136d3373a3ebc0b1bb84574ca5270aea18c8e93e55e2be2c             1665 main/binary-i386/Packages
- 11598ae1682395a5c704e78381fc1525d8eee16d198f8e6d047e93dfe56e345e              911 main/binary-i386/Packages.gz
+ e4ea95b0464b14e07dd72acb7b7cefe5f115fc4f813f19322499381ff2597d6e              911 main/binary-i386/Packages.gz
 SHA512:
- 60a2efd1b8ecb32ef5bf4230879a42e3bd89fa28c68580c38582a2332d029e1d00c860eb1551886c69d8ee180954d299ed65c838dfdbacea7c344cb905de0301             1546 Release
+ eb17307cf8dffe5cbd6c4df003c2a77a32b177e53603764f7eebe0946a7d0d24b058225f02e349b97b315881855fbc5fc182770b9d3b65b374debd6b47829fd4             1546 Release
  1bee8b960b584bd0531939be98f8d6623e9e953f83a6de3add9640088fbe1c8644441b2c05b40537dbd8ec5662ab9a8f3c3d4d05edd8e932638029ed5946263e             1665 main/binary-i386/Packages
- 0196a8f910b4d344da8bbb13502dcd8dc85b17bf82a542baf3e018ae57ce356e342ce055d00d7c0851efc45a74fe519c684293d54416548a05e69d9ffab5466a              911 main/binary-i386/Packages.gz
+ 8ce72c43008bf09252d5c5d7c7c011e42a6bd15379c14b4d790b1b3fe589b192a028973ba33d9d19cf86f539adcfba651de09690a5853b1c9750ee487fd301ba              911 main/binary-i386/Packages.gz
