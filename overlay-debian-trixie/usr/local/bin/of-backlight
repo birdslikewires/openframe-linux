@@ -302,7 +302,7 @@ auto_step() {
 ## fixed level (putting it back if something else changes it).
 daemon() {
 
-	local state="${STATE_DIRECTORY:-/var/lib/of-backlight}/mode" mode req hw pw
+	local state="${STATE_DIRECTORY:-/var/lib/of-backlight}/mode" mode req rest hw pw
 
 	mkdir -p "$RUNDIR"
 	rm -f "$CTL"
@@ -400,6 +400,10 @@ daemon() {
 			req="$next" next="" got=1
 		elif read -r -t "$wait" -u "$CTLFD" req; then
 			got=1
+		elif [ -n "$req" ]; then
+			# The wait ran out partway through a line, as one came in (bash reads a pipe a byte at a time, and keeps what it had). The rest is in the pipe already, so it's joined on, not lost: a lost "sl" left "eep", which isn't 'sleep' and woke the screen. Sprite asks for sleep each minute, which falls in step with two 30 s waits, so it happened most nights.
+			read -r -t 5 -u "$CTLFD" rest
+			req+="$rest" got=1
 		fi
 		# Shown levels already overtaken by newer ones go unshown: only the latest of a run
 		# of them, so however far behind it gets, there's never a queue of them to work
