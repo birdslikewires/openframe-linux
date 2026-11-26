@@ -71,11 +71,15 @@ jobs:
       - name: Test the SSH settings
         run: bash tests/test_ssh_settings.sh
 
-      # of-update, the automatic updates, against stand-ins for apt-get, unattended-upgrade and
+      # of-update, the automatic updates, against stand-ins for apt-get, of-update-apt and
       # systemctl: catching up only when behind, downloads before installing, failures kept,
       # and a restart that waits for an update being installed.
       - name: Test the automatic updates
         run: bash tests/test_of_update.sh
+
+      # of-update-apt, which works out and installs the updates, against real apt and dpkg in a Debian Trixie container, with made-up packages in local repositories: what's planned, what's held back and why, apps removed only when they must be, packages on hold, what's left unused, and its progress.
+      - name: Test working out and installing updates
+        run: bash tests/test_of_update_apt.sh
 
       # test-settings, which applies OF-BOOT/settings/test.txt: testing=yes adds the testing
       # suites (a test unit), anything else takes them away.
@@ -294,7 +298,7 @@ jobs:
             install -m 755 package/preinst "${PKG}/DEBIAN/preinst"
             install -m 755 package/postrm "${PKG}/DEBIAN/postrm"
 
-            printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash, dosfstools, e2fsprogs, yq, unattended-upgrades, openframe-resampler\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
+            printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash, dosfstools, e2fsprogs, yq, python3-apt, unattended-upgrades, openframe-resampler\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
               "${version}" > "${PKG}/DEBIAN/control"
 
             dpkg-deb --build --root-owner-group "${PKG}"

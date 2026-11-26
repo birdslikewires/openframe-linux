@@ -1,14 +1,10 @@
-// OpenFrame: automatic updates (openframe-scripts). of-update runs unattended-upgrades at
-// night and after a start when it's fallen behind (of-update-*.timer), not apt's own
-// timers, so apt's daily jobs are off here.
+// OpenFrame: automatic updates (openframe-scripts). of-update installs them at night and after a start when it's fallen behind (of-update-*.timer), through /usr/lib/openframe/of-update-apt, not apt's own timers, so apt's daily jobs are off here.
 APT::Periodic::Update-Package-Lists "0";
 APT::Periodic::Download-Upgradeable-Packages "0";
 APT::Periodic::Unattended-Upgrade "0";
 APT::Periodic::AutocleanInterval "0";
 
-// Everything this unit's sources offer: Debian's release, its point releases and security
-// updates, and OpenBeak's repositories (Sprite and these scripts, the kernel, the
-// firmware), which are all built for OpenFrames.
+// Everything this unit's sources offer: Debian's release, its point releases and security updates, and OpenBeak's repositories (Sprite and these scripts, the kernel, the firmware, the apps), which are all built for OpenFrames. of-update-apt installs from all of them; these patterns say the same for unattended-upgrades (Debian's own release and security come from its 50unattended-upgrades), which of-update used before and which is still here if it's run by hand.
 Unattended-Upgrade::Origins-Pattern {
 	"origin=Debian,codename=${distro_codename}-updates";
 	"origin=OpenFrame,codename=${distro_codename}";
@@ -21,15 +17,13 @@ Unattended-Upgrade::Origins-Pattern {
 	"origin=OpenFrame Apps,codename=${distro_codename}-testing";
 };
 
-// Each package a small step, so a power cut leaves little half-done (of-dpkg-recover
-// finishes it at the next start). No restarts from here: of-update's run at the owner's
-// quiet time restarts when one's needed. What upgrades leave behind is removed.
+// For unattended-upgrades, if it's run by hand: each package a small step, no restarts (of-update's run at the owner's quiet time restarts when one's needed), and what upgrades leave behind removed (as of-update-apt removes it too).
 Unattended-Upgrade::MinimalSteps "true";
 Unattended-Upgrade::Automatic-Reboot "false";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
 Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
 
-// Nobody's there to answer questions about changed settings files: keep the unit's own.
+// Nobody's there to answer questions about changed settings files: keep the unit's own (of-update-apt's dpkg runs, and anything else apt starts).
 Dpkg::Options {
 	"--force-confdef";
 	"--force-confold";

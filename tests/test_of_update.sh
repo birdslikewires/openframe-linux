@@ -1,6 +1,6 @@
 #!/bin/bash
 # test_of_update.sh: of-update (overlay-debian-trixie/usr/local/sbin/of-update), the automatic
-# updates, against stand-ins for apt-get, unattended-upgrade and systemctl: a catch-up does
+# updates, against stand-ins for apt-get, of-update-apt and systemctl: a catch-up does
 # nothing after a recent update and runs after an old one; everything is downloaded before
 # anything is installed; nothing waiting means no downloads; failures are recorded;
 # status says what Sprite needs; a restart waits while an update is being installed; "now"
@@ -25,7 +25,9 @@ install -m 755 /src/overlay-debian-trixie/usr/local/sbin/of-update "$U"
 mkdir -p /stub
 CALLS=/tmp/calls
 # Stand-ins: each says it was called (and with what) in $CALLS. PENDING is how many updates
-# apt-get -s finds; UU_FAIL makes unattended-upgrade fail; UPDATE_FAIL makes the lists fail.
+# of-update-apt's plan finds; UU_FAIL makes its downloads fail, INSTALL_FAIL its installing;
+# UPDATE_FAIL makes the lists fail. (of-update-apt itself is tested against real apt in
+# test_of_update_apt.sh.)
 cat > /stub/apt-get <<'EOF'
 #!/bin/bash
 echo "apt-get $*" >> /tmp/calls
@@ -63,13 +65,46 @@ case " $* " in
 esac
 exit 0
 EOF
-cat > /stub/unattended-upgrade <<'EOF'
+cat > /stub/of-update-apt <<'EOF'
 #!/bin/bash
-echo "unattended-upgrade $* state=$(sed -n 's/^state=//p' /run/of-update/state)" >> /tmp/calls
+echo "of-update-apt $* state=$(sed -n 's/^state=//p' /run/of-update/state)" >> /tmp/calls
+L=/var/lib/of-update/pending.list H=/var/lib/of-update/held.list
+mkdir -p /var/lib/of-update
+# lists: as apt-get update --error-on=any said it (UPDATE_FAIL: unreachable; NO_TESTING: a testing suite not there yet), its percent in the state file
+if [ "$1" = lists ]; then
+	[ -e /tmp/UPDATE_FAIL ] && { echo "E: Failed to fetch http://deb.debian.org/dists/trixie/InRelease"
+		echo "E: Some index files failed to download. They have been ignored, or old ones used instead."; exit 100; }
+	[ -e /tmp/NO_TESTING ] && { echo "E: Failed to fetch https://kernel.openbeak.net/dists/trixie-testing/InRelease  404  Not Found"
+		echo "E: Some index files failed to download. They have been ignored, or old ones used instead."; exit 100; }
+	echo "percent=42" >> /run/of-update/state; cp /run/of-update/state /tmp/state-seen
+	exit 0
+fi
+# The plan, as of-update-apt writes it: the first update one of ours, the rest Debian's (TIERS:
+# the third the firmware, the fourth an app); UU_KEEP's held back when what it would remove
+# (KEPT_REMOVES) isn't only apps
+: > $L.new; : > $H.new
+for i in $(seq 1 "$(cat /tmp/PENDING 2>/dev/null || echo 0)"); do
+	p=pkg$i t=debian
+	[ $i = 1 ] && t=openframe
+	[ $i = 3 ] && [ -e /tmp/TIERS ] && p=openframe-firmware t=firmware
+	[ $i = 4 ] && [ -e /tmp/TIERS ] && p=ofapp-clock t=apps
+	if [ "$p" = "$(cat /tmp/UU_KEEP 2>/dev/null)" ] && [[ $(cat /tmp/KEPT_REMOVES) != ofapp-* ]]; then
+		printf '%s\tit would remove %s\n' $p "$(cat /tmp/KEPT_REMOVES)" >> $H.new; continue
+	fi
+	printf '%s\t2\t%s\t1000\t%s_2_i386.deb\t1\tfile:///tmp/repo/pool/%s_2_all.deb\n' $p $t $p $p >> $L.new
+done
+[ -e /tmp/WITH_BASH ] && printf 'bash\t%s\tdebian\t0\tbash.deb\t1\t\n' "$(dpkg-query -W -f='${Version}' bash)" >> $L.new
+mv $L.new $L; mv $H.new $H
+[ "$1" = plan ] && exit 0
+# (downloading, then installing, as of-update-apt sets them)
+[ -s $L ] && sed -i 's/^state=.*/state=downloading/' /run/of-update/state
 [ -e /tmp/UU_HOLD ] && sleep 3
 [ -e /tmp/UU_FAIL ] && exit 1
-# installing: what's waiting is now in (the dpkg-query stand-in says so), but UU_KEEP's (kept back)
-[ "$*" = "" ] && [ ! -e /tmp/UU_FAIL ] && cut -f1,2 /var/lib/of-update/pending.list | grep -v "^$(cat /tmp/UU_KEEP 2>/dev/null || echo NONE)	" > /tmp/INSTALLED && echo 0 > /tmp/PENDING
+[ -e /tmp/INSTALL_FAIL ] && exit 2
+# installed: what was planned is in (the dpkg-query stand-in says so); an app it removed, said
+[ -s $L ] && { cut -f1,2 $L > /tmp/INSTALLED; echo 0 > /tmp/PENDING; }
+rm -f /var/lib/of-update/apps-removed
+[ -e /tmp/UU_KEEP ] && [[ $(cat /tmp/KEPT_REMOVES) == ofapp-* ]] && cat /tmp/KEPT_REMOVES > /var/lib/of-update/apps-removed
 exit 0
 EOF
 cat > /stub/dpkg-query <<'EOF'
@@ -103,9 +138,9 @@ cat > /stub/timeout <<'EOF'
 shift; exec "$@"
 EOF
 chmod 755 /stub/*
-export PATH="/stub:$PATH"
+export PATH="/stub:$PATH" OF_UPDATE_APT=/stub/of-update-apt
 STATUS=/var/lib/of-update/status
-reset() { rm -f /tmp/calls /tmp/PENDING /tmp/UU_FAIL /tmp/UPDATE_FAIL /tmp/UU_HOLD /tmp/WITH_BASH /tmp/INSTALLED /tmp/STATUS /tmp/TIERS /run/reboot-required /run/reboot-required.pkgs; touch /tmp/calls
+reset() { rm -f /tmp/calls /tmp/PENDING /tmp/UU_FAIL /tmp/INSTALL_FAIL /tmp/UPDATE_FAIL /tmp/UU_HOLD /tmp/WITH_BASH /tmp/INSTALLED /tmp/STATUS /tmp/TIERS /run/reboot-required /run/reboot-required.pkgs; touch /tmp/calls
 	# (the last look long ago: "now" looks again)
 	[ -f "$STATUS" ] && sed -i "s/^checked=.*/checked=1/" "$STATUS"; }
 field() { "$U" status | sed -n "s/^$1=//p"; }
@@ -113,7 +148,7 @@ field() { "$U" status | sed -n "s/^$1=//p"; }
 # Nothing waiting: the lists, no downloads, a good run recorded.
 reset
 "$U" run night >/dev/null 2>&1
-[ "$(field result)" = ok ] && [ -n "$(field last)" ] && [ "$(field pending)" = 0 ] && ! grep -q unattended /tmp/calls &&
+[ "$(field result)" = ok ] && [ -n "$(field last)" ] && [ "$(field pending)" = 0 ] && [ ! -s /tmp/INSTALLED ] &&
 	ok "nothing waiting: no downloads, a good run" || bad "nothing waiting: no downloads, a good run" "$(cat /tmp/calls; "$U" status)"
 [ "$(field state)" = idle ] && ok "idle afterwards" || bad "idle afterwards" "$("$U" status)"
 
@@ -128,9 +163,9 @@ reset
 sed -i "s/^last=.*/last=$(( $(date +%s) - 25 * 3600 ))/" "$STATUS"
 echo 3 > /tmp/PENDING
 "$U" run catchup >/dev/null 2>&1
-grep -q "^apt-get -qq --error-on=any update" /tmp/calls && ok "an old update is caught up" || bad "an old update is caught up" "$(cat /tmp/calls)"
-[ "$(grep unattended /tmp/calls)" = "$(printf 'unattended-upgrade --download-only state=downloading\nunattended-upgrade  state=installing')" ] &&
-	ok "everything's downloaded before anything's installed" || bad "everything's downloaded before anything's installed" "$(cat /tmp/calls)"
+grep -q "^of-update-apt lists" /tmp/calls && ok "an old update is caught up" || bad "an old update is caught up" "$(cat /tmp/calls)"
+[ "$(grep of-update-apt /tmp/calls)" = "$(printf 'of-update-apt lists state=checking\nof-update-apt upgrade state=preparing')" ] && [ "$(wc -l < /tmp/INSTALLED)" = 3 ] &&
+	ok "the lists, then worked out, downloaded and installed in one go" || bad "the lists, then worked out, downloaded and installed in one go" "$(cat /tmp/calls)"
 [ "$(field pending)" = 0 ] && [ "$(field result)" = ok ] && (( $(date +%s) - $(field last) < 60 )) &&
 	ok "and the run is recorded" || bad "and the run is recorded" "$("$U" status)"
 grep -q "apt-get clean" /tmp/calls && ok "the downloads are cleared away" || bad "the downloads are cleared away" "$(cat /tmp/calls)"
@@ -139,7 +174,7 @@ grep -q "apt-get clean" /tmp/calls && ok "the downloads are cleared away" || bad
 rm -f /tmp/calls; touch /tmp/FLASHING
 "$U" run now >/dev/null 2>&1
 rm -f /tmp/FLASHING
-! grep -q "update" /tmp/calls && ! grep -q "unattended-upgrade" /tmp/calls &&
+! grep -q "of-update-apt" /tmp/calls &&
 	ok "no update while OpenFrame Flash is at work" || bad "no update while OpenFrame Flash is at work" "$(cat /tmp/calls)"
 
 # Unreachable servers, and updates that don't install: recorded, the last good run kept.
@@ -150,13 +185,19 @@ sed -i 's/sleep 60/sleep 0/' "$U" # (no waiting between tries here)
 "$U" run now >/dev/null 2>&1 && bad "unreachable servers fail" || ok "unreachable servers fail"
 [ "$(field result)" = failed ] && [ "$(field message)" = "the update servers couldn't be reached" ] && [ "$(field last)" = "$LAST" ] &&
 	ok "and say so, keeping the last good run" || bad "and say so, keeping the last good run" "$("$U" status)"
-[ "$(grep -c "update" /tmp/calls)" = 3 ] && ok "after three tries" || bad "after three tries" "$(cat /tmp/calls)"
+[ "$(grep -c "^of-update-apt lists" /tmp/calls)" = 3 ] && ok "after three tries" || bad "after three tries" "$(cat /tmp/calls)"
 reset
 echo 2 > /tmp/PENDING
 touch /tmp/UU_FAIL
 "$U" run now >/dev/null 2>&1
-[ "$(field result)" = failed ] && [ "$(field state)" = idle ] && ok "a failed download is recorded, and it's idle again" ||
-	bad "a failed download is recorded, and it's idle again" "$("$U" status)"
+[ "$(field result)" = failed ] && [ "$(field state)" = idle ] && [ "$(field message)" = "the updates couldn't all be downloaded" ] &&
+	ok "a failed download is recorded, and it's idle again" || bad "a failed download is recorded, and it's idle again" "$("$U" status)"
+reset
+echo 2 > /tmp/PENDING
+touch /tmp/INSTALL_FAIL
+"$U" run now >/dev/null 2>&1
+[ "$(field result)" = failed ] && [ "$(field message)" = "some updates didn't install" ] && [ "$(field pending)" = 2 ] &&
+	ok "a failed install is recorded, the updates still waiting" || bad "a failed install is recorded, the updates still waiting" "$("$U" status)"
 reset
 "$U" run now >/dev/null 2>&1
 [ "$(field result)" = ok ] && [ -z "$(field message)" ] && ok "a good run clears the failure" || bad "a good run clears the failure" "$("$U" status)"
@@ -186,7 +227,7 @@ rm -f /tmp/NO_TESTING
 reset
 echo 5 > /tmp/PENDING
 "$U" check >/dev/null 2>&1
-[ "$(field pending)" = 5 ] && ! grep -q unattended /tmp/calls && ok "check counts without installing" || bad "check counts without installing" "$(cat /tmp/calls; "$U" status)"
+[ "$(field pending)" = 5 ] && ! grep -q "of-update-apt upgrade" /tmp/calls && ok "check counts without installing" || bad "check counts without installing" "$(cat /tmp/calls; "$U" status)"
 
 # The list: each update, ours or Debian's, and whether it's in yet.
 items=$("$U" status | sed -n 's/^item=//p')
@@ -247,7 +288,7 @@ sleep 1.5
 ! grep -q "^systemctl reboot" /tmp/calls && ok "but not while an update is being installed" || bad "but not while an update is being installed" "$(cat /tmp/calls)"
 "$U" after poweroff >/dev/null 2>&1 # waits for it
 wait $RUN
-tail -1 /tmp/calls | grep -q "^systemctl poweroff" && grep -q "unattended-upgrade  state" /tmp/calls &&
+tail -1 /tmp/calls | grep -q "^systemctl poweroff" && grep -q "of-update-apt upgrade" /tmp/calls &&
 	ok "'after poweroff' waits for the update, then switches off" || bad "'after poweroff' waits for the update, then switches off" "$(cat /tmp/calls)"
 
 # "now" just after a look: no second look, straight to getting ready.
@@ -256,7 +297,7 @@ reset
 : > /tmp/calls
 echo 1 > /tmp/PENDING
 "$U" run now >/dev/null 2>&1
-! grep -q "^apt-get -qq --error-on=any update" /tmp/calls && grep -q "unattended-upgrade  state" /tmp/calls &&
+! grep -q "^of-update-apt lists" /tmp/calls && grep -q "of-update-apt upgrade" /tmp/calls &&
 	ok "Update now just after Check now doesn't look again" || bad "Update now just after Check now doesn't look again" "$(cat /tmp/calls)"
 grep -q "state=checking" /tmp/calls && bad "and never says it's checking" "$(cat /tmp/calls)" || ok "and never says it's checking"
 
@@ -267,7 +308,7 @@ sleep 1
 mkdir -p /tmp/apt/sources.list.d; touch /tmp/apt/sources.list.d/openframe-testing.list
 : > /tmp/calls
 OF_UPDATE_APTSOURCES=/tmp/apt "$U" run now >/dev/null 2>&1
-grep -q "^apt-get -qq --error-on=any update" /tmp/calls && ok "Update now looks again if the sources changed since Check now" ||
+grep -q "^of-update-apt lists" /tmp/calls && ok "Update now looks again if the sources changed since Check now" ||
 	bad "Update now looks again if the sources changed since Check now" "$(cat /tmp/calls)"
 rm -rf /tmp/apt
 
@@ -299,8 +340,8 @@ grep -q "^apt-get -y -q .* -f install" /tmp/calls && [ "$("$U" status | sed -n '
 	ok "an app may be removed to put it right: done, and the app named" || bad "a fix removing an app" "$(cat /tmp/calls; "$U" status)"
 rm -f /tmp/BROKEN /tmp/BROKEN_REMOVES
 
-# An update unattended-upgrades keeps back (it needs another package removed): never left as
-# "1 update waiting" for ever. Installed if all it needs removed is an app; otherwise said why.
+# An update that needs another package removed: never left as "1 update waiting" for ever.
+# Installed if all it needs removed is an app; otherwise said why.
 reset
 echo 2 > /tmp/PENDING; echo pkg2 > /tmp/UU_KEEP; echo openframe-scripts > /tmp/KEPT_REMOVES
 "$U" run now >/dev/null 2>&1
@@ -310,7 +351,7 @@ echo 2 > /tmp/PENDING; echo pkg2 > /tmp/UU_KEEP; echo openframe-scripts > /tmp/K
 reset
 echo 2 > /tmp/PENDING; echo pkg2 > /tmp/UU_KEEP; echo ofapp-radio > /tmp/KEPT_REMOVES
 "$U" run now >/dev/null 2>&1
-grep -q "^apt-get -y -q .* install pkg2" /tmp/calls && [ "$(field result)" = ok ] && [ "$(field pending)" = 0 ] &&
+grep -q "of-update-apt upgrade" /tmp/calls && grep -qx "pkg2	2" /tmp/INSTALLED && [ "$(field result)" = ok ] && [ "$(field pending)" = 0 ] &&
 	field notice | grep -q "^radio had to be removed" &&
 	ok "one that would remove only an app: installed, and the app named" || bad "a kept-back update removing an app" "$(cat /tmp/calls; "$U" status)"
 rm -f /tmp/UU_KEEP /tmp/KEPT_REMOVES
@@ -371,6 +412,31 @@ grep -qx "time=15:00" /boot/settings/updates.txt && grep -q "^## Updates" /boot/
 "$U" set-time 03:00 >/dev/null 2>&1
 [ ! -e "$DROP" ] && ok "back to 03:00: the drop-in goes" || bad "back to 03:00: the drop-in goes"
 "$U" set-time 3pm >/dev/null 2>&1 && bad "set-time refuses what isn't a time" || ok "set-time refuses what isn't a time"
+
+# What's held back counts as waiting, so Check now says so (and Update now says why).
+reset
+echo 2 > /tmp/PENDING; echo pkg2 > /tmp/UU_KEEP; echo openframe-scripts > /tmp/KEPT_REMOVES
+"$U" check >/dev/null 2>&1
+[ "$(field pending)" = 2 ] && [ "$("$U" status | grep -c '^item=')" = 1 ] &&
+	ok "a held-back update counts as waiting, though it isn't listed" || bad "a held-back update counts as waiting" "$("$U" status)"
+rm -f /tmp/UU_KEEP /tmp/KEPT_REMOVES
+
+# How it's going: the lists' percent from apt's own count, and of-update-apt's percent, bytes and package, passed on while a run holds the lock.
+reset
+"$U" check >/dev/null 2>&1
+grep -qx "state=checking" /tmp/state-seen && grep -qx "percent=42" /tmp/state-seen && grep -qx "kind=check" /tmp/state-seen &&
+	ok "checking shows apt's percent, as a check" || bad "checking shows apt's percent, as a check" "$(cat /tmp/state-seen)"
+echo 1 > /tmp/PENDING; "$U" check >/dev/null 2>&1
+( flock 8; sleep 3 ) 8>/run/of-update.lock &
+sleep 0.3
+printf 'state=downloading\nsince=1\nkind=update\npercent=40\ngot=400\nsize=1000\n' > /run/of-update/state
+st=$("$U" status)
+grep -qx "percent=40" <<< "$st" && grep -qx "got=400" <<< "$st" && grep -qx "size=1000" <<< "$st" && grep -qx "kind=update" <<< "$st" &&
+	ok "downloading: of-update-apt's percent and bytes" || bad "downloading: of-update-apt's percent and bytes" "$st"
+printf 'state=installing\nsince=1\nkind=update\npercent=73\nnow=pkg1\n' > /run/of-update/state
+st=$("$U" status)
+grep -qx "percent=73" <<< "$st" && grep -qx "now=pkg1" <<< "$st" && ok "installing: apt's percent and the package going in" || bad "installing: apt's percent and the package going in" "$st"
+wait
 
 # A state left by a run that was killed doesn't stick.
 printf 'state=installing\nsince=1\n' > /run/of-update/state

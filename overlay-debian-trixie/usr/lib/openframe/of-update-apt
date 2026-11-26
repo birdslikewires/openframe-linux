@@ -1,0 +1,341 @@
+#!/usr/bin/python3
+# of-update-apt lists|plan|upgrade: of-update's work with apt, done through python-apt so the package cache and its dependency solver are loaded once for each, not once for every apt-get (5 to 6 s each on an OpenFrame 1, and an update took seven or more). It uses apt_pkg, apt's own library, directly: python-apt's friendlier apt.Cache takes another 8 s to open on an OpenFrame 1, and walks the package list (143,000 entries) slowly.
+#
+# lists: fetches the package lists, then reads them into apt's cache, writing how far it's got to the state file (percent: bringing the cache up to date first, if dpkg's changed since, to 10; the fetching to 50; the reading to 100). Each list that couldn't be fetched is an "E: Failed to fetch" line on stdout, and then it exits 100, as apt-get update --error-on=any does: of-update decides which failures matter.
+# plan: works out what an update installs, and writes it to /var/lib/of-update/pending.list, a line each, tab-separated: package, new version, tier (firmware, apps, openframe or debian), bytes still to download (0 if it's here already), its file in apt's archives, the version installed now (empty for a new package), and where it's fetched from. Updates that can't be installed by themselves go to held.list instead (package, why).
+# upgrade: the same plan (writing the same lists), then downloads it, and installs it, removing what upgrades leave unused in the same pass (as apt-get --autoremove does), writing how it's going to /run/of-update/state for of-update status (state, since, percent, got and size while downloading, now while installing). The apps it had to remove, if any (see below), go to apps-removed, beside the list (dpkg's own output is on stdout). Exits 1 if the downloads failed, 2 if the installing did.
+#
+# What's installed, as unattended-upgrades did before: every upgrade the sources offer (52openframe-updates allows all of this unit's sources), with any new packages they need, never removing a system package to do it. An upgrade that needs a package removed is held back, unless all it removes is apps (ofapp-*, which can be installed again from the Shop), which of-update then names on the Updates tab for a fortnight. Packages on hold stay as they are. Settings files a package changes keep the unit's own (Dpkg::Options in 52openframe-updates).
+import os
+import sys
+import time
+
+import apt_pkg
+import apt.progress.base
+
+VARDIR = os.environ.get("OF_UPDATE_VARDIR", "/var/lib/of-update")
+RUNDIR = os.environ.get("OF_UPDATE_RUNDIR", "/run/of-update")
+LIST = os.path.join(VARDIR, "pending.list")
+HELD = os.path.join(VARDIR, "held.list")
+APPS_REMOVED = os.path.join(VARDIR, "apps-removed")
+STATE = os.path.join(RUNDIR, "state")
+
+
+def log(msg):
+    print("of-update-apt: " + msg, file=sys.stderr, flush=True)
+
+
+# The state file: state, since and kind as of-update set them, and how it's going.
+def state_read():
+    st = {}
+    try:
+        with open(STATE) as f:
+            for line in f:
+                k, _, v = line.rstrip("\n").partition("=")
+                st[k] = v
+    except OSError:
+        pass
+    return st
+
+
+_last_write = [0.0]
+
+
+def state_write(force=False, **kw):
+    now = time.monotonic()
+    if not force and now - _last_write[0] < 0.5:  # a few times a second at most
+        return
+    _last_write[0] = now
+    st = state_read()
+    if "state" in kw and kw["state"] != st.get("state"):
+        st["since"] = str(int(time.time()))
+        for k in ("percent", "got", "size", "now"):  # progress belongs to the state it was written in
+            st.pop(k, None)
+    # never backwards within a state (apt counts each of its steps from 0 again)
+    if "percent" in kw and st.get("percent", "").isdigit() and int(kw["percent"]) < int(st["percent"]):
+        kw["percent"] = st["percent"]
+    st.update({k: str(v) for k, v in kw.items()})
+    os.makedirs(RUNDIR, exist_ok=True)
+    tmp = STATE + ".new"
+    with open(tmp, "w") as f:
+        for k, v in st.items():
+            f.write("%s=%s\n" % (k, v))
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, STATE)
+
+
+class Apt:
+    """apt's cache, its solver's state (the depcache), and what's needed to fetch from it."""
+
+    def __init__(self):
+        self.cache = apt_pkg.Cache(None)
+        self.dep = apt_pkg.DepCache(self.cache)
+        self.records = apt_pkg.PackageRecords(self.cache)
+        self.sources = apt_pkg.SourceList()
+        self.sources.read_main_list()
+
+    def changed(self):
+        d = self.dep
+        return [p for p in self.cache.packages if d.marked_install(p) or d.marked_upgrade(p) or d.marked_delete(p)]
+
+    def deletions(self):
+        return sorted(p.name for p in self.changed() if self.dep.marked_delete(p))
+
+    # As python-apt's Package.mark_install: the package and what it needs, and if that breaks anything, apt's problem resolver, keeping this one
+    def mark_install(self, p):
+        self.dep.mark_install(p, True, True)
+        if self.dep.broken_count:
+            fix = apt_pkg.ProblemResolver(self.dep)
+            fix.clear(p)
+            fix.protect(p)
+            fix.resolve(True)
+
+    def reset(self):
+        self.dep.init()
+
+
+def only_apps(names):
+    return all(n.startswith("ofapp-") for n in names)
+
+
+def tier(a, p, ver):
+    if p.name == "openframe-firmware":
+        return "firmware"
+    names = [n for pf, _ in ver.file_list for n in (pf.origin, pf.label) if n]
+    if p.name.startswith("ofapp-") or "OpenFrame Apps" in names:
+        return "apps"
+    return "openframe" if any(n.startswith("OpenFrame") for n in names) else "debian"
+
+
+# Marks the update in the depcache. Everything at once if that removes nothing but apps; otherwise a plain upgrade (which installs nothing new and removes nothing), then each upgrade it kept back on its own, kept only if it too removes nothing but apps. Returns the apps removed, and what's held back with why.
+def mark(a):
+    d = a.dep
+    with apt_pkg.ActionGroup(d):
+        d.upgrade(True)
+    gone = a.deletions()
+    if only_apps(gone):
+        return gone, {}
+    log("all at once would remove %s: one at a time" % " ".join(gone))
+    upgradable = sorted(p.name for p in a.cache.packages
+                        if p.current_ver and p.selected_state != apt_pkg.SELSTATE_HOLD and d.get_candidate_ver(p) and d.get_candidate_ver(p) != p.current_ver)
+
+    def base(extra):
+        a.reset()
+        with apt_pkg.ActionGroup(d):
+            d.upgrade(False)
+            for n in extra:
+                a.mark_install(a.cache[n])
+
+    accepted, held = [], {}
+    base([])
+    for n in upgradable:
+        if d.marked_upgrade(a.cache[n]):
+            continue
+        base(accepted + [n])
+        g = a.deletions()
+        up = d.marked_upgrade(a.cache[n]) and not d.broken_count
+        if up and only_apps(g):
+            accepted.append(n)
+        elif up:
+            held[n] = "it would remove " + " ".join(x for x in g if not x.startswith("ofapp-"))
+        else:
+            held[n] = "apt can't install it"
+    base(accepted)
+    return a.deletions(), held
+
+
+# What the changes marked leave unused (apt's autoremove, which keeps what APT::NeverAutoRemove says, the kernels kept for falling back), marked to go in the same pass, as unattended-upgrades' Remove-Unused-Dependencies did
+def mark_unused(a):
+    d = a.dep
+    unused = sorted(p.name for p in a.cache.packages if p.current_ver and d.is_garbage(p) and not d.marked_delete(p) and not d.marked_install(p) and not d.marked_upgrade(p))
+    if unused:
+        log("and removing what's no longer needed: %s" % " ".join(unused))
+        with apt_pkg.ActionGroup(d):
+            for n in unused:
+                d.mark_delete(a.cache[n])
+    return unused
+
+
+def archive_name(p, ver):
+    return "%s_%s_%s.deb" % (p.name, ver.ver_str.replace(":", "%3a"), ver.arch)
+
+
+def uri(a, ver):
+    for pf, i in ver.file_list:
+        index = a.sources.find_index(pf)
+        if index and a.records.lookup((pf, i)):
+            return index.archive_uri(a.records.filename)
+    return ""
+
+
+def write_atomic(path, lines):
+    os.makedirs(VARDIR, exist_ok=True)
+    tmp = path + ".new"
+    with open(tmp, "w") as f:
+        f.write("".join(l + "\n" for l in lines))
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+
+
+def write_list(a, held):
+    archives = apt_pkg.config.find_dir("Dir::Cache::archives")
+    lines = []
+    for p in sorted(a.changed(), key=lambda p: p.name):
+        if a.dep.marked_delete(p):
+            continue
+        ver = a.dep.get_candidate_ver(p)
+        f = archive_name(p, ver)
+        size = 0 if os.path.isfile(os.path.join(archives, f)) else ver.size
+        old = p.current_ver.ver_str if p.current_ver else ""
+        lines.append("\t".join([p.name, ver.ver_str, tier(a, p, ver), str(size), f, old, uri(a, ver)]))
+    write_atomic(LIST, lines)
+    write_atomic(HELD, ["%s\t%s" % kv for kv in sorted(held.items())])
+    return len(lines)
+
+
+# Fetching the lists: how far it's got (bytes and items, as apt's own text progress counts them), from 10 to 50 of checking's percent; and what failed (an unchanged list is "ignored", which is fine)
+class Listing(apt.progress.base.AcquireProgress):
+    def __init__(self):
+        super().__init__()
+        self.failed = []
+
+    def pulse(self, owner):
+        total = (self.total_bytes or 0) + (self.total_items or 0)
+        if total:
+            state_write(percent=10 + int(((self.current_bytes or 0) + (self.current_items or 0)) * 40 / total))
+        return True
+
+    def fail(self, item):
+        if item.owner.status != item.owner.STAT_DONE:
+            self.failed.append((item.uri, item.owner.error_text))
+
+
+# Reading the lists into the cache: from START to START + SPAN of checking's percent
+class Reading(apt.progress.base.OpProgress):
+    def __init__(self, start, span):
+        super().__init__()
+        self.start, self.span = start, span
+
+    def update(self, percent=None):
+        super().update(percent)
+        state_write(percent=self.start + int((self.percent or 0) * self.span / 100))
+
+
+def lists():
+    lock = apt_pkg.get_lock(apt_pkg.config.find_dir("Dir::State::Lists") + "lock")
+    for _ in range(60):  # another apt fetching lists (the Shop's): wait for it
+        if lock >= 0:
+            break
+        time.sleep(1)
+        lock = apt_pkg.get_lock(apt_pkg.config.find_dir("Dir::State::Lists") + "lock")
+    if lock < 0:
+        print("E: Could not get lock %slock" % apt_pkg.config.find_dir("Dir::State::Lists"))
+        return 100
+    progress = Listing()
+    try:
+        sources = apt_pkg.SourceList()
+        sources.read_main_list()
+        apt_pkg.Cache(Reading(0, 10)).update(progress, sources)
+    except SystemError as e:
+        progress.failed.append(("", str(e)))
+    finally:
+        os.close(lock)
+    apt_pkg.Cache(Reading(50, 50))
+    state_write(force=True, percent=100)
+    for uri, why in progress.failed:
+        print("E: Failed to fetch %s  %s" % (uri, why))
+    if progress.failed:
+        print("E: Some index files failed to download. They have been ignored, or old ones used instead.")
+        return 100
+    return 0
+
+
+class Fetching(apt.progress.base.AcquireProgress):
+    def pulse(self, owner):
+        total = self.total_bytes or 0
+        got = min(self.current_bytes or 0, total)
+        state_write(state="downloading", got=got, size=total, percent=got * 100 // total if total else 0)
+        return True
+
+    def stop(self):
+        state_write(force=True, state="downloading", got=self.total_bytes or 0, size=self.total_bytes or 0, percent=100)
+
+
+class Installing(apt.progress.base.InstallProgress):
+    def status_change(self, pkg, percent, status):
+        if pkg == "dpkg-exec":  # (apt itself, starting dpkg: not a package)
+            state_write(state="installing", percent=int(percent))
+        else:
+            state_write(state="installing", percent=int(percent), now=pkg)
+
+
+# Fetches what's marked into apt's archives; True if it all came. (As python-apt's Cache.fetch_archives.)
+def fetch(a, progress):
+    acq = apt_pkg.Acquire(progress)
+    pm = apt_pkg.PackageManager(a.dep)
+    if not pm.get_archives(acq, a.sources, a.records):
+        return False
+    if acq.run() != acq.RESULT_CONTINUE:
+        return False
+    return all(item.status == item.STAT_DONE for item in acq.items)
+
+
+# Installs what's marked, from the archives fetched; True if dpkg finished. (As python-apt's Cache.commit, with apt's lock held, which waits up to DPkg::Lock::Timeout for another apt.)
+def install(a):
+    with apt_pkg.SystemLock():
+        pm = apt_pkg.PackageManager(a.dep)
+        acq = apt_pkg.Acquire(apt.progress.base.AcquireProgress())  # (all here already: says nothing)
+        if not pm.get_archives(acq, a.sources, a.records) or acq.run() != acq.RESULT_CONTINUE:
+            return False
+        # dpkg takes the database's own lock itself, so apt lets go of it while dpkg runs, keeping its frontend lock (as apt-get and python-apt's install_archives do)
+        apt_pkg.pkgsystem_unlock_inner()
+        try:
+            return Installing().run(pm) == pm.RESULT_COMPLETED
+        finally:
+            apt_pkg.pkgsystem_lock_inner()
+
+
+def upgrade(a, gone):
+    if not a.dep.inst_count and not gone:
+        return 0
+    mark_unused(a)
+    state_write(force=True, state="downloading", percent=0)
+    if not fetch(a, Fetching()):
+        log("the downloads failed")
+        return 1
+    state_write(force=True, state="installing", percent=0)
+    if not install(a):
+        log("installing failed")
+        return 2
+    state_write(force=True, state="installing", percent=100, now="")
+    return 0
+
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in ("lists", "plan", "upgrade"):
+        print("usage: of-update-apt lists|plan|upgrade", file=sys.stderr)
+        return 2
+    apt_pkg.init_config()
+    apt_pkg.init_system()
+    # Wait for another apt (the Shop installing an app) rather than failing
+    apt_pkg.config.set("DPkg::Lock::Timeout", "300")
+    if sys.argv[1] == "lists":
+        return lists()
+    a = Apt()
+    gone, held = mark(a)
+    write_list(a, held)
+    if sys.argv[1] == "plan":
+        return 0
+    try:
+        os.unlink(APPS_REMOVED)
+    except OSError:
+        pass
+    r = upgrade(a, gone)
+    if r == 0 and gone:
+        with open(APPS_REMOVED, "w") as f:
+            f.write(" ".join(gone) + "\n")
+    return r
+
+
+if __name__ == "__main__":
+    sys.exit(main())

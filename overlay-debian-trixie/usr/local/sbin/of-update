@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 
-## of-update v26.11.5 (24th November 2026)
+## of-update v26.11.6 (26th November 2026)
 ##  Keeps the OpenFrame up to date by itself: Debian's updates, and OpenBeak's (Sprite,
-##  these scripts, the kernel and the firmware), installed by unattended-upgrades as set up
-##  in /etc/apt/apt.conf.d/52openframe-updates. Owners never have to log in for them.
+##  these scripts, the kernel and the firmware), worked out and installed by of-update-apt
+##  (/usr/lib/openframe, through python-apt, with the settings in
+##  /etc/apt/apt.conf.d/52openframe-updates). Owners never have to log in for them.
 ##
 ##    of-update run night|catchup|now
-##        The lists, then the downloads, then the installing, each package a small step
-##        (MinimalSteps), so a power cut leaves little half-done and of-dpkg-recover
-##        finishes it at the next start. Everything is downloaded before anything is
-##        installed: a download that's cut off costs nothing. Run by of-update@.service:
+##        The lists, then what to install, then the downloads, then the installing.
+##        Everything is downloaded before anything is installed, so a download that's cut
+##        off costs nothing; a power cut while installing is finished by of-dpkg-recover at
+##        the next start, and mend puts right anything still missing. Run by of-update@.service:
 ##        "night" from of-update-night.timer, at the owner's quiet time (updates.txt, below),
 ##        which then restarts the unit if an update needs it, now or earlier in the day;
 ##        "catchup" from of-update-catchup.timer, ten minutes after each start, which does
@@ -28,7 +29,9 @@
 ##        Fetch the package lists and count what's waiting, without installing.
 ##    of-update status
 ##        key=value lines, for Sprite's helper: state (idle, checking, preparing, downloading,
-##        installing), since, last (the last good run), result (ok or failed), message,
+##        installing), since, kind (check or update: which this run is), percent (how far
+##        this state has got, where that can be measured), last (the last good run), result
+##        (ok or failed), message,
 ##        pending (updates waiting at the last look), checked (when that was), and
 ##        restart=yes when an installed update takes effect only after a restart; notice, for a
 ##        fortnight after apps had to be removed to finish an update (which ones). Then the
@@ -64,7 +67,9 @@ RUNDIR="/run/of-update"
 LOCK="/run/of-update.lock"
 VARDIR="/var/lib/of-update"
 STATUS="$VARDIR/status"
-LIST="$VARDIR/pending.list" # what's waiting: package, version, tier, bytes to fetch, file, old version
+LIST="$VARDIR/pending.list" # what's waiting: package, version, tier, bytes to fetch, file, old version, where from
+HELD="$VARDIR/held.list"    # what can't be installed by itself: package, why
+APTHELPER="${OF_UPDATE_APT:-/usr/lib/openframe/of-update-apt}"
 ARCHIVES="/var/cache/apt/archives"
 NEWSDIR="$VARDIR/news"
 CATCHUP_AFTER=$(( 20 * 3600 ))
@@ -87,10 +92,10 @@ update_time() {
 
 log() { echo "of-update: $*"; }
 
-# The state now: idle, checking, downloading or installing.
+# The state now: idle, checking, preparing, downloading or installing, and which kind of run this is (KIND: check or update). of-update-apt adds how it's going (percent and the rest) as it works.
 set_state() {
 	mkdir -p "$RUNDIR" && chmod 755 "$RUNDIR"
-	printf 'state=%s\nsince=%s\n' "$1" "$(date +%s)" > "$RUNDIR/state.new" &&
+	printf 'state=%s\nsince=%s\nkind=%s\n' "$1" "$(date +%s)" "${KIND:-update}" > "$RUNDIR/state.new" &&
 		chmod 644 "$RUNDIR/state.new" && mv -f "$RUNDIR/state.new" "$RUNDIR/state"
 }
 
@@ -110,39 +115,9 @@ put() {
 	chmod 644 "$tmp" && mv -f "$tmp" "$STATUS"
 }
 
-# Writes what's waiting to $LIST, a line each, tab-separated: package, new version, its tier
-# (firmware, apps, openframe or debian: see status), its download in bytes (0 if it's here
-# already), its file, and the version
-# installed now (empty for a new package). From apt's
-# simulation (the versions and where from) and its download list (the sizes).
+# Works out what's waiting ($LIST, and $HELD for what can't be installed by itself): of-update-apt plan.
 write_list() {
-	local tmp
-	mkdir -p "$VARDIR"
-	tmp=$(mktemp "$VARDIR/.list.XXXXXX") || return
-	{
-		apt-get --print-uris -qq -o Debug::NoLocking=1 dist-upgrade 2>/dev/null | sed 's/^/U /'
-		apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null | grep '^Inst ' | sed 's/^/S /'
-	} | awk '
-		$1 == "U" { f = $3; p = f; sub(/_.*/, "", p); size[p] = $4; file[p] = f; next }
-		$1 == "S" {
-			line = substr($0, 8)                  # after "S Inst "
-			p = line; sub(/ .*/, "", p)
-			rest = substr(line, length(p) + 2)
-			old = ""
-			if (match(rest, /^\[[^]]*\] /)) {     # [the version installed now]
-				old = substr(rest, 2, RLENGTH - 3)
-				rest = substr(rest, RLENGTH + 1)
-			}
-			if (!match(rest, /^\([^ ]+ /)) next
-			v = substr(rest, 2, RLENGTH - 2)
-			from = substr(rest, RLENGTH + 1)
-			ours = from ~ /^OpenFrame/ || from ~ /, OpenFrame/
-			if (p == "openframe-firmware") group = "firmware"
-			else if (p ~ /^ofapp-/ || from ~ /OpenFrame Apps/) group = "apps"
-			else group = ours ? "openframe" : "debian"
-			printf "%s\t%s\t%s\t%s\t%s\t%s\n", p, v, group, (p in size ? size[p] : 0), (p in file ? file[p] : ""), old
-		}' > "$tmp"
-	chmod 644 "$tmp" && mv -f "$tmp" "$LIST"
+	"$APTHELPER" plan
 }
 
 # Fetches the owners' notes for each of OpenBeak's waiting updates (news/<package>.news, beside
@@ -153,9 +128,8 @@ fetch_news() {
 	local P V T url
 	mkdir -p "$NEWSDIR"
 	[ -s "$LIST" ] || return 0
-	while IFS=$'\t' read -r P V T _; do
+	while IFS=$'\t' read -r P V T _ _ _ url; do
 		[ "$T" = debian ] && continue
-		url=$(apt-get --print-uris -qq download "$P=$V" 2>/dev/null | head -1 | cut -d"'" -f2)
 		case "$url" in */pool/*) ;; *) continue ;; esac
 		if curl -fsS --max-time 20 -o "$NEWSDIR/$P.news.new" "${url%%/pool/*}/news/$P.news" 2>/dev/null; then
 			mv -f "$NEWSDIR/$P.news.new" "$NEWSDIR/$P.news"
@@ -186,10 +160,10 @@ lists() {
 	timeout 120 systemctl start time-sync.target >/dev/null 2>&1 || true
 	local out
 	for try in 1 2 3; do
-		# --error-on=any: without it apt-get exits 0 having fetched nothing (offline, with
-		# warnings), and with the lists empty after a start (tmpfs) the run found nothing
-		# waiting and called it a good update, putting the catch-up off for a day
-		out=$(apt-get -qq --error-on=any update 2>&1) && return 0
+		# of-update-apt lists fails if any list wasn't fetched, as apt-get update --error-on=any
+		# does: otherwise, offline, with the lists empty after a start (tmpfs), the run found
+		# nothing waiting and called it a good update, putting the catch-up off for a day
+		out=$("$APTHELPER" lists 2>&1) && return 0
 		# A test unit whose testing suites aren't all there yet (a repository makes its own at
 		# its first publish to testing) still takes everything else: every error about a
 		# testing suite (apt's line after any failure names none). Likewise the apps repository:
@@ -211,9 +185,8 @@ half_done() {
 
 # Puts right what an interrupted update left, before anything else is done: a power cut or a
 # full disk part way through can leave dpkg's work unfinished, or a package in without what it
-# needs (Sprite unpacked, the openframe-scripts it needs not yet), and then unattended-upgrades
-# refuses to do anything at all ("Cache has broken packages"), and nothing's ever updated
-# again. dpkg's work is finished, then what's missing installed, if apt says that takes only
+# needs (Sprite unpacked, the openframe-scripts it needs not yet), and then apt refuses to
+# upgrade anything at all (a cache with broken packages), and nothing's ever updated again. dpkg's work is finished, then what's missing installed, if apt says that takes only
 # installing; if it would remove anything, that's left to a person (or an erase). True if all
 # is well now.
 mend() {
@@ -260,26 +233,15 @@ apps_removed() {
 	put "notice=$names had to be removed to finish an update: install it again from the shop" "noticed=$(date +%s)"
 }
 
-# Updates still waiting once unattended-upgrades has done what it would ($LIST, after
-# prune_list): it keeps back one that needs another package removed, and would keep it back
-# every night, the unit saying "1 update waiting" for ever. Installed here if all it needs
-# removed is apps (see only_apps); otherwise said, with why. True if none is left.
-kept_back() {
-	[ -s "$LIST" ] || return 0
-	local P SIM GONE
-	P=$(cut -f1 "$LIST" | tr '\n' ' ' | sed 's/ $//')
-	SIM=$(apt-get -s -o Debug::NoLocking=1 install $P 2>&1)
-	GONE=$(removals "$SIM")
-	if [ -n "$GONE" ] && only_apps "$GONE"; then
-		log "installing $P, which needs $GONE removed"
-		DEBIAN_FRONTEND=noninteractive apt-get -y -q -o Dpkg::Options::=--force-confold install $P >/dev/null 2>&1 &&
-			apps_removed "$GONE"
-		prune_list
-		[ -s "$LIST" ] && return 1
-		return 0
-	fi
-	KEPT="$P${GONE:+ (it would remove $GONE)}"
-	return 1
+# What of-update-apt held back ($HELD): each package, and why it can't be installed by itself (it would remove a system package). Empty if nothing is.
+held_back() {
+	[ -s "$HELD" ] || return 0
+	awk -F'\t' '{ printf "%s%s (%s)", (NR > 1 ? ", " : ""), $1, $2 }' "$HELD"
+}
+
+# How many updates are waiting: those that can go in, and those held back.
+waiting() {
+	echo $(( $(wc -l < "$LIST") + $( [ -s "$HELD" ] && wc -l < "$HELD" || echo 0 ) ))
 }
 
 # Whether apt's sources have changed since time $1 (a unit made a test unit just now, say): what
@@ -337,6 +299,7 @@ run)
 	exec 9>"$LOCK"
 	flock -n 9 || { log "an update is already running"; exit 0; }
 	trap 'set_state idle; [ "$REASON" = night ] && night_restart' EXIT
+	KIND=update
 	CHECKED=$(get checked)
 	UP=$(cut -d. -f1 /proc/uptime)
 	if [ "$REASON" = now ] && [ -n "$CHECKED" ] && (( $(date +%s) - CHECKED < FRESH && $(date +%s) - CHECKED < UP )) &&
@@ -347,30 +310,25 @@ run)
 		set_state checking
 		lists || fail "the update servers couldn't be reached"
 	fi
+	set_state preparing
 	MEND_WHY=""
 	mend || fail "an earlier update was left half done, and can't be put right by itself${MEND_WHY:+ ($MEND_WHY)}"
-	write_list
+	# Worked out, downloaded and installed in one go (of-update-apt upgrade writes the list as it plans, then sets the state to downloading and installing); then the notes for whatever's still waiting
+	"$APTHELPER" upgrade
+	OK=$?
+	GONE=$(cat "$VARDIR/apps-removed" 2>/dev/null)
+	apt-get clean
+	prune_list
 	fetch_news
-	N=$(wc -l < "$LIST")
-	put "checked=$(date +%s)" "pending=$N"
-	(( N > 0 )) && set_state preparing
-	if (( N > 0 )); then
-		log "$N update(s) waiting: downloading"
-		set_state downloading
-		unattended-upgrade --download-only || fail "the updates couldn't all be downloaded"
-		log "installing"
-		set_state installing
-		unattended-upgrade
-		OK=$?
-		apt-get clean
-		prune_list
-		(( OK == 0 )) || { put "pending=$(wc -l < "$LIST")"; fail "some updates didn't install"; }
-		KEPT=""
-		kept_back
-		N=$(wc -l < "$LIST")
-		put "pending=$N"
-		(( N == 0 )) || fail "$N update$( (( N > 1 )) && echo s) can't be installed by $( (( N > 1 )) && echo themselves || echo itself): ${KEPT:-$(cut -f1 "$LIST" | tr '\n' ' ')}"
-	fi
+	put "checked=$(date +%s)" "pending=$(waiting)"
+	(( OK == 1 )) && fail "the updates couldn't all be downloaded"
+	(( OK == 2 )) && fail "some updates didn't install"
+	(( OK == 0 )) || fail "the updates couldn't be worked out"
+	apps_removed "$GONE"
+	KEPT=$(held_back)
+	N=$(waiting)
+	put "pending=$N"
+	(( N == 0 )) || fail "$N update$( (( N > 1 )) && echo s) can't be installed by $( (( N > 1 )) && echo themselves || echo itself): ${KEPT:-$(cut -f1 "$LIST" | tr '\n' ' ')}"
 	put "last=$(date +%s)" "result=ok" "message="
 	log "up to date$( [ -e /run/reboot-required ] && echo ", once it restarts")"
 	;;
@@ -409,6 +367,7 @@ set-time)
 check)
 	exec 9>"$LOCK"
 	flock -n 9 || { log "an update is running"; exit 0; }
+	KIND=check
 	trap 'set_state idle' EXIT
 	set_state checking
 	lists || fail "the update servers couldn't be reached"
@@ -418,9 +377,10 @@ check)
 		put "checked=$(date +%s)" "pending=0"
 		fail "an earlier update was left half done: trying again puts it right, and the next update does by itself"
 	fi
-	write_list
+	set_state preparing
+	write_list || fail "the updates couldn't be worked out"
 	fetch_news
-	put "checked=$(date +%s)" "pending=$(wc -l < "$LIST")"
+	put "checked=$(date +%s)" "pending=$(waiting)"
 	;;
 status)
 	STATE=idle SINCE=""
@@ -432,6 +392,14 @@ status)
 	[ "$STATE" != idle ] && ! running && STATE=idle
 	echo "state=${STATE:-idle}"
 	echo "since=$SINCE"
+	# how this state is going (of-update-apt's, and the lists'), while there's a run
+	SGOT="" SSIZE="" SNOW=""
+	if [ "$STATE" != idle ]; then
+		echo "kind=$(sed -n 's/^kind=//p' "$RUNDIR/state")"
+		P=$(sed -n 's/^percent=//p' "$RUNDIR/state"); [ -n "$P" ] && echo "percent=$P"
+		SGOT=$(sed -n 's/^got=//p' "$RUNDIR/state"); SSIZE=$(sed -n 's/^size=//p' "$RUNDIR/state")
+		SNOW=$(sed -n 's/^now=//p' "$RUNDIR/state")
+	fi
 	for k in last result message pending checked; do echo "$k=$(get $k)"; done
 	# apps removed to finish an update (apps_removed), for a fortnight
 	N=$(get noticed)
@@ -445,7 +413,7 @@ status)
 		declare -A NOW ST
 		while IFS=$'\t' read -r P V A; do NOW[$P]="$V"; ST[$P]="$A"; done < <(cut -f1 "$LIST" | xargs dpkg-query -W -f='${Package}\t${Version}\t${db:Status-Abbrev}\n' 2>/dev/null)
 		GOT=0 SIZE=0 PART=0 CURRENT=""
-		while IFS=$'\t' read -r P V G B F OLD; do
+		while IFS=$'\t' read -r P V G B F OLD _; do
 			IN=0
 			if [ "${NOW[$P]:-}" = "$V" ]; then
 				case "${ST[$P]:-}" in ii*) IN=1 ;; *) PART=$((PART + 1)); CURRENT=${CURRENT:-$P} ;; esac
@@ -458,8 +426,11 @@ status)
 				fi
 			fi
 		done < "$LIST"
+		# (of-update-apt's count of the bytes, if it has started)
+		[ -n "$SSIZE" ] && (( SSIZE > 0 )) && GOT=$SGOT SIZE=$SSIZE
 		[ "$STATE" = downloading ] && echo "got=$GOT" && echo "size=$SIZE"
 		echo "partial=$PART"
+		CURRENT=${SNOW:-$CURRENT}
 		[ -n "$CURRENT" ] && echo "now=$CURRENT"   # the one going in now
 	fi
 	;;
