@@ -42,7 +42,11 @@ publish() {
 	done
 	apt-get update -qq >/dev/null 2>&1
 }
-printf 'deb [trusted=yes] file:/repo/of ./\ndeb [trusted=yes] file:/repo/apps ./\n' > /etc/apt/sources.list.d/test.list
+# served over HTTP, as the real ones are, so packages are downloaded into apt's archives (a file: repository's are used where they are)
+mkdir -p /repo
+(cd /repo && exec python3 -m http.server 8765 --bind 127.0.0.1 >/dev/null 2>&1) &
+for i in $(seq 50); do python3 -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8765/")' 2>/dev/null && break; sleep 0.1; done
+printf 'deb [trusted=yes] http://127.0.0.1:8765/of ./\ndeb [trusted=yes] http://127.0.0.1:8765/apps ./\n' > /etc/apt/sources.list.d/test.list
 # keep a package's settings as the unit has them, as 52openframe-updates does
 printf 'Dpkg::Options { "--force-confdef"; "--force-confold"; };\n' > /etc/apt/apt.conf.d/52test
 
@@ -75,9 +79,9 @@ printf 'state=checking\nsince=1\nkind=check\n' > /run/of-update/state
 out=$("$H" lists 2>&1); r=$?
 [ $r = 0 ] && grep -qx "percent=100" /run/of-update/state && grep -qx "kind=check" /run/of-update/state && apt-cache policy demo | grep -q "Candidate: 2" &&
 	ok "lists: fetched and read, to 100%" || bad "lists: fetched and read" "r=$r $out $(cat /run/of-update/state)"
-echo "deb [trusted=yes] file:/repo/missing ./" > /etc/apt/sources.list.d/missing.list
+echo "deb [trusted=yes] http://127.0.0.1:8765/missing ./" > /etc/apt/sources.list.d/missing.list
 out=$("$H" lists 2>&1); r=$?
-[ $r = 100 ] && grep -q "^E: Failed to fetch file:/repo/missing" <<< "$out" && grep -q "^E: Some index files failed to download" <<< "$out" &&
+[ $r = 100 ] && grep -q "^E: Failed to fetch http://127.0.0.1:8765/missing" <<< "$out" && grep -q "^E: Some index files failed to download" <<< "$out" &&
 	ok "lists: a repository that isn't there is named, and it fails" || bad "lists: a missing repository" "r=$r $out"
 rm /etc/apt/sources.list.d/missing.list
 "$H" lists >/dev/null 2>&1
@@ -86,7 +90,7 @@ printf 'state=preparing\nsince=1\nkind=update\n' > /run/of-update/state
 "$H" plan 2>/tmp/err || bad "plan runs" "$(cat /tmp/err)"
 line() { grep "^$1	" "$L"; }
 [ "$(line demo | cut -f2,3,6)" = "$(printf '2\topenframe\t1')" ] && [ "$(line demo | cut -f5)" = demo_2_all.deb ] && (( $(line demo | cut -f4) > 20000 )) &&
-	[ "$(line demo | cut -f7)" = "file:/repo/of/./demo_2_all.deb" ] &&
+	[ "$(line demo | cut -f7)" = "http://127.0.0.1:8765/of/./demo_2_all.deb" ] &&
 	ok "plan: an upgrade, its tier, file, size, old version and where it's from" || bad "plan: an upgrade" "$(cat "$L")"
 [ "$(line newdep | cut -f2,3,6)" = "$(printf '1\topenframe\t')" ] && ok "plan: a new package an upgrade needs is in it" || bad "plan: a new package" "$(cat "$L")"
 [ "$(line ofapp-clock | cut -f3)" = apps ] && ok "plan: an app is in the apps tier" || bad "plan: an app's tier" "$(cat "$L")"
@@ -96,11 +100,13 @@ line sysy >/dev/null && ok "plan: an upgrade that removes only an app is in" || 
 ! line held >/dev/null && ! grep -q '^held	' "$HL" && ok "plan: a package on hold stays" || bad "plan: on hold" "$(cat "$L" "$HL")"
 ! line oldlib >/dev/null && ! line keepme >/dev/null && ok "plan: nothing else is listed" || bad "plan: nothing else" "$(cat "$L")"
 
+# (after a start on an OpenFrame /var/cache/apt is empty: in memory)
+rm -rf /var/cache/apt/archives
 "$H" upgrade >/tmp/err 2>&1; r=$?
 vs() { dpkg-query -W -f='${Version} ${db:Status-Abbrev}' "$1" 2>/dev/null; }
 v() { vs "$1" | grep ' .i '; }   # (installed, or nothing)
 [ $r = 0 ] && [ "$(v demo)" = "2 ii " ] && [ "$(v newdep)" = "1 ii " ] && [ "$(v sysy)" = "2 ii " ] && [ "$(v ofapp-clock)" = "2 ii " ] &&
-	ok "upgrade: the plan is installed" || bad "upgrade: installed" "r=$r $(cat /tmp/err; dpkg -l | grep '^.i')"
+	ok "upgrade: the plan is installed, with apt's archives not there to begin with" || bad "upgrade: installed" "r=$r $(cat /tmp/err; dpkg -l | grep '^.i')"
 [ "$(v sysx)" = "1 ii " ] && [ "$(v keepme)" = "1 ii " ] && [ "$(vs held)" = "1 hi " ] && ok "upgrade: what's held back and on hold are left" || bad "upgrade: left alone" "$(dpkg -l | grep '^.i')"
 [ -z "$(v ofapp-old)" ] && [ "$(cat /var/lib/of-update/apps-removed)" = ofapp-old ] && ok "upgrade: the app it had to remove is gone, and named" ||
 	bad "upgrade: the app removed" "$(cat /var/lib/of-update/apps-removed) $(v ofapp-old)"

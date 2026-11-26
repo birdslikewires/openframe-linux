@@ -269,9 +269,21 @@ class Installing(apt.progress.base.InstallProgress):
             state_write(state="installing", percent=int(percent), now=pkg)
 
 
+# apt's archives, locked, as apt-get and python-apt's Cache lock them, which also makes the folder and its partial/ for the downloads (owned by apt's download user): on an OpenFrame /var/cache/apt is in memory, so after a start they aren't there until something makes them
+def archives_lock(acq):
+    try:
+        acq.get_lock(apt_pkg.config.find_dir("Dir::Cache::Archives"))
+        return True
+    except SystemError as e:
+        log("couldn't lock apt's archives: %s" % e)
+        return False
+
+
 # Fetches what's marked into apt's archives; True if it all came. (As python-apt's Cache.fetch_archives.)
 def fetch(a, progress):
     acq = apt_pkg.Acquire(progress)
+    if not archives_lock(acq):
+        return False
     pm = apt_pkg.PackageManager(a.dep)
     if not pm.get_archives(acq, a.sources, a.records):
         return False
@@ -285,7 +297,7 @@ def install(a):
     with apt_pkg.SystemLock():
         pm = apt_pkg.PackageManager(a.dep)
         acq = apt_pkg.Acquire(apt.progress.base.AcquireProgress())  # (all here already: says nothing)
-        if not pm.get_archives(acq, a.sources, a.records) or acq.run() != acq.RESULT_CONTINUE:
+        if not archives_lock(acq) or not pm.get_archives(acq, a.sources, a.records) or acq.run() != acq.RESULT_CONTINUE:
             return False
         # dpkg takes the database's own lock itself, so apt lets go of it while dpkg runs, keeping its frontend lock (as apt-get and python-apt's install_archives do)
         apt_pkg.pkgsystem_unlock_inner()
