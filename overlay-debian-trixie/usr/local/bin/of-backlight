@@ -136,6 +136,12 @@ setbl() {
 	# makes a full fade about half a second.
 	read -r b < "$BLIF"
 	level_for "$pref"
+	# From off, the panel powers up first, and shows white while it starts, so the OpenFrame kernel's backlight driver holds the backlight off for its first 250 ms. The fade waits that out at the lowest level, rather than half of it going by in the dark.
+	if (( b == 0 && LEVEL > 0 )); then
+		echo 1 > "$BLIF" 2>/dev/null
+		pause 0.3
+		b=1
+	fi
 	(( LEVEL < b )) && dir=-1
 	while (( b != LEVEL )); do
 		(( b += dir ))
