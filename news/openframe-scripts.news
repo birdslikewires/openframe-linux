@@ -1,3 +1,6 @@
+26.11.177	The screen no longer flashes white when it turns back on, or between the two birds as the OpenFrame starts.
+26.11.176	A touch now always turns the screen back on, where it could sometimes stay dark.
+26.11.175	The screen no longer turns itself back on now and then while it's meant to be off.
 26.11.170	The OpenFrame Flash screen no longer comes up garbled, with lines doubled and out of place.
 26.11.162	The settings folder on the OpenFrame's boot volume has a README.txt saying what each file is for.
 26.11.161	If an update's new kernel won't start, the OpenFrame goes back to the one before by itself.
