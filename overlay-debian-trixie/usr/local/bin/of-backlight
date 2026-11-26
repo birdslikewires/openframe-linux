@@ -310,17 +310,6 @@ daemon() {
 	# Open both ways, so a request never waits for a reader and the pipe never closes.
 	exec {CTLFD}<> "$CTL"
 
-	# The mode from last time: 'auto' or a level. None yet: the level the backlight has.
-	mode=""
-	read -r mode 2>/dev/null < "$state"
-	if [[ $mode != auto ]] && ! { [[ $mode =~ ^[0-9]{1,3}$ ]] && (( 10#$mode <= 100 )); }; then
-		getbl
-		mode=$CRNTBL
-	elif [[ $mode != auto ]]; then
-		(( mode = 10#$mode ))
-	fi
-	echo "Starting in $([ "$mode" = auto ] && echo "automatic brightness" || echo "fixed level $mode%")."
-
 	# shown: until when a level asked for by 'show' holds (epoch seconds; 0 for none);
 	# asleep: off by 'sleep' until a 'wake' (or any level asked for), and still so if the
 	# service was restarted meanwhile (an update), so Sprite's display sleep isn't undone
@@ -331,6 +320,22 @@ daemon() {
 	read -r was before 2>/dev/null < "$ASLEEP"
 	read -r boot 2>/dev/null < "$BOOTID"
 	[[ $before =~ ^[0-9]{1,3}$ ]] && (( 10#$before <= 100 )) || before=0
+
+	# The mode from last time: 'auto' or a level. None yet: the level the backlight has, or if it's asleep from before a restart, the level it had then (asleep, the backlight's off, and 0% would keep it dark after a wake).
+	mode=""
+	read -r mode 2>/dev/null < "$state"
+	if [[ $mode != auto ]] && ! { [[ $mode =~ ^[0-9]{1,3}$ ]] && (( 10#$mode <= 100 )); }; then
+		if [ -n "$was" ] && [ "$was" = "$boot" ] && (( before > 0 )); then
+			(( mode = 10#$before ))
+		else
+			getbl
+			mode=$CRNTBL
+		fi
+	elif [[ $mode != auto ]]; then
+		(( mode = 10#$mode ))
+	fi
+	echo "Starting in $([ "$mode" = auto ] && echo "automatic brightness" || echo "fixed level $mode%")."
+
 	if [ -n "$was" ] && [ "$was" = "$boot" ]; then
 		asleep=1
 		: > "$ASLEEP_RUN"
