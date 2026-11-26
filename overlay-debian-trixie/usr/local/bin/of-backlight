@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-## of-backlight v26.11.15 (24th November 2026) by Andrew Davison
+## of-backlight v26.11.16 (26th November 2026) by Andrew Davison
 ##  Backlight control with fading for OpenFrame, and automatic brightness from the
 ##  light sensor. None of it needs root.
 ##
@@ -28,6 +28,11 @@
 ##                          there meanwhile, so a Sprite started then starts asleep too.
 ##    of-backlight wake     ends that, back to the level it should have. Any other request
 ##                          (a level, auto, show) does too.
+##    of-backlight glance   with automatic brightness, while it has the screen off in the
+##                          dark: lights it at its lowest for 15 seconds from the last glance
+##                          asked for, then lets the dark have it again. Sprite's, for a touch
+##                          on the dark screen, asked again while it's being used. Nothing
+##                          otherwise (asleep, a fixed level, or a screen that's on).
 ##  'set' has the service read backlight.txt again once it has written it.
 ##  Whichever was asked for last is kept across reboots. A fresh system stays at the
 ##  level it has until someone asks for one or for auto.
@@ -53,7 +58,7 @@
 ##  seconds. Systems that haven't had it moved there yet keep it in the root.
 
 usage() {
-	echo "Usage: $0 [0-100 | auto | status | sleep | wake] [debug]"
+	echo "Usage: $0 [0-100 | auto | status | sleep | wake | glance] [debug]"
 	echo
 	echo "  A backlight level in the range 0-100, or 'auto' (or 999) for automatic backlight."
 	echo "  Running with no arguments returns the current backlight value."
@@ -225,11 +230,12 @@ read_light() {
 }
 
 ## Automatic brightness, one reading ($1: 'debug'), with the settings conf last read.
-## Keeps its smoothing in A_r1, A_r2 and A_ema between readings.
-A_r1="" A_r2="" A_ema="" A_force=0
+## Keeps its smoothing in A_r1, A_r2 and A_ema between readings, whether the room is dark
+## (A_dark), and until when a glance holds the screen on in the dark (A_glance, epoch seconds).
+A_r1="" A_r2="" A_ema="" A_force=0 A_dark=0 A_glance=0
 auto_step() {
 
-	local med hour night want applied hysup hysdown delta
+	local med hour night want applied hysup hysdown delta now
 
 	read_light
 	if [[ -z $LIGHT ]]; then
@@ -264,11 +270,18 @@ auto_step() {
 	applied=$CRNTBL
 
 	# What the backlight should be. Dark: off below off_below, and back on only at 2
-	# more than that, so a dark room's readings (0-2) can't flicker it.
-	if (( C_off_below > 0 && (A_ema < C_off_below * 16 ||
-	      (applied == 0 && A_ema < (C_off_below + 2) * 16)) )); then
-		want=0
+	# more than that, so a dark room's readings (0-2) can't flicker it. A glance (a touch
+	# on the dark screen) has it on at the lowest meanwhile, without the room counting as lit.
+	(( A_dark = C_off_below > 0 && (A_ema < C_off_below * 16 ||
+	      ((A_dark || applied == 0) && A_ema < (C_off_below + 2) * 16)) ))
+	printf -v now '%(%s)T' -1
+	if (( A_dark && now < A_glance )); then
+		(( want = C_min > 1 ? C_min : 1 ))
+	elif (( A_dark )); then
+		(( A_glance )) && echo "Glance over: off in the dark again."
+		want=0 A_glance=0
 	else
+		A_glance=0
 		curve "$A_ema"
 		(( night )) && (( CURVE = CURVE * C_night / 100 ))
 		(( want = (CURVE + 50) / 100 ))
@@ -440,6 +453,15 @@ daemon() {
 					setbl 0
 				fi
 				continue
+			elif [ "$req" = "glance" ]; then
+				# Only for the dark: asleep, at a fixed level or in a lit room it's nothing.
+				# Held for 15 s from the last one; the first lights it at once.
+				if (( !asleep )) && [ "$mode" = auto ] && (( A_dark )); then
+					printf -v now '%(%s)T' -1
+					(( A_glance )) || { echo "Glance: on in the dark, at the lowest."; A_force=1; }
+					(( A_glance = now + 15 ))
+				fi
+				continue
 			elif [ "$req" = "wake" ]; then
 				if (( asleep )); then
 					echo "Awake."
@@ -583,8 +605,8 @@ if [ "$1" = "resume" ]; then
 	exit 0
 fi
 
-## Display sleep, and waking from it (Sprite's, through the service).
-if [ "$1" = "sleep" ] || [ "$1" = "wake" ]; then
+## Display sleep, waking from it, and a glance in the dark (Sprite's, through the service).
+if [ "$1" = "sleep" ] || [ "$1" = "wake" ] || [ "$1" = "glance" ]; then
 	request "$1" || { echo "of-backlight $1 needs the service."; exit 1; }
 	exit 0
 fi
