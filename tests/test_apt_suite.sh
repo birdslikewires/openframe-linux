@@ -66,6 +66,12 @@ out=$(bash $S promote pkg-b=3); grep -qx "left in testing: pkg-b 2" <<< "$out" &
 	ok "a version that isn't the one listed stays" || bad "a version that isn't the one listed stays" "$out"
 grep -q "^Label: OpenFrame Linux testing" apt-repo/dists/trixie-testing/Release && grep -q "^Codename: trixie-testing" apt-repo/dists/trixie-testing/Release &&
 	ok "testing's Release is labelled as such (of-update's tiers, unattended-upgrades' -testing codename)" || bad "testing's Release labels" "$(cat apt-repo/dists/trixie-testing/Release)"
+# the first ever release, into a released suite that's never had a package (git keeps no empty pool/trixie)
+mkdir -p /work2 && cd /work2
+bash $S add trixie-testing /tmp/pkg-a_1_all.deb >/dev/null && rm -rf apt-repo/pool/trixie apt-repo/dists/trixie
+out=$(bash $S promote pkg-a=1); grep -qx "promoted pkg-a 1" <<< "$out" && [ "$(ls apt-repo/pool/trixie)" = pkg-a_1_all.deb ] &&
+	ok "the first release, with no released pool yet" || bad "the first release, with no released pool yet" "$out"
+cd $W
 echo
 [ "$FAILS" -eq 0 ] && echo "all passed" || echo "$FAILS failed"
 exit "$FAILS"

@@ -70,6 +70,7 @@ add)
 promote)
 	shift
 	shopt -s nullglob
+	mkdir -p "$REPO/pool/$RELEASED"   # (nothing may have been released yet, and git keeps no empty folder)
 	moved=0
 	for deb in "$REPO/pool/$TESTING"/*.deb; do
 		pkg=$(field "$deb" Package)
