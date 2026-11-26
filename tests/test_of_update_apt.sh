@@ -40,6 +40,10 @@ publish() {
 		mkdir -p /repo/$repo
 		(cd /repo/$repo && apt-ftparchive packages . > Packages && apt-ftparchive -o "APT::FTPArchive::Release::Origin=$origin" -o "APT::FTPArchive::Release::Label=$origin" -o APT::FTPArchive::Release::Codename=trixie release . > Release)
 	done
+	# Each publish's index a second later than the last: http.server's Last-Modified is to the second, so a publish in the same second as the one before (a fast runner) was taken for unchanged, as apt asks If-Modified-Since, and apt kept the old index
+	local now; now=$(date +%s)
+	PUBLISHED=$(( now > ${PUBLISHED:-0} ? now : PUBLISHED + 1 ))
+	touch -d "@$PUBLISHED" /repo/*/Packages /repo/*/Release
 	apt-get update -qq >/dev/null 2>&1
 }
 # served over HTTP, as the real ones are, so packages are downloaded into apt's archives (a file: repository's are used where they are)
