@@ -1,24 +1,24 @@
 Architectures: all i386
 Codename: trixie
 Components: main
-Date: Thu, 26 Nov 2026 23:56:41 +0000
+Date: Fri, 27 Nov 2026 01:47:31 +0000
 Description: OpenFrame Linux packages
 Label: OpenFrame Linux
 Origin: OpenFrame
 Suite: trixie
 MD5Sum:
- 1db6c60b2b1d8a517c24a2b7f666493e             1491 Release
- aabb3f07f516bded7a811b835902b44f             4246 main/binary-i386/Packages
- e742db163b814ce39625a45c92137099             1874 main/binary-i386/Packages.gz
+ 27a7739eb040922da6ddf5a62d369c27             1491 Release
+ 2cc5c3c3989013ab3b3cff0d3c0b62ce             4246 main/binary-i386/Packages
+ d12de65201609cc67942f54359beeaae             1877 main/binary-i386/Packages.gz
 SHA1:
- 7bc535aee98c70a3fb0ee574b32d1c2aba580819             1491 Release
- e585239706d200b05bccced47bb16dbbe552e5f3             4246 main/binary-i386/Packages
- 068b6ef29540abca19bbff8852859a50dcabbdc0             1874 main/binary-i386/Packages.gz
+ d74e1a8db7ff9715d241e9945a9a34c91b885019             1491 Release
+ 6daa18052b868d2fd431555557cebc2bbec6be44             4246 main/binary-i386/Packages
+ 912d2bfbd3376979d2114a7a64b367a05211cb07             1877 main/binary-i386/Packages.gz
 SHA256:
- f5a12e174e59d747b0545fe456338bd3c4449ea3b63f2c58ce870b241b423f1a             1491 Release
- a020ff635a00d8699304b1d1048265b75eeea00da232efc1379cc63817d89651             4246 main/binary-i386/Packages
- 217481ac6322b855cb1432c57c06e6207db473330de2a9a105da8fa4be2ef294             1874 main/binary-i386/Packages.gz
+ 34ce14fa51cac5c48d39be34b66f4e2c35086c9ab5c10c1c40694b71bb5dc7e0             1491 Release
+ cd55501ed07dc3efcfc0a4ddc6f95e05bfd1c205cf0d9c65cacbc16e3e213140             4246 main/binary-i386/Packages
+ e271f0e72102266362d04d74398ab9250c8addd07ed8d7fcb19579187d48f743             1877 main/binary-i386/Packages.gz
 SHA512:
- a1c50b88fc737a8c7452e578096a06c20be4de557fcf867c9726697a256bc9cc3d16c43341d628febac0bb899758a81ffb2379424723900e2c3ddedd1a2eb32e             1491 Release
- 189fd21f232e446da15451adb94efae9e1d1382e5567e03c319c5a30642b990a4b427e5f3fe5082e46260272813af3da9e8911d34e08383af06eeb494abb9040             4246 main/binary-i386/Packages
- b8dd78fd9e08c2b5f85ffb8ed86b312efcbcf7811db4606ee3f8c3d6e7a7bb7499c3af39ae5d9499e04abecc4009e227f5099c47f9e4ddcb48894d5f16392f6d             1874 main/binary-i386/Packages.gz
+ ff0f5ed5455d600a2bf1af91a0194f8b5d00098f94aac3ef2fa756d2b630d80f0e69ab50c716e31db91aa7d1dab7eb20215aa454d344e216ac7622673e21d473             1491 Release
+ 5e7e737893150b5b0edbc87ffdc68affb7118e627b3292cefeca12e7a24b58f91e88c52d3bf06473ac10ad6828bb66a598110d25582a8a5b62e37c7145e4b34c             4246 main/binary-i386/Packages
+ 0b3136438532e3272d79826b671ad92b05964fc1531c893c9a9de18ea77880104804e30928e37c73eed50f67c40ed5e578d661b3aa2cce2148a704621a2093ce             1877 main/binary-i386/Packages.gz
