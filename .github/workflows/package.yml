@@ -298,7 +298,7 @@ jobs:
             install -m 755 package/preinst "${PKG}/DEBIAN/preinst"
             install -m 755 package/postrm "${PKG}/DEBIAN/postrm"
 
-            printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash, dosfstools, e2fsprogs, yq, python3-apt, unattended-upgrades, openframe-resampler, cifs-utils\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
+            printf 'Package: openframe-scripts\nVersion: %s\nArchitecture: all\nSection: admin\nPriority: optional\nMaintainer: OpenFrame <andy@dvsn.net>\nDepends: bash, dosfstools, e2fsprogs, yq, python3-apt, unattended-upgrades, openframe-resampler, cifs-utils, dbus-broker\nDescription: OpenFrame management scripts\n Scripts for managing OpenFrame devices.\n' \
               "${version}" > "${PKG}/DEBIAN/control"
 
             dpkg-deb --build --root-owner-group "${PKG}"
