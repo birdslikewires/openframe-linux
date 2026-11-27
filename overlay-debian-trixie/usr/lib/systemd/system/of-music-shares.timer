@@ -1,0 +1,11 @@
+# Network shares with music tried again every 5 minutes (of-music-shares.service), for a server
+# that's been off or a network that came late. A share already mounted is left as it is.
+[Unit]
+Description=Try the network shares with music again
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,16 @@
+## Network shares: music on a computer or NAS, for services such as Lyrion Music Server.
+
+# Each share is mounted, read-only, in its own folder in /media/music, where services that play
+# music look. You can add and remove them on the screen, in Settings, under Services, or here:
+# a block of lines for each share, with a blank line between them.
+#
+#   share=//server/folder    the share, as \\server\folder or //server/folder, with the server's
+#                            address or its name
+#   username=                its user name and password, or leave both empty for a guest share
+#   password=
+#
+# For example:
+#
+#   share=//192.168.1.20/Music
+#   username=music
+#   password=secret

@@ -45,6 +45,7 @@ SSHSETTINGSMARKER="/var/lib/openframe-scripts/ssh-settings-default"
 REGDBMARKER="/var/lib/openframe-scripts/regdb-upstream-default"
 UPDATESMARKER="/var/lib/openframe-scripts/auto-updates-default"
 TESTSETTINGSMARKER="/var/lib/openframe-scripts/test-settings-default"
+MUSICMARKER="/var/lib/openframe-scripts/music-default"
 UPDATETIMEMARKER="/var/lib/openframe-scripts/update-time-default"
 NAMEMARKER="/var/lib/openframe-scripts/name-default"
 AUDIOMARKER="/var/lib/openframe-scripts/audio-default"
@@ -385,6 +386,24 @@ case "$1" in
 			fi
 			mkdir -p "${TESTSETTINGSMARKER%/*}"
 			touch "$TESTSETTINGSMARKER"
+		fi
+
+		# Once per system: music for services that play it (music-mount), each USB drive and each
+		# network share in OF-BOOT/settings/shares.txt read-only under /media/music; the shares at
+		# boot and every 5 minutes after, with a template shares.txt if there isn't one. A drive
+		# already plugged in is mounted now (udev's rule does the rest as they come).
+		if [ ! -e "$MUSICMARKER" ]; then
+			systemctl enable --quiet of-music-shares.service of-music-shares.timer 2>/dev/null || true
+			if [ -d /boot/settings ] && [ ! -e /boot/settings/shares.txt ] && [ -f /usr/lib/openframe/settings/shares.txt ]; then
+				cp /usr/lib/openframe/settings/shares.txt /boot/settings/shares.txt.new && sync &&
+					mv -f /boot/settings/shares.txt.new /boot/settings/shares.txt && sync || true
+			fi
+			if ! in_chroot; then
+				systemctl start of-music-shares.timer 2>/dev/null || true
+				udevadm trigger --subsystem-match=block --property-match=ID_BUS=usb --action=add 2>/dev/null || true
+			fi
+			mkdir -p "${MUSICMARKER%/*}"
+			touch "$MUSICMARKER"
 		fi
 
 		# Once per system: automatic updates (of-update, through unattended-upgrades): at the

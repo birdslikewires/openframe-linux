@@ -14,3 +14,4 @@
 #   ssh.txt        Signing in from another computer (SSH).
 #   flash.txt      Installing a fresh system onto the internal memory.
 #   test.txt       Taking OpenBeak's updates before they're released.
+#   shares.txt     Network shares with music, for services such as a music server.

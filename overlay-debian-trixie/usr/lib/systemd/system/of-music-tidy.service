@@ -1,0 +1,9 @@
+# A USB drive gone: the empty folders it leaves in /media/music go too (music-mount tidy), once
+# its mount has followed it (systemd-mount ties a mount to its device).
+[Unit]
+Description=Tidy away the folders of music no longer there
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 2
+ExecStart=/usr/lib/openframe/music-mount tidy

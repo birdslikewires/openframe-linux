@@ -1,0 +1,15 @@
+# OF-BOOT/settings/shares.txt: network shares with music on them, mounted read-only under
+# /media/music for services that play music (see /usr/lib/openframe/music-mount). At boot, once
+# the network's up, and every 5 minutes after (of-music-shares.timer), for a server that's off
+# or a network that's late: only what isn't mounted is tried again.
+[Unit]
+Description=Network shares with music, from OF-BOOT
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/openframe/music-mount shares
+
+[Install]
+WantedBy=multi-user.target

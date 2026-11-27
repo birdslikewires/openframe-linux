@@ -1,0 +1,210 @@
+#!/usr/bin/env bash
+
+## music-mount v26.11.1 (27th November 2026)
+##  Puts the music an owner has where services can read it (an app or service with allow=music in
+##  its manifest, such as Lyrion Music Server): each USB drive, and each network share in
+##  OF-BOOT/settings/shares.txt, mounted read-only in a folder of its own under /media/music.
+##  Read-only, as OpenFrames are often switched off at the wall, and nothing here needs to write.
+##
+##    music-mount usb <dev>   mount USB partition <dev> (sda1, say: of-music-usb@<dev>.service, started by
+##                            70-of-music.rules as it appears) at /media/music/<its label>, through
+##                            systemd-mount, which ties the mount to the device: pulled out, it's unmounted
+##    music-mount shares      mount the shares in shares.txt that aren't mounted, and unmount the ones that
+##                            have gone from it (of-music-shares.service at boot, its timer every 5 minutes
+##                            after, and sprite-helper when a share's added or removed)
+##    music-mount status      what's mounted, a line each, tab-separated: kind (usb or share), name, where
+##                            it comes from (the drive's file system, or //server/folder), MB used, MB size;
+##                            then each share in shares.txt that isn't mounted: share, name, //server/folder,
+##                            and why the last try failed: password, missing, unreachable or other
+##    music-mount tidy        remove the empty folders left in /media/music
+##
+##  A USB partition is mounted if it has a file system of a kind music is kept on (FAT, exFAT, NTFS,
+##  ext2-4, HFS+), unless it's an EFI system partition (which a Mac adds to a drive it formats), the
+##  OpenFrame's own (OF-BOOT, OF-BACKUP, or on the disk it started from). Its folder is named by its
+##  label (or "USB drive"), with a number after it if that's taken.
+##
+##  shares.txt holds a block of lines for each share, a blank line between them: share=//server/folder
+##  (or \\server\folder, or //server:port/folder for a server on a port of its own), username= and password= (both empty for a guest share). Each is mounted at
+##  /media/music/<folder>. The password is handed to mount.cifs in a file only root can read
+##  (/run/openframe-shares), never in the mount's options, which anyone can see. Values are read as
+##  of-netplan reads its files: the key's case and spaces around it don't matter, and one pair of
+##  matching quotes is taken off.
+
+MUSIC="/media/music"
+SHARES="/boot/settings/shares.txt"
+CREDS="/run/openframe-shares"
+ERRS="/run/openframe-shares.errors" # (beside the credentials folder, which only root can read)
+EFI_TYPE="c12a7328-f81f-11d2-ba4b-00a0c93ec93b"
+
+log() { echo "music-mount: $*"; }
+
+# udev's and findmnt's escaping undone (\x20 for a space, and so on)
+unescape() { printf '%b' "$1"; }
+
+# A name fit for a folder: no slashes or control characters, not empty, not . or ..
+folder_name() {
+	local n="${1//\//-}"
+	n="$(printf '%s' "$n" | tr -d '\000-\037')"
+	n="${n#"${n%%[![:space:]]*}"}"
+	n="${n%"${n##*[![:space:]]}"}"
+	[ -n "$n" ] && [ "$n" != . ] && [ "$n" != .. ] || n="$2"
+	printf '%s' "${n:0:64}"
+}
+
+# A free folder under /media/music for name $1: $1, or "$1 2", "$1 3"...
+free_folder() {
+	local d="$MUSIC/$1" i=2
+	while mountpoint -q "$d" || { [ -e "$d" ] && [ -n "$(ls -A "$d" 2>/dev/null)" ]; }; do
+		d="$MUSIC/$1 $i"
+		i=$((i + 1))
+	done
+	printf '%s' "$d"
+}
+
+usb_mount() {
+	local DEV="$1" P OPTS ROOTDISK DISK DIR
+	[[ "$DEV" =~ ^[a-z0-9]+$ ]] || { log "not a device name: $DEV"; exit 1; }
+	[ -b "/dev/$DEV" ] || exit 0
+	findmnt -rno TARGET --source "/dev/$DEV" >/dev/null && exit 0 # mounted already (by anything)
+	declare -A U
+	while IFS='=' read -r k v; do U[$k]="$v"; done < <(udevadm info --query=property --name="/dev/$DEV")
+	[ "${U[ID_BUS]}" = usb ] || exit 0
+	[ "${U[ID_FS_USAGE]}" = filesystem ] || exit 0
+	[ "${U[ID_PART_ENTRY_TYPE],,}" != "$EFI_TYPE" ] || exit 0
+	case "${U[ID_FS_LABEL]}" in OF-BOOT|OF-BACKUP) exit 0 ;; esac
+	# not the disk the OpenFrame started from (a USB stick, for some)
+	ROOTDISK=$(lsblk -no PKNAME "$(findmnt -rno SOURCE /)" 2>/dev/null)
+	DISK=$(lsblk -no PKNAME "/dev/$DEV" 2>/dev/null)
+	[ -n "$DISK" ] && [ "$DISK" = "$ROOTDISK" ] && exit 0
+	OPTS="ro,nosuid,nodev,noexec,noatime"
+	case "${U[ID_FS_TYPE]}" in
+		vfat|exfat) P="$OPTS,uid=0,gid=0,fmask=0022,dmask=0022,iocharset=utf8" ;;
+		ntfs|ntfs3) U[ID_FS_TYPE]=ntfs3; P="$OPTS,uid=0,gid=0,fmask=0022,dmask=0022,iocharset=utf8" ;;
+		ext2|ext3|ext4) P="$OPTS,noload" ;; # noload: no journal replay, which would write
+		hfsplus) P="$OPTS" ;;
+		*) log "$DEV: not a file system for music (${U[ID_FS_TYPE]:-none})"; exit 0 ;;
+	esac
+	mkdir -p "$MUSIC"
+	DIR=$(free_folder "$(folder_name "$(unescape "${U[ID_FS_LABEL_ENC]}")" "USB drive")")
+	log "$DEV (${U[ID_FS_TYPE]}) at $DIR"
+	systemd-mount --no-block --collect --fsck=no -t "${U[ID_FS_TYPE]}" -o "$P" "/dev/$DEV" "$DIR"
+}
+
+# Values from shares.txt, a block each: SH_SHARE[i], SH_USER[i], SH_PASS[i]
+shares_read() {
+	SH_SHARE=() SH_USER=() SH_PASS=()
+	local n=-1 line k v
+	[ -r "$SHARES" ] || return 0
+	while IFS= read -r line || [ -n "$line" ]; do
+		line="${line%$'\r'}"
+		line="${line#$'\xef\xbb\xbf'}"
+		[[ "$line" == *=* && "$line" != \#* ]] || continue
+		k="${line%%=*}"
+		v="${line#*=}"
+		k="${k//[[:space:]]/}"
+		k="${k,,}"
+		v="${v#"${v%%[![:space:]]*}"}"
+		v="${v%"${v##*[![:space:]]}"}"
+		if (( ${#v} >= 2 )) && [[ ${v:0:1} == [\"\'] && ${v: -1} == "${v:0:1}" ]]; then
+			v="${v:1:${#v}-2}"
+		fi
+		case "$k" in
+			share)
+				v="${v//\\//}"
+				[[ "$v" =~ ^//[^/]+/.+ ]] || continue
+				n=$((n + 1)); SH_SHARE[n]="${v%/}"; SH_USER[n]=""; SH_PASS[n]=""
+				;;
+			username) [ "$n" -ge 0 ] && SH_USER[n]="$v" ;;
+			password) [ "$n" -ge 0 ] && SH_PASS[n]="$v" ;;
+		esac
+	done < "$SHARES"
+}
+
+# Where a share's mounted, if it is
+share_mounted_at() { local T S="$1"; [[ "$S" =~ ^//([^/:]+):[0-9]+(/.*)$ ]] && S="//${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; T=$(findmnt -rn -t cifs -S "$S" -o TARGET 2>/dev/null | head -1); [ -n "$T" ] && unescape "$T"; }
+
+# mount.cifs's complaint as a reason the screen can put in words: password (the user name or
+# password), missing (no such share), unreachable (the server didn't answer) or other
+cifs_reason() {
+	case "$1" in
+		*"error(13)"*|*"error(1)"*|*"Permission denied"*) echo password ;;
+		*"error(2)"*|*"error(6)"*|*"No such"*) echo missing ;;
+		*"error(11)"*|*"error(110)"*|*"error(111)"*|*"error(112)"*|*"error(113)"*|*"error(115)"*|*"resolve"*|*"unreachable"*|*"timed out"*|*"refused"*) echo unreachable ;;
+		*) echo other ;;
+	esac
+}
+
+shares_apply() {
+	local i DIR C WANT=() T S ERR UNC PORT
+	shares_read
+	mkdir -p "$CREDS" && chmod 700 "$CREDS"
+	: > "$ERRS.new"
+	for i in "${!SH_SHARE[@]}"; do
+		S="${SH_SHARE[i]}"
+		[[ "$S" =~ ^//([^/:]+):[0-9]+(/.*)$ ]] && S="//${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+		WANT+=("$S")
+		[ -n "$(share_mounted_at "${SH_SHARE[i]}")" ] && continue
+		mkdir -p "$MUSIC"
+		DIR=$(free_folder "$(folder_name "${SH_SHARE[i]##*/}" "Share")")
+		C="$CREDS/$i"
+		( umask 077; { [ -n "${SH_USER[i]}" ] && printf 'username=%s\npassword=%s\n' "${SH_USER[i]}" "${SH_PASS[i]}" || printf 'username=guest\npassword=\n'; } > "$C" )
+		mkdir -p "$DIR"
+		# //server:port/folder: a server on a port of its own (mount.cifs takes it as port=)
+		UNC="${SH_SHARE[i]}" PORT=""
+		if [[ "$UNC" =~ ^//([^/:]+):([0-9]{1,5})(/.*)$ ]]; then
+			UNC="//${BASH_REMATCH[1]}${BASH_REMATCH[3]}" PORT=",port=${BASH_REMATCH[2]}"
+		fi
+		if ERR=$(mount -t cifs -o "ro,nosuid,nodev,noexec,soft,credentials=$C,uid=0,gid=0,file_mode=0444,dir_mode=0555,iocharset=utf8,_netdev$PORT" "$UNC" "$DIR" 2>&1); then
+			log "${SH_SHARE[i]} at $DIR"
+		else
+			rmdir "$DIR" 2>/dev/null
+			log "${SH_SHARE[i]}: $(printf '%s' "$ERR" | tr '\t\n' '  ')"
+			printf '%s\t%s\n' "${SH_SHARE[i]}" "$(cifs_reason "$ERR")" >> "$ERRS.new"
+		fi
+		rm -f "$C"
+	done
+	mv -f "$ERRS.new" "$ERRS"
+	# a share taken out of shares.txt is unmounted
+	while read -r T S; do
+		[ -n "$T" ] || continue
+		T=$(unescape "$T") S=$(unescape "$S")
+		[[ "$T" == "$MUSIC/"* ]] || continue
+		[[ " ${WANT[*]} " == *" $S "* ]] && continue
+		umount -l "$T" && rmdir "$T" 2>/dev/null
+		log "$S taken away from $T"
+	done < <(findmnt -rn -t cifs -o TARGET,SOURCE)
+}
+
+status() {
+	local T S F K U Z i
+	while read -r T S F; do
+		T=$(unescape "$T") S=$(unescape "$S")
+		[[ "$T" == "$MUSIC/"* ]] || continue
+		K=usb
+		[ "$F" = cifs ] && K=share || S="$F"
+		read -r U Z < <(df -Pm "$T" 2>/dev/null | awk 'NR == 2 { print $3, $2 }')
+		printf '%s\t%s\t%s\t%s\t%s\n' "$K" "${T#"$MUSIC/"}" "$S" "${U:-0}" "${Z:-0}"
+	done < <(findmnt -rn -o TARGET,SOURCE,FSTYPE)
+	shares_read
+	for i in "${!SH_SHARE[@]}"; do
+		[ -n "$(share_mounted_at "${SH_SHARE[i]}")" ] && continue
+		printf 'share\t%s\t%s\t%s\n' "$(folder_name "${SH_SHARE[i]##*/}" Share)" "${SH_SHARE[i]}" "$(awk -F'\t' -v s="${SH_SHARE[i]}" '$1 == s { print $2 }' "$ERRS" 2>/dev/null)"
+	done
+}
+
+tidy() {
+	local d
+	for d in "$MUSIC"/*/; do
+		d="${d%/}"
+		[ -d "$d" ] && ! mountpoint -q "$d" && rmdir "$d" 2>/dev/null
+	done
+	true
+}
+
+case "${1:-}" in
+	usb) usb_mount "${2:-}" ;;
+	shares) shares_apply; tidy ;;
+	status) status ;;
+	tidy) tidy ;;
+	*) echo "Usage: $0 usb <dev> | shares | status | tidy" >&2; exit 1 ;;
+esac

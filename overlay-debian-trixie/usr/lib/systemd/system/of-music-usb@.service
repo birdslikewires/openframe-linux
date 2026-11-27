@@ -1,0 +1,9 @@
+# A USB drive's partition (%I), read-only in a folder of its own under /media/music, for services
+# that play music (see /usr/lib/openframe/music-mount). Started by 70-of-music.rules.
+[Unit]
+Description=Music on USB drive %I
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/openframe/music-mount usb %i

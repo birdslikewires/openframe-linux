@@ -1,0 +1,5 @@
+# A USB drive's partition with a file system appearing: music-mount puts it, read-only, in a
+# folder of its own under /media/music, for services that play music (of-music-usb@.service).
+# Gone: the folders left empty are tidied away (the mount itself goes with the device).
+SUBSYSTEM=="block", ACTION=="add", ENV{ID_BUS}=="usb", ENV{ID_FS_USAGE}=="filesystem", RUN+="/usr/bin/systemctl --no-block start of-music-usb@%k.service"
+SUBSYSTEM=="block", ACTION=="remove", ENV{ID_BUS}=="usb", ENV{ID_FS_USAGE}=="filesystem", RUN+="/usr/bin/systemctl --no-block start of-music-tidy.service"
