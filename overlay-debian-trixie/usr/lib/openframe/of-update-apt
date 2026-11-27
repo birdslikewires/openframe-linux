@@ -3,10 +3,11 @@
 #
 # lists: fetches the package lists, then reads them into apt's cache, writing how far it's got to the state file (percent: bringing the cache up to date first, if dpkg's changed since, to 10; the fetching to 50; the reading to 100). Each list that couldn't be fetched is an "E: Failed to fetch" line on stdout, and then it exits 100, as apt-get update --error-on=any does: of-update decides which failures matter.
 # plan: works out what an update installs, and writes it to /var/lib/of-update/pending.list, a line each, tab-separated: package, new version, tier (firmware, apps, openframe or debian), bytes still to download (0 if it's here already), its file in apt's archives, the version installed now (empty for a new package), and where it's fetched from. Updates that can't be installed by themselves go to held.list instead (package, why).
-# upgrade: the same plan (writing the same lists), then downloads it, and installs it, removing what upgrades leave unused in the same pass (as apt-get --autoremove does), writing how it's going to /run/of-update/state for of-update status (state, since, percent, got and size while downloading, now while installing). The apps it had to remove, if any (see below), go to apps-removed, beside the list (dpkg's own output is on stdout). Exits 1 if the downloads failed, 2 if the installing did.
+# upgrade: the same plan (writing the same lists), then downloads it, and installs it, removing what upgrades leave unused in the same pass (as apt-get --autoremove does), writing how it's going to /run/of-update/state for of-update status (state, since, percent, got and size while downloading, now while installing). The apps it had to remove, if any (see below), go to apps-removed, beside the list (dpkg's own output is on stdout). Exits 1 if the downloads failed, 2 if the installing did, 3 if anything else went wrong (apt busy past its wait, say).
 #
 # What's installed, as unattended-upgrades did before: every upgrade the sources offer (52openframe-updates allows all of this unit's sources), with any new packages they need, never removing a system package to do it. An upgrade that needs a package removed is held back, unless all it removes is apps (ofapp-*, which can be installed again from the Shop), which of-update then names on the Updates tab for a fortnight. Packages on hold stay as they are. Settings files a package changes keep the unit's own (Dpkg::Options in 52openframe-updates).
 import os
+import subprocess
 import sys
 import time
 
@@ -41,7 +42,15 @@ def state_read():
 _last_write = [0.0]
 
 
+# (progress only: a failure here is logged and never stops what it's reporting on, as it's called from the middle of a download or dpkg's run)
 def state_write(force=False, **kw):
+    try:
+        _state_write(force, **kw)
+    except Exception as e:
+        log("couldn't write the state file: %s" % e)
+
+
+def _state_write(force, **kw):
     now = time.monotonic()
     if not force and now - _last_write[0] < 0.5:  # a few times a second at most
         return
@@ -68,6 +77,7 @@ class Apt:
     """apt's cache, its solver's state (the depcache), and what's needed to fetch from it."""
 
     def __init__(self):
+        self.status_stamp = dpkg_status_stamp()
         self.cache = apt_pkg.Cache(None)
         self.dep = apt_pkg.DepCache(self.cache)
         self.records = apt_pkg.PackageRecords(self.cache)
@@ -94,6 +104,15 @@ class Apt:
         self.dep.init()
 
 
+# dpkg's database as it was when the cache was opened: if another apt (the Shop) changes it while an update downloads, the plan is made again before installing
+def dpkg_status_stamp():
+    try:
+        st = os.stat(apt_pkg.config.find_file("Dir::State::status"))
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
 def only_apps(names):
     return all(n.startswith("ofapp-") for n in names)
 
@@ -113,9 +132,13 @@ def mark(a):
     with apt_pkg.ActionGroup(d):
         d.upgrade(True)
     gone = a.deletions()
-    if only_apps(gone):
+    # (apt's solver can leave it broken, which apt-get would refuse and dpkg can't install: then one at a time, as for removals)
+    if only_apps(gone) and not d.broken_count:
         return gone, {}
-    log("all at once would remove %s: one at a time" % " ".join(gone))
+    if d.broken_count:
+        log("all at once leaves %d broken: one at a time" % d.broken_count)
+    elif gone:
+        log("all at once would remove %s: one at a time" % " ".join(gone))
     upgradable = sorted(p.name for p in a.cache.packages
                         if p.current_ver and p.selected_state != apt_pkg.SELSTATE_HOLD and d.get_candidate_ver(p) and d.get_candidate_ver(p) != p.current_ver)
 
@@ -205,8 +228,9 @@ class Listing(apt.progress.base.AcquireProgress):
             state_write(percent=10 + int(((self.current_bytes or 0) + (self.current_items or 0)) * 40 / total))
         return True
 
+    # (STAT_IDLE: apt has put it back in the queue, to try again or from another mirror, as its own text progress takes it)
     def fail(self, item):
-        if item.owner.status != item.owner.STAT_DONE:
+        if item.owner.status not in (item.owner.STAT_DONE, item.owner.STAT_IDLE):
             self.failed.append((item.uri, item.owner.error_text))
 
 
@@ -262,6 +286,11 @@ class Fetching(apt.progress.base.AcquireProgress):
 
 
 class Installing(apt.progress.base.InstallProgress):
+    # python-apt's run() gives only WEXITSTATUS, which is 0, "completed", for a child killed by a signal (the OOM killer, say): the full status is kept here, to tell
+    def wait_child(self):
+        self.status = super().wait_child()
+        return self.status
+
     def status_change(self, pkg, percent, status):
         if pkg == "dpkg-exec":  # (apt itself, starting dpkg: not a package)
             state_write(state="installing", percent=int(percent))
@@ -292,19 +321,35 @@ def fetch(a, progress):
     return all(item.status == item.STAT_DONE for item in acq.items)
 
 
-# Installs what's marked, from the archives fetched; True if dpkg finished. (As python-apt's Cache.commit, with apt's lock held, which waits up to DPkg::Lock::Timeout for another apt.)
+# Installs what's marked, from the archives fetched; True if dpkg finished, and left nothing unfinished; None, installing nothing, if dpkg's database changed since the plan was made (another apt, the Shop), so it's to be made again. (As python-apt's Cache.commit, with apt's lock held, which waits up to DPkg::Lock::Timeout for another apt.)
 def install(a):
     with apt_pkg.SystemLock():
+        if dpkg_status_stamp() != a.status_stamp:
+            log("dpkg's database changed while downloading: planning again")
+            return None
         pm = apt_pkg.PackageManager(a.dep)
         acq = apt_pkg.Acquire(apt.progress.base.AcquireProgress())  # (all here already: says nothing)
         if not archives_lock(acq) or not pm.get_archives(acq, a.sources, a.records) or acq.run() != acq.RESULT_CONTINUE:
             return False
         # dpkg takes the database's own lock itself, so apt lets go of it while dpkg runs, keeping its frontend lock (as apt-get and python-apt's install_archives do)
         apt_pkg.pkgsystem_unlock_inner()
+        prog = Installing()
         try:
-            return Installing().run(pm) == pm.RESULT_COMPLETED
+            r = prog.run(pm)
         finally:
             apt_pkg.pkgsystem_lock_inner()
+        st = getattr(prog, "status", 0)
+        if not os.WIFEXITED(st):
+            log("dpkg's run was stopped by signal %d" % (os.WTERMSIG(st) if os.WIFSIGNALED(st) else -1))
+            return False
+        if r != pm.RESULT_COMPLETED:
+            return False
+        # and dpkg left nothing half done (unpacked, not configured)
+        audit = subprocess.run(["dpkg", "--audit"], capture_output=True, text=True).stdout.strip()
+        if audit:
+            log("dpkg left work unfinished: %s" % audit.splitlines()[0])
+            return False
+        return True
 
 
 def upgrade(a, gone):
@@ -316,7 +361,10 @@ def upgrade(a, gone):
         log("the downloads failed")
         return 1
     state_write(force=True, state="installing", percent=0)
-    if not install(a):
+    done = install(a)
+    if done is None:
+        return None
+    if not done:
         log("installing failed")
         return 2
     state_write(force=True, state="installing", percent=100, now="")
@@ -333,16 +381,26 @@ def main():
     apt_pkg.config.set("DPkg::Lock::Timeout", "300")
     if sys.argv[1] == "lists":
         return lists()
-    a = Apt()
-    gone, held = mark(a)
-    write_list(a, held)
-    if sys.argv[1] == "plan":
-        return 0
     try:
-        os.unlink(APPS_REMOVED)
-    except OSError:
-        pass
-    r = upgrade(a, gone)
+        for _ in range(3):  # (planned again if another apt changed things while it downloaded)
+            a = Apt()
+            gone, held = mark(a)
+            write_list(a, held)
+            if sys.argv[1] == "plan":
+                return 0
+            try:
+                os.unlink(APPS_REMOVED)
+            except OSError:
+                pass
+            r = upgrade(a, gone)
+            if r is not None:
+                break
+        else:
+            log("dpkg's database kept changing: not now")
+            return 3
+    except Exception as e:  # apt busy past its wait (SystemLock), a cache that won't open...
+        log("%s: %s" % (type(e).__name__, e))
+        return 3
     if r == 0 and gone:
         with open(APPS_REMOVED, "w") as f:
             f.write(" ".join(gone) + "\n")

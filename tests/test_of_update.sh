@@ -72,6 +72,7 @@ L=/var/lib/of-update/pending.list H=/var/lib/of-update/held.list
 mkdir -p /var/lib/of-update
 # lists: as apt-get update --error-on=any said it (UPDATE_FAIL: unreachable; NO_TESTING: a testing suite not there yet), its percent in the state file
 if [ "$1" = lists ]; then
+	[ -e /tmp/LISTS_CRASH ] && { printf 'Traceback (most recent call last):\n  File "of-update-apt", line 1\nMemoryError\n'; exit 1; }
 	[ -e /tmp/UPDATE_FAIL ] && { echo "E: Failed to fetch http://deb.debian.org/dists/trixie/InRelease"
 		echo "E: Some index files failed to download. They have been ignored, or old ones used instead."; exit 100; }
 	[ -e /tmp/NO_TESTING ] && { echo "E: Failed to fetch https://kernel.openbeak.net/dists/trixie-testing/InRelease  404  Not Found"
@@ -140,7 +141,7 @@ EOF
 chmod 755 /stub/*
 export PATH="/stub:$PATH" OF_UPDATE_APT=/stub/of-update-apt
 STATUS=/var/lib/of-update/status
-reset() { rm -f /tmp/calls /tmp/PENDING /tmp/UU_FAIL /tmp/INSTALL_FAIL /tmp/UPDATE_FAIL /tmp/UU_HOLD /tmp/WITH_BASH /tmp/INSTALLED /tmp/STATUS /tmp/TIERS /run/reboot-required /run/reboot-required.pkgs; touch /tmp/calls
+reset() { rm -f /tmp/calls /tmp/PENDING /tmp/UU_FAIL /tmp/INSTALL_FAIL /tmp/UPDATE_FAIL /tmp/LISTS_CRASH /tmp/UU_HOLD /tmp/WITH_BASH /tmp/INSTALLED /tmp/STATUS /tmp/TIERS /run/reboot-required /run/reboot-required.pkgs; touch /tmp/calls
 	# (the last look long ago: "now" looks again)
 	[ -f "$STATUS" ] && sed -i "s/^checked=.*/checked=1/" "$STATUS"; }
 field() { "$U" status | sed -n "s/^$1=//p"; }
@@ -186,6 +187,13 @@ sed -i 's/sleep 60/sleep 0/' "$U" # (no waiting between tries here)
 [ "$(field result)" = failed ] && [ "$(field message)" = "the update servers couldn't be reached" ] && [ "$(field last)" = "$LAST" ] &&
 	ok "and say so, keeping the last good run" || bad "and say so, keeping the last good run" "$("$U" status)"
 [ "$(grep -c "^of-update-apt lists" /tmp/calls)" = 3 ] && ok "after three tries" || bad "after three tries" "$(cat /tmp/calls)"
+# a crash fetching the lists (no E: lines, not exit 100) is a failure, not "only a testing suite missing"
+reset
+LAST=$(field last)
+touch /tmp/LISTS_CRASH
+"$U" run now >/dev/null 2>&1 && bad "a crash fetching the lists fails" || ok "a crash fetching the lists fails"
+[ "$(field result)" = failed ] && [ "$(field last)" = "$LAST" ] && ! grep -q "^of-update-apt upgrade" /tmp/calls &&
+	ok "and isn't taken for an update" || bad "and isn't taken for an update" "$("$U" status; cat /tmp/calls)"
 reset
 echo 2 > /tmp/PENDING
 touch /tmp/UU_FAIL

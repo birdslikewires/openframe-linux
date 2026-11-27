@@ -231,8 +231,11 @@ read_light() {
 
 ## Automatic brightness, one reading ($1: 'debug'), with the settings conf last read.
 ## Keeps its smoothing in A_r1, A_r2 and A_ema between readings, whether the room is dark
-## (A_dark), and until when a glance holds the screen on in the dark (A_glance, epoch seconds).
+## (A_dark), and until when a glance holds the screen on in the dark (A_glance, seconds since the start).
 A_r1="" A_r2="" A_ema="" A_force=0 A_dark=0 A_glance=0
+
+## The time in now, as whole seconds since the start (/proc/uptime): the clock is wrong until NTP sets it (no clock battery), and it jumps when it does, which would end a glance or a shown level at once, or hold it for hours.
+uptime_now() { read -r now _ < /proc/uptime; now=${now%%.*}; }
 auto_step() {
 
 	local med hour night want applied hysup hysdown delta now
@@ -274,7 +277,7 @@ auto_step() {
 	# on the dark screen) has it on at the lowest meanwhile, without the room counting as lit.
 	(( A_dark = C_off_below > 0 && (A_ema < C_off_below * 16 ||
 	      ((A_dark || applied == 0) && A_ema < (C_off_below + 2) * 16)) ))
-	printf -v now '%(%s)T' -1
+	uptime_now
 	if (( A_dark && now < A_glance )); then
 		(( want = C_min > 1 ? C_min : 1 ))
 	elif (( A_dark )); then
@@ -375,7 +378,7 @@ daemon() {
 		# A level being shown (a slider held): nothing else until it's over, or it's let go
 		# of (resume), or 15 s pass with no more of it (Sprite gone mid-drag, say).
 		if (( shown )); then
-			printf -v now '%(%s)T' -1
+			uptime_now
 			if (( now >= shown )); then
 				shown=0 since_conf=0 A_force=1
 				echo "Showing a level: over, without a resume."
@@ -457,7 +460,7 @@ daemon() {
 				# Only for the dark: asleep, at a fixed level or in a lit room it's nothing.
 				# Held for 15 s from the last one; the first lights it at once.
 				if (( !asleep )) && [ "$mode" = auto ] && (( A_dark )); then
-					printf -v now '%(%s)T' -1
+					uptime_now
 					(( A_glance )) || { echo "Glance: on in the dark, at the lowest."; A_force=1; }
 					(( A_glance = now + 15 ))
 				fi
@@ -469,6 +472,10 @@ daemon() {
 					# brightness only changes with a light reading, and without one the screen
 					# would stay off. With one, it carries on from there.
 					[ "$mode" = auto ] && (( before > 0 )) && setbl "$before"
+					# Readings taken before it slept (perhaps hours ago, in the dark) don't count: the first one now stands alone. And if the room is dark now, the touch that woke it lights it as a glance would, rather than leaving it off for the next touch to do that.
+					A_r1="" A_r2="" A_ema=""
+					uptime_now
+					[ "$mode" = auto ] && (( A_glance = now + 15 ))
 				fi
 				asleep=0 A_force=1
 				rm -f "$ASLEEP" "$ASLEEP_RUN"
@@ -480,7 +487,7 @@ daemon() {
 				(( v = 10#${BASH_REMATCH[1]} ))
 				(( v < 1 )) && v=1
 				(( shown )) || echo "Showing a level: $v%."
-				printf -v now '%(%s)T' -1
+				uptime_now
 				(( shown = now + 15 ))
 				level_for "$v"
 				read -r pw 2>/dev/null < "$BLPOWER"

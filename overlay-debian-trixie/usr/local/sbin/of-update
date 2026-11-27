@@ -163,12 +163,15 @@ lists() {
 		# of-update-apt lists fails if any list wasn't fetched, as apt-get update --error-on=any
 		# does: otherwise, offline, with the lists empty after a start (tmpfs), the run found
 		# nothing waiting and called it a good update, putting the catch-up off for a day
-		out=$("$APTHELPER" lists 2>&1) && return 0
+		local rc=0
+		out=$("$APTHELPER" lists 2>&1) || rc=$?
+		(( rc == 0 )) && return 0
 		# A test unit whose testing suites aren't all there yet (a repository makes its own at
 		# its first publish to testing) still takes everything else: every error about a
 		# testing suite (apt's line after any failure names none). Likewise the apps repository:
 		# a fault there holds back the apps, never the system's own updates.
-		if [ -n "$out" ] && ! grep '^E:' <<< "$out" | grep -v 'Some index files failed to download' | grep -v -e '-testing' -e 'apps\.openbeak\.net' | grep -q .; then
+		# (only its own report of lists not fetched, exit 100 with E: lines: anything else, a crash, is a failure)
+		if (( rc == 100 )) && grep -q '^E:' <<< "$out" && ! grep '^E:' <<< "$out" | grep -v 'Some index files failed to download' | grep -v -e '-testing' -e 'apps\.openbeak\.net' | grep -q .; then
 			log "a testing suite or the apps repository not there: $(grep '^E:' <<< "$out" | head -1)"
 			return 0
 		fi
@@ -192,7 +195,7 @@ half_done() {
 mend() {
 	if [ -n "$(dpkg --audit 2>/dev/null)" ]; then
 		log "an earlier update didn't finish: finishing it"
-		dpkg --configure -a >/dev/null 2>&1
+		dpkg --force-confdef --force-confold --configure -a < /dev/null >/dev/null 2>&1
 	fi
 	apt-get check -qq -o Debug::NoLocking=1 >/dev/null 2>&1 && return 0
 	local SIM GONE
@@ -259,6 +262,31 @@ sources_changed() {
 
 # At the owner's quiet time, after the night's run (however it went), the restart an update
 # needs: this night's, or one installed by hand during the day.
+# The apps installed, a line each, package and version (for services_after)
+app_versions() { dpkg-query -W -f '${db:Status-Abbrev} ${Package} ${Version}\n' 'ofapp-*' 2>/dev/null | awk '$1 ~ /^.i/ { print $2, $3 }' | sort; }
+
+# Background services (the interface's kind=service apps, running as sprite-service-<id>) whose package an update changed: one switched on starts again from the new version (its files were replaced under it), through the interface's helper, which starts it as the manifest now says; one whose package went is stopped (it would otherwise be started again and again from files no longer there).
+services_after() {
+	local before=$1 after pkg id unit helper=/opt/sprite/libexec/sprite-helper
+	after=$(app_versions)
+	[ "$before" = "$after" ] && return 0
+	while read -r pkg _; do
+		[ -n "$pkg" ] || continue
+		id=${pkg#ofapp-} unit=sprite-service-${pkg#ofapp-}.service
+		[[ "$id" =~ ^[a-z0-9][a-z0-9-]*$ ]] || continue
+		# (running, or between tries: Restart=on-failure)
+		case "$(systemctl show -P ActiveState "$unit" 2>/dev/null)" in active|activating|reloading) ;; *) continue ;; esac
+		if grep -q "^$pkg " <<< "$after"; then
+			log "$id, a service, updated: starting it again"
+			systemctl stop "$unit" 2>/dev/null
+			[ -x "$helper" ] && echo "service-set $id on" | "$helper" >/dev/null 2>&1
+		else
+			log "$id, a service, removed: stopping it"
+			systemctl stop "$unit" 2>/dev/null
+		fi
+	done < <(comm -23 <(echo "$before") <(echo "$after"))
+}
+
 night_restart() {
 	[ -e /run/reboot-required ] || return 0
 	log "restarting to finish updating ($(tr '\n' ' ' < /run/reboot-required.pkgs 2>/dev/null))"
@@ -285,7 +313,7 @@ run)
 		LAST=$(get last)
 		if half_done; then
 			log "an earlier update was left half done: putting it right"
-		elif [ -n "$LAST" ] && (( $(date +%s) - LAST < CATCHUP_AFTER )); then
+		elif [ -n "$LAST" ] && (( $(date +%s) - LAST >= 0 && $(date +%s) - LAST < CATCHUP_AFTER )); then
 			exit 0
 		else
 			log "the last update was $( [ -n "$LAST" ] && echo "$(( ($(date +%s) - LAST) / 3600 )) hours ago" || echo never): catching up"
@@ -302,7 +330,7 @@ run)
 	KIND=update
 	CHECKED=$(get checked)
 	UP=$(cut -d. -f1 /proc/uptime)
-	if [ "$REASON" = now ] && [ -n "$CHECKED" ] && (( $(date +%s) - CHECKED < FRESH && $(date +%s) - CHECKED < UP )) &&
+	if [ "$REASON" = now ] && [ -n "$CHECKED" ] && (( $(date +%s) - CHECKED >= 0 && $(date +%s) - CHECKED < FRESH && $(date +%s) - CHECKED < UP )) &&
 	   ! sources_changed "$CHECKED"; then
 		# looked at just now (Check now): not again, straight to what's to install
 		set_state preparing
@@ -314,8 +342,10 @@ run)
 	MEND_WHY=""
 	mend || fail "an earlier update was left half done, and can't be put right by itself${MEND_WHY:+ ($MEND_WHY)}"
 	# Worked out, downloaded and installed in one go (of-update-apt upgrade writes the list as it plans, then sets the state to downloading and installing); then the notes for whatever's still waiting
+	APPS_BEFORE=$(app_versions)
 	"$APTHELPER" upgrade
 	OK=$?
+	services_after "$APPS_BEFORE"
 	GONE=$(cat "$VARDIR/apps-removed" 2>/dev/null)
 	apt-get clean
 	prune_list
