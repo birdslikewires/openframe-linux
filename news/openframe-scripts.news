@@ -1,3 +1,4 @@
+26.11.181	Music on a USB drive or a network share can now be played by services that run on the OpenFrame, such as a music server.
 26.11.178	Updates are quicker to check for and install.
 26.11.177	The screen no longer flashes white when it turns back on, or between the two birds as the OpenFrame starts.
 26.11.176	A touch now always turns the screen back on, where it could sometimes stay dark.

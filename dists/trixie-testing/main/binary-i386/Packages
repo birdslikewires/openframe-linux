@@ -1,3 +1,18 @@
+Package: openframe-scripts
+Version: 26.11.181
+Architecture: all
+Maintainer: OpenFrame <andy@dvsn.net>
+Depends: bash, dosfstools, e2fsprogs, yq, python3-apt, unattended-upgrades, openframe-resampler, cifs-utils
+Filename: pool/trixie-testing/openframe-scripts_26.11.181_all.deb
+Size: 326766
+MD5sum: b8c098f08ae8ad9b95c1ca6ad1eff7dd
+SHA1: 45a081bb95468347ad093d1a2a508cd13b4b2072
+SHA256: d35be5031feb1af6d59ad7257dc414534f5919938bf1a340694e31d0766030cf
+Section: admin
+Priority: optional
+Description: OpenFrame management scripts
+ Scripts for managing OpenFrame devices.
+
 Package: openframe-sprite
 Version: 26.11.144
 Architecture: i386
