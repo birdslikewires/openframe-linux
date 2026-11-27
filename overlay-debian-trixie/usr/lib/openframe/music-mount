@@ -121,7 +121,7 @@ shares_read() {
 }
 
 # Where a share's mounted, if it is
-share_mounted_at() { local T S="$1"; [[ "$S" =~ ^//([^/:]+):[0-9]+(/.*)$ ]] && S="//${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; T=$(findmnt -rn -t cifs -S "$S" -o TARGET 2>/dev/null | head -1); [ -n "$T" ] && unescape "$T"; }
+share_mounted_at() { local T; T=$(findmnt -rn -t cifs -S "$(no_port "$1")" -o TARGET 2>/dev/null | head -1); [ -n "$T" ] && unescape "$T"; }
 
 # mount.cifs's complaint as a reason the screen can put in words: password (the user name or
 # password), missing (no such share), unreachable (the server didn't answer) or other
@@ -140,9 +140,7 @@ shares_apply() {
 	mkdir -p "$CREDS" && chmod 700 "$CREDS"
 	: > "$ERRS.new"
 	for i in "${!SH_SHARE[@]}"; do
-		S="${SH_SHARE[i]}"
-		[[ "$S" =~ ^//([^/:]+):[0-9]+(/.*)$ ]] && S="//${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
-		WANT+=("$S")
+		WANT+=("$(no_port "${SH_SHARE[i]}")")
 		[ -n "$(share_mounted_at "${SH_SHARE[i]}")" ] && continue
 		mkdir -p "$MUSIC"
 		DIR=$(free_folder "$(folder_name "${SH_SHARE[i]##*/}" "Share")")
@@ -175,17 +173,26 @@ shares_apply() {
 	done < <(findmnt -rn -t cifs -o TARGET,SOURCE)
 }
 
+# A share's address as mounted: without a port, which mount.cifs takes as port=
+no_port() { if [[ "$1" =~ ^//([^/:]+):[0-9]+(/.*)$ ]]; then printf '%s' "//${BASH_REMATCH[1]}${BASH_REMATCH[2]}"; else printf '%s' "$1"; fi; }
+
 status() {
 	local T S F K U Z i
+	shares_read
 	while read -r T S F; do
 		T=$(unescape "$T") S=$(unescape "$S")
 		[[ "$T" == "$MUSIC/"* ]] || continue
 		K=usb
-		[ "$F" = cifs ] && K=share || S="$F"
+		if [ "$F" = cifs ]; then
+			K=share
+			# by the address shares.txt gives it (with its port, if it has one), which is how it's removed
+			for i in "${!SH_SHARE[@]}"; do [ "$(no_port "${SH_SHARE[i]}")" = "$S" ] && S="${SH_SHARE[i]}" && break; done
+		else
+			S="$F"
+		fi
 		read -r U Z < <(df -Pm "$T" 2>/dev/null | awk 'NR == 2 { print $3, $2 }')
 		printf '%s\t%s\t%s\t%s\t%s\n' "$K" "${T#"$MUSIC/"}" "$S" "${U:-0}" "${Z:-0}"
 	done < <(findmnt -rn -o TARGET,SOURCE,FSTYPE)
-	shares_read
 	for i in "${!SH_SHARE[@]}"; do
 		[ -n "$(share_mounted_at "${SH_SHARE[i]}")" ] && continue
 		printf 'share\t%s\t%s\t%s\n' "$(folder_name "${SH_SHARE[i]##*/}" Share)" "${SH_SHARE[i]}" "$(awk -F'\t' -v s="${SH_SHARE[i]}" '$1 == s { print $2 }' "$ERRS" 2>/dev/null)"
