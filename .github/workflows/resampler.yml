@@ -108,6 +108,9 @@ jobs:
       - name: Update the apt repository
         run: |
           bash ci/apt-suite.sh add trixie-testing out/openframe-resampler_*.deb
+          # What's new, for of-update and the testing issue: the owners' notes for every version (commits' News: trailers), beside the pool
+          mkdir -p apt-repo/news
+          bash resampler/version.sh --news > apt-repo/news/openframe-resampler.news
           gpg --export ${PUBLISH_KEY:-} > apt-repo/key.gpg
 
       - name: Generate directory listing
