@@ -5,7 +5,7 @@ run-name: release (ok) or keep back (no) what's waiting in testing
 # Crystal HD) to every OpenFrame: "ok" as the reply to the open testing issue
 # (ci/testing-issue.sh keeps it), by Andy (vars.TESTING_ASSIGNEE, or andydvsn), moves every package in
 # trixie-testing to trixie, where units take it overnight. "no" closes the issue and keeps
-# them in testing; the next publish opens it again. Replies from anyone else, anything but ok or no, or on any other
+# them in testing; the next publish opens a new one. Replies from anyone else, anything but ok or no, or on any other
 # issue, do nothing. It can also be run by hand, which promotes.
 
 on:
@@ -134,7 +134,8 @@ jobs:
           ASSIGNEE: ${{ vars.TESTING_ASSIGNEE || 'andydvsn' }}   # who's told (an organisation can't be)
         run: |
           list=$(sed -n 's/^promoted //p' promoted.txt | tr '\n' ',' | sed 's/,$//; s/,/, /g')
-          bash ci/testing-issue.sh "Promoted to every OpenFrame: ${list:-nothing}."
+          # (the issue answered is closed: anything else waiting has an issue of its own, or gets one)
+          bash ci/testing-issue.sh --answered "${{ github.event.issue.number }}" "Promoted to every OpenFrame: ${list:-nothing}."
 
       - name: Reject
         if: env.ACTION == 'reject'
@@ -142,4 +143,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh issue close "${{ github.event.issue.number }}" -R "${GITHUB_REPOSITORY}" \
-            --comment "Kept in testing: other OpenFrames won't get these. The next publish opens this again."
+            --comment "Kept in testing: other OpenFrames won't get these. A new issue lists them at the next publish."
